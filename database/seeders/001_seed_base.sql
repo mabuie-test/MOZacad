@@ -1,0 +1,57 @@
+INSERT INTO roles (name, description, created_at, updated_at) VALUES
+('user','Utilizador padrão',NOW(),NOW()),
+('admin','Administrador operacional',NOW(),NOW()),
+('human_reviewer','Revisor humano',NOW(),NOW()),
+('superadmin','Administrador global',NOW(),NOW());
+
+INSERT INTO institutions (name, short_name, city, country, is_active, created_at, updated_at) VALUES
+('Universidade Eduardo Mondlane','UEM','Maputo','Moçambique',1,NOW(),NOW()),
+('Universidade Pedagógica de Maputo','UP Maputo','Maputo','Moçambique',1,NOW(),NOW()),
+('Instituto Superior de Ciências e Tecnologia de Moçambique','ISCTEM','Maputo','Moçambique',1,NOW(),NOW());
+
+INSERT INTO academic_levels (name, slug, multiplier, description, is_active) VALUES
+('Técnico','tecnico',1.0,'Nível técnico',1),
+('Licenciatura','licenciatura',1.2,'Graduação',1),
+('Pós-graduação','pos-graduacao',1.35,'Especialização',1),
+('Mestrado','mestrado',1.6,'Mestrado',1),
+('Doutoramento','doutoramento',2.0,'Doutoramento',1);
+
+INSERT INTO work_types (name, slug, description, is_active, base_price, default_complexity, allows_full_auto_generation, requires_human_review, is_premium_type, display_order) VALUES
+('Trabalho de pesquisa','trabalho-pesquisa','Pesquisa académica',1,800,'medium',1,0,0,1),
+('Projecto de pesquisa','projecto-pesquisa','Projecto estruturado',1,1500,'medium',1,0,0,2),
+('Relatório de estágio','relatorio-estagio','Relatório profissional',1,2000,'high',1,0,1,3),
+('Relatório de práticas','relatorio-praticas','Práticas laboratoriais',1,1800,'medium',1,0,0,4),
+('Artigo científico','artigo-cientifico','Artigo académico',1,1200,'high',1,0,1,5),
+('Resenha crítica','resenha-critica','Análise crítica',1,700,'medium',1,0,0,6),
+('Ensaio académico','ensaio-academico','Ensaio formal',1,900,'medium',1,0,0,7),
+('Trabalho de campo','trabalho-campo','Pesquisa de campo',1,1800,'high',1,0,1,8),
+('Revisão de literatura','revisao-literatura','Estado da arte',1,1400,'high',1,0,1,9),
+('Estudo de caso','estudo-caso','Caso aplicado',1,1600,'high',1,0,1,10),
+('Proposta de TCC','proposta-tcc','Proposta inicial',1,1700,'high',1,0,1,11),
+('Monografia','monografia','Trabalho final de curso',1,4500,'very_high',0,1,1,12);
+
+INSERT INTO language_profiles (name, locale, vocabulary_rules_json, syntax_rules_json, anti_ai_patterns_json, academic_tone_level, is_active) VALUES
+('academic_formal','pt_MZ','{}','{}','{}','high',1),
+('academic_humanized','pt_MZ','{}','{}','{}','high',1),
+('critical_reflective','pt_MZ','{}','{}','{}','high',1),
+('technical_methodological','pt_MZ','{}','{}','{}','high',1);
+
+INSERT INTO citation_profiles (name, code, rules_json, is_active) VALUES
+('APA 7','APA','{}',1),
+('ABNT','ABNT','{}',1);
+
+INSERT INTO pricing_extras (extra_code, name, amount, is_active, created_at, updated_at) VALUES
+('needs_institution_cover','Capa personalizada',200,1,NOW(),NOW()),
+('needs_bilingual_abstract','Abstract bilingue',300,1,NOW(),NOW()),
+('premium_references','Referências premium',250,1,NOW(),NOW()),
+('needs_methodology_review','Revisão metodológica',500,1,NOW(),NOW()),
+('needs_humanized_revision','Revisão humanizada',400,1,NOW(),NOW()),
+('needs_slides','Apresentação de slides',800,1,NOW(),NOW()),
+('needs_defense_summary','Resumo de defesa',450,1,NOW(),NOW());
+
+INSERT INTO users (name, email, phone, password_hash, is_active, created_at, updated_at) VALUES
+('VIP Student','vip@mozacad.test','841111111','$2y$10$examplehash',1,NOW(),NOW()),
+('Super Admin','superadmin@mozacad.test','851111111','$2y$10$examplehash',1,NOW(),NOW());
+
+INSERT INTO user_discounts (user_id, name, discount_type, discount_value, usage_limit, used_count, starts_at, ends_at, is_active, created_by_admin_id, notes, created_at, updated_at) VALUES
+(1,'VIP 10%','percent',10,100,0,NOW(),DATE_ADD(NOW(), INTERVAL 30 DAY),1,2,'Benefício promocional VIP',NOW(),NOW());
