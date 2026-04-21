@@ -71,9 +71,9 @@ final class OrderController extends BaseController
             'subtitle' => trim((string) ($_POST['subtitle'] ?? '')) ?: null,
             'problem_statement' => trim((string) ($_POST['problem_statement'] ?? '')) ?: null,
             'general_objective' => trim((string) ($_POST['general_objective'] ?? '')) ?: null,
-            'specific_objectives_json' => json_encode($_POST['specific_objectives'] ?? [], JSON_UNESCAPED_UNICODE),
+            'specific_objectives_json' => json_encode($this->normalizeListInput($_POST['specific_objectives'] ?? []), JSON_UNESCAPED_UNICODE),
             'hypothesis' => trim((string) ($_POST['hypothesis'] ?? '')) ?: null,
-            'keywords_json' => json_encode($_POST['keywords'] ?? [], JSON_UNESCAPED_UNICODE),
+            'keywords_json' => json_encode($this->normalizeListInput($_POST['keywords'] ?? []), JSON_UNESCAPED_UNICODE),
             'target_pages' => (int) ($_POST['target_pages'] ?? 0),
             'complexity_level' => (string) ($_POST['complexity_level'] ?? 'medium'),
             'deadline_date' => (string) ($_POST['deadline_date'] ?? date('Y-m-d H:i:s', strtotime('+7 days'))),
@@ -92,6 +92,11 @@ final class OrderController extends BaseController
             || $data['title_or_theme'] === ''
         ) {
             $this->json(['message' => 'Campos obrigatórios inválidos para criação do pedido.'], 422);
+            return;
+        }
+
+        if (strtotime($data['deadline_date']) === false) {
+            $this->json(['message' => 'deadline_date inválida. Use formato de data válido.'], 422);
             return;
         }
 
@@ -317,5 +322,29 @@ final class OrderController extends BaseController
             $hours <= 120 => 1.2,
             default => 1.0,
         };
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function normalizeListInput(mixed $input): array
+    {
+        if (is_string($input)) {
+            $parts = preg_split('/[\r\n,;]+/', $input) ?: [];
+        } elseif (is_array($input)) {
+            $parts = $input;
+        } else {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($parts as $value) {
+            $item = trim((string) $value);
+            if ($item !== '') {
+                $normalized[] = $item;
+            }
+        }
+
+        return array_values(array_unique($normalized));
     }
 }
