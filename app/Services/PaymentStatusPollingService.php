@@ -26,30 +26,37 @@ final class PaymentStatusPollingService
     public function run(): void
     {
         foreach ($this->payments->findPendingForPolling() as $payment) {
-            $externalReference = (string) ($payment['external_reference'] ?? '');
-            if ($externalReference === '') {
-                continue;
+            try {
+                $externalReference = (string) ($payment['external_reference'] ?? '');
+                if ($externalReference === '') {
+                    continue;
+                }
+
+                $statusPayload = $this->provider->checkStatus($externalReference);
+                $providerStatus = (string) ($statusPayload['provider_status'] ?? 'PENDING');
+                $internal = $this->mapper->map($providerStatus);
+
+                $this->payments->updateStatus((int) $payment['id'], $internal, $providerStatus, $statusPayload['provider_message'] ?? null);
+                $this->debitoTransactions->updateStatusByReference($externalReference, $internal, $statusPayload['raw'] ?? []);
+                $this->paymentStatusLogs->create((int) $payment['id'], $internal, $providerStatus, $statusPayload['raw'] ?? [], 'polling');
+
+                if ($internal === 'paid') {
+                    $this->payments->markPaid((int) $payment['id'], $providerStatus);
+                    $this->invoices->markPaidById((int) $payment['invoice_id']);
+                    $this->orders->updateStatus((int) $payment['order_id'], 'queued');
+                }
+
+                $this->logger->info('Polling status check', [
+                    'payment_id' => $payment['id'],
+                    'provider_status' => $providerStatus,
+                    'internal_status' => $internal,
+                ]);
+            } catch (\Throwable $e) {
+                $this->logger->error('Polling falhou para pagamento', [
+                    'payment_id' => $payment['id'] ?? null,
+                    'error' => $e->getMessage(),
+                ]);
             }
-
-            $statusPayload = $this->provider->checkStatus($externalReference);
-            $providerStatus = (string) ($statusPayload['provider_status'] ?? 'PENDING');
-            $internal = $this->mapper->map($providerStatus);
-
-            $this->payments->updateStatus((int) $payment['id'], $internal, $providerStatus, $statusPayload['provider_message'] ?? null);
-            $this->debitoTransactions->updateStatusByReference($externalReference, $internal, $statusPayload['raw'] ?? []);
-            $this->paymentStatusLogs->create((int) $payment['id'], $internal, $providerStatus, $statusPayload['raw'] ?? [], 'polling');
-
-            if ($internal === 'paid') {
-                $this->payments->markPaid((int) $payment['id'], $providerStatus);
-                $this->invoices->markPaidById((int) $payment['invoice_id']);
-                $this->orders->updateStatus((int) $payment['order_id'], 'queued');
-            }
-
-            $this->logger->info('Polling status check', [
-                'payment_id' => $payment['id'],
-                'provider_status' => $providerStatus,
-                'internal_status' => $internal,
-            ]);
         }
     }
 }

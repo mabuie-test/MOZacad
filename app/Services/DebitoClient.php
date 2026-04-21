@@ -18,7 +18,7 @@ final class DebitoClient
         private readonly DebitoLoggerService $logger = new DebitoLoggerService(),
     ) {
         $this->http = new Client([
-            'base_uri' => Env::get('DEBITO_BASE_URL', 'http://localhost:9000'),
+            'base_uri' => rtrim((string) Env::get('DEBITO_BASE_URL', 'http://localhost:9000'), '/') . '/',
             'timeout' => (int) Env::get('DEBITO_TIMEOUT', 30),
         ]);
     }
@@ -46,17 +46,24 @@ final class DebitoClient
             $options['json'] = $payload;
         }
 
+        $this->logger->info('Débito request', ['method' => $method, 'uri' => $uri, 'payload' => $payload]);
+
         try {
-            $response = $this->http->request($method, $uri, $options);
+            $response = $this->http->request($method, ltrim($uri, '/'), $options + ['http_errors' => false]);
         } catch (GuzzleException $e) {
             $this->logger->error('Erro na comunicação com Débito', ['uri' => $uri, 'method' => $method, 'exception' => $e->getMessage()]);
             throw new RuntimeException('Falha ao comunicar com gateway Débito: ' . $e->getMessage(), 0, $e);
+        }
+
+        if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            throw new RuntimeException(sprintf('Débito retornou HTTP %d para %s %s', $response->getStatusCode(), $method, $uri));
         }
 
         $decoded = json_decode((string) $response->getBody(), true);
         if (!is_array($decoded)) {
             throw new RuntimeException('Resposta inválida do gateway Débito.');
         }
+        $this->logger->info('Débito response', ['method' => $method, 'uri' => $uri, 'response' => $decoded]);
 
         return $decoded;
     }

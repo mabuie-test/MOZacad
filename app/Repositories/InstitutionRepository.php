@@ -18,4 +18,11 @@ final class InstitutionRepository extends BaseRepository
 
         return $stmt->fetch() ?: null;
     }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM institutions WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
 }

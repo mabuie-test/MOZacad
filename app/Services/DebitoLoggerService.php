@@ -8,7 +8,28 @@ final class DebitoLoggerService
 {
     public function info(string $message, array $context = []): void
     {
-        $line = sprintf("[%s] %s %s\n", date('c'), $message, json_encode($context, JSON_UNESCAPED_UNICODE));
-        file_put_contents(__DIR__ . '/../../storage/logs/debito.log', $line, FILE_APPEND);
+        $this->write('INFO', $message, $context);
+    }
+
+    public function error(string $message, array $context = []): void
+    {
+        $this->write('ERROR', $message, $context);
+    }
+
+    private function write(string $level, string $message, array $context): void
+    {
+        $path = __DIR__ . '/../../storage/logs/debito.log';
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0775, true);
+        }
+
+        $line = sprintf(
+            "[%s] [%s] %s %s\n",
+            date('c'),
+            $level,
+            $message,
+            json_encode($context, JSON_UNESCAPED_UNICODE)
+        );
+        file_put_contents($path, $line, FILE_APPEND);
     }
 }

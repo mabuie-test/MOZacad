@@ -6,6 +6,14 @@ namespace App\Repositories;
 
 final class WorkTypeRepository extends BaseRepository
 {
+    public function all(int $limit = 100): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM work_types ORDER BY display_order ASC, id DESC LIMIT :limit');
+        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
     public function findById(int $id): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM work_types WHERE id=:id LIMIT 1');

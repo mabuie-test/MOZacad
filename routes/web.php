@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controllers\AdminController;
 use App\Controllers\AuthController;
+use App\Controllers\BillingController;
 use App\Controllers\DashboardController;
 use App\Controllers\HomeController;
 use App\Controllers\OrderController;
@@ -32,10 +33,20 @@ return static function (Router $router): void {
     $router->get('/orders/{id}/pay', [OrderController::class, 'pay']);
     $router->post('/orders/{id}/pay', [OrderController::class, 'pay']);
     $router->post('/orders/{id}/revision-request', [OrderController::class, 'requestRevision']);
+    $router->get('/invoices', [BillingController::class, 'invoices']);
+    $router->get('/downloads', [BillingController::class, 'downloads']);
 
     $router->get('/admin', [AdminController::class, 'index']);
+    $router->get('/admin/users', [AdminController::class, 'users']);
     $router->get('/admin/orders', [AdminController::class, 'orders']);
     $router->get('/admin/payments', [AdminController::class, 'payments']);
+    $router->get('/admin/institutions', [AdminController::class, 'institutions']);
+    $router->get('/admin/courses', [AdminController::class, 'courses']);
+    $router->get('/admin/disciplines', [AdminController::class, 'disciplines']);
+    $router->get('/admin/work-types', [AdminController::class, 'workTypes']);
+    $router->get('/admin/pricing', [AdminController::class, 'pricing']);
     $router->get('/admin/discounts', [AdminController::class, 'discounts']);
-    $router->get('/admin/human-review-queue', [AdminController::class, 'humanReviewQueue']);
+    $router->post('/admin/discounts', [AdminController::class, 'createDiscount']);
+    $router->post('/admin/discounts/{id}', [AdminController::class, 'updateDiscount']);
+    $router->get('/admin/human-review', [AdminController::class, 'humanReviewQueue']);
 };

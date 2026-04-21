@@ -70,6 +70,31 @@ Endpoints internos:
 - `GET /payments/{id}/status`
 - `POST /webhooks/debito`
 
+Rotas web principais:
+- `/`
+- `/login`
+- `/register`
+- `/dashboard`
+- `/orders`
+- `/orders/create`
+- `/orders/{id}`
+- `/orders/{id}/pay`
+- `/invoices`
+- `/downloads`
+
+Rotas admin mínimas:
+- `/admin`
+- `/admin/users`
+- `/admin/orders`
+- `/admin/payments`
+- `/admin/discounts`
+- `/admin/human-review`
+- `/admin/institutions`
+- `/admin/courses`
+- `/admin/disciplines`
+- `/admin/work-types`
+- `/admin/pricing`
+
 ### Token estático
 Se `DEBITO_USE_STATIC_TOKEN=true` e `DEBITO_TOKEN` definido, o sistema usa bearer estático.
 

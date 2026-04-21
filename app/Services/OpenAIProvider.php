@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Helpers\Env;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 
 final class OpenAIProvider implements AIProviderInterface
@@ -25,7 +26,10 @@ final class OpenAIProvider implements AIProviderInterface
 
     public function generate(string $prompt): string
     {
-        return $this->request((string) Env::get('OPENAI_MODEL_CONTENT', Env::get('OPENAI_MODEL', 'gpt-5')), $prompt);
+        return $this->request(
+            (string) Env::get('OPENAI_MODEL_CONTENT', Env::get('OPENAI_MODEL', 'gpt-5')),
+            $prompt
+        );
     }
 
     public function refine(string $text, array $rules = []): string
@@ -58,10 +62,13 @@ final class OpenAIProvider implements AIProviderInterface
                     'Content-Type' => 'application/json',
                 ],
                 'json' => $payload,
+                'http_errors' => false,
             ]);
         } catch (GuzzleException $e) {
             throw new RuntimeException('Falha na comunicação com OpenAI: ' . $e->getMessage(), 0, $e);
         }
+
+        $this->assertSuccessResponse($response);
 
         $decoded = json_decode((string) $response->getBody(), true);
         if (!is_array($decoded)) {
@@ -87,5 +94,18 @@ final class OpenAIProvider implements AIProviderInterface
         }
 
         return implode("\n", $parts);
+    }
+
+    private function assertSuccessResponse(ResponseInterface $response): void
+    {
+        $status = $response->getStatusCode();
+        if ($status < 200 || $status >= 300) {
+            $decoded = json_decode((string) $response->getBody(), true);
+            $error = is_array($decoded)
+                ? (string) ($decoded['error']['message'] ?? $decoded['message'] ?? 'Erro desconhecido da OpenAI.')
+                : 'Erro desconhecido da OpenAI.';
+
+            throw new RuntimeException(sprintf('OpenAI retornou HTTP %d: %s', $status, $error));
+        }
     }
 }
