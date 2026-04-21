@@ -55,6 +55,7 @@ Moz Acad é uma base de produção MVC em PHP 8.2+ para apoio académico assisti
 Use `.env.example` como base. Parâmetros críticos:
 - OpenAI/GPT-5: `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL*`, `OPENAI_TIMEOUT`
 - Débito M-Pesa C2B: `DEBITO_BASE_URL`, `DEBITO_WALLET_ID`, `DEBITO_TOKEN`
+- Fallback opcional de autenticação Débito: `DEBITO_USE_LOGIN_FALLBACK`, `DEBITO_LOGIN_ENDPOINT`, `DEBITO_LOGIN_USERNAME`, `DEBITO_LOGIN_PASSWORD`, `DEBITO_LOGIN_TOKEN_PATH`
 - Webhook opcional: `DEBITO_ENABLE_WEBHOOK`, `DEBITO_CALLBACK_URL`
 - Validação M-Pesa: `MPESA_MSISDN_REGEX`
 - Paths de storage: `STORAGE_GENERATED_PATH`, `STORAGE_TEMPLATES_PATH`, `STORAGE_LOGS_PATH`
@@ -97,6 +98,7 @@ Rotas admin mínimas:
 
 ### Autenticação com token
 A integração usa `DEBITO_TOKEN` (Bearer) como credencial principal para operações C2B M-Pesa.
+Opcionalmente, pode-se activar fallback via `POST /api/v1/login` com `DEBITO_USE_LOGIN_FALLBACK=true`.
 `callback_url` só é enviado ao Débito quando `DEBITO_ENABLE_WEBHOOK=true` e existir URL configurada.
 
 ## Polling como meio principal
