@@ -1,7 +1,23 @@
 <?php
+
 declare(strict_types=1);
+
 namespace App\Repositories;
+
 final class InvoiceRepository extends BaseRepository
 {
-    public function markPaidById(int $id): void { $s=$this->db->prepare("UPDATE invoices SET status='paid', paid_at=NOW(), updated_at=NOW() WHERE id=:id"); $s->execute(['id'=>$id]); }
+    public function create(array $data): int
+    {
+        $stmt = $this->db->prepare('INSERT INTO invoices (user_id, order_id, invoice_number, amount, currency, status, issued_at, created_at, updated_at)
+            VALUES (:user_id,:order_id,:invoice_number,:amount,:currency,:status,NOW(),NOW(),NOW())');
+        $stmt->execute($data);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function markPaidById(int $id): void
+    {
+        $stmt = $this->db->prepare("UPDATE invoices SET status='paid', paid_at=NOW(), updated_at=NOW() WHERE id=:id");
+        $stmt->execute(['id' => $id]);
+    }
 }

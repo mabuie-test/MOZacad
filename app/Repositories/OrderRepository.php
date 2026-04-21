@@ -13,6 +13,7 @@ final class OrderRepository extends BaseRepository
             INNER JOIN institutions i ON i.id = o.institution_id
             WHERE o.user_id = :user_id ORDER BY o.created_at DESC');
         $stmt->execute(['user_id' => $userId]);
+
         return $stmt->fetchAll();
     }
 
@@ -26,6 +27,7 @@ final class OrderRepository extends BaseRepository
                 :complexity_level, :deadline_date, :notes, :status, :final_price, NOW(), NOW())';
 
         $this->db->prepare($sql)->execute($data);
+
         return (int) $this->db->lastInsertId();
     }
 
@@ -42,6 +44,7 @@ final class OrderRepository extends BaseRepository
     {
         $stmt = $this->db->prepare('SELECT * FROM orders WHERE id = :id');
         $stmt->execute(['id' => $id]);
+
         return $stmt->fetch() ?: null;
     }
 

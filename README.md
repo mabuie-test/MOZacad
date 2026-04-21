@@ -89,7 +89,7 @@ Recebe payload, regista logs e permite sincronização extra.
 */2 * * * * php /path/to/project/scripts/process_ai_jobs.php
 ```
 
-## Módulos implementados
+## Módulos implementados (execução real)
 1. Autenticação e autorização (base)
 2. Catálogo académico (instituições, cursos, disciplinas, níveis, tipos)
 3. Pedidos e anexos
@@ -125,6 +125,6 @@ Admin gerencia utilizadores, regras, pricing, descontos, pedidos, pagamentos, re
 - Uso auditável em `discount_usage_logs`.
 
 ## Notas de produção
-- Adicionar middleware de sessão segura, CSRF e rate limit antes de go-live.
-- Auth ainda precisa evoluir para sessão/ACL completa em produção.
-- Adicionar testes automatizados e observabilidade centralizada.
+- Sessão HTTP com cookies `httponly` e `SameSite=Lax` ativa em `public/index.php`.
+- Login e registo com hash de senha (`password_hash/password_verify`) e auditoria em `audit_logs`.
+- Pipeline AI processa `ai_jobs` reais via `scripts/process_ai_jobs.php` e persiste documentos em `generated_documents`.
