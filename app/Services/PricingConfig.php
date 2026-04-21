@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Helpers\Database;
 use App\Helpers\Env;
+use Throwable;
 
 final class PricingConfig
 {
+    /** @var array<string,string>|null */
+    private static ?array $dbRules = null;
+
     public function basePriceBySlug(string $slug): float
     {
         $map = [
@@ -24,11 +29,46 @@ final class PricingConfig
             'proposta-tcc' => 'PRICING_BASE_PROPOSTA_TCC',
         ];
 
-        return (float) Env::get($map[$slug] ?? 'PRICING_BASE_TRABALHO_PESQUISA', 800);
+        return (float) $this->get($map[$slug] ?? 'PRICING_BASE_TRABALHO_PESQUISA', 800);
     }
 
     public function get(string $key, mixed $default = null): mixed
     {
-        return Env::get($key, $default);
+        $envValue = Env::get($key, $default);
+
+        $useOverrides = filter_var((string) Env::get('PRICING_ENABLE_DB_OVERRIDES', true), FILTER_VALIDATE_BOOL);
+        if (!$useOverrides) {
+            return $envValue;
+        }
+
+        $dbRules = $this->loadDbRules();
+        if (isset($dbRules[$key]) && $dbRules[$key] !== '') {
+            return $dbRules[$key];
+        }
+
+        return $envValue;
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function loadDbRules(): array
+    {
+        if (self::$dbRules !== null) {
+            return self::$dbRules;
+        }
+
+        try {
+            $rows = Database::connect()->query('SELECT rule_code, rule_value FROM pricing_rules WHERE is_active = 1')->fetchAll();
+            $mapped = [];
+            foreach ($rows as $row) {
+                $mapped[(string) $row['rule_code']] = (string) $row['rule_value'];
+            }
+            self::$dbRules = $mapped;
+        } catch (Throwable) {
+            self::$dbRules = [];
+        }
+
+        return self::$dbRules;
     }
 }

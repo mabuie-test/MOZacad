@@ -11,9 +11,8 @@ final class BillingController extends BaseController
 {
     public function invoices(): void
     {
-        $userId = (int) ($_GET['user_id'] ?? ($_SESSION['auth_user_id'] ?? 0));
+        $userId = $this->requireAuthUserId();
         if ($userId <= 0) {
-            $this->json(['message' => 'Informe user_id para listar facturas.'], 422);
             return;
         }
 
@@ -22,12 +21,26 @@ final class BillingController extends BaseController
 
     public function downloads(): void
     {
-        $userId = (int) ($_GET['user_id'] ?? ($_SESSION['auth_user_id'] ?? 0));
+        $userId = $this->requireAuthUserId();
         if ($userId <= 0) {
-            $this->json(['message' => 'Informe user_id para listar downloads.'], 422);
             return;
         }
 
-        $this->json(['documents' => (new GeneratedDocumentRepository())->listByUser($userId)]);
+        $this->json(['documents' => (new GeneratedDocumentRepository())->listDeliverableByUser($userId)]);
+    }
+
+    private function requireAuthUserId(): int
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        $userId = (int) ($_SESSION['auth_user_id'] ?? 0);
+        if ($userId <= 0) {
+            $this->json(['message' => 'Autenticação obrigatória.'], 401);
+            return 0;
+        }
+
+        return $userId;
     }
 }

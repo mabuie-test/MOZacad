@@ -20,10 +20,23 @@ final class HumanReviewQueueRepository extends BaseRepository
         $stmt->execute(['id' => $queueId, 'reviewer_id' => $reviewerId]);
     }
 
+    public function findById(int $queueId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM human_review_queue WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $queueId]);
+
+        return $stmt->fetch() ?: null;
+    }
+
     public function updateDecision(int $queueId, string $status, ?string $notes = null): void
     {
-        $stmt = $this->db->prepare('UPDATE human_review_queue SET status = :status, decision = :status, comments = :review_notes, updated_at = NOW() WHERE id = :id');
-        $stmt->execute(['id' => $queueId, 'status' => $status, 'review_notes' => $notes]);
+        $stmt = $this->db->prepare('UPDATE human_review_queue SET status = :status, decision = :decision, comments = :review_notes, updated_at = NOW() WHERE id = :id');
+        $stmt->execute([
+            'id' => $queueId,
+            'status' => $status,
+            'decision' => $status,
+            'review_notes' => $notes,
+        ]);
     }
 
     public function listQueue(int $limit = 100): array

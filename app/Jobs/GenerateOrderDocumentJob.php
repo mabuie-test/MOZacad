@@ -63,12 +63,18 @@ final class GenerateOrderDocumentJob
         ];
 
         $sections = $workTypeRepo->getStructureByWorkType((int) $order['work_type_id']);
-        $blueprint = (new StructureBuilderService())->build($sections);
+        $blueprint = (new StructureBuilderService())->build($sections, $resolvedRulesDto->structureRules);
         $prompts = (new PromptComposerService())->compose($blueprint, $resolvedRules, $briefing);
 
         $generated = (new AIOrchestrationService())->run($prompts, $blueprint);
-        $refined = (new AcademicRefinementService())->refine($generated);
-        $humanized = (new MozPortugueseHumanizerService())->humanize($refined);
+        $refined = (new AcademicRefinementService())->refine($generated, [
+            'reference_style' => (string) ($resolvedRules['referenceRules']['style'] ?? 'APA'),
+        ]);
+        $humanized = (new MozPortugueseHumanizerService())->humanize(
+            $refined,
+            'academic_humanized_pt_mz',
+            (bool) ($briefing['extras']['needs_humanized_revision'] ?? true)
+        );
         $cited = (new CitationFormatterService())->format($humanized, (string) ($resolvedRules['referenceRules']['style'] ?? 'APA'));
         $formatted = (new InstitutionFormattingService())->apply($cited, $resolvedRules);
 

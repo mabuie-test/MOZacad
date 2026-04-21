@@ -4,22 +4,29 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Helpers\Database;
+use App\Helpers\Env;
 use App\Repositories\AcademicLevelRepository;
+use App\Repositories\AuditLogRepository;
+use App\Repositories\CourseRepository;
+use App\Repositories\DisciplineRepository;
+use App\Repositories\InstitutionRepository;
+use App\Repositories\OrderAttachmentRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\WorkTypeRepository;
 use App\Services\InvoiceService;
 use App\Services\PaymentService;
 use App\Services\PricingService;
 use App\Services\RevisionService;
+use App\Services\SecureUploadService;
 use Throwable;
 
 final class OrderController extends BaseController
 {
     public function index(): void
     {
-        $userId = (int) ($_GET['user_id'] ?? ($_SESSION['auth_user_id'] ?? 0));
+        $userId = $this->requireAuthUserId();
         if ($userId <= 0) {
-            $this->json(['message' => 'Informe user_id para listar pedidos.'], 422);
             return;
         }
 
@@ -29,35 +36,62 @@ final class OrderController extends BaseController
 
     public function create(): void
     {
-        $this->view('orders/create');
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) {
+            return;
+        }
+
+        $this->json([
+            'institutions' => (new InstitutionRepository())->all(),
+            'courses' => (new CourseRepository())->all(),
+            'disciplines' => (new DisciplineRepository())->all(),
+            'academic_levels' => (new AcademicLevelRepository())->all(),
+            'work_types' => (new WorkTypeRepository())->all(),
+        ]);
     }
 
     public function store(): void
     {
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) {
+            return;
+        }
+        if (!$this->requireCsrfToken()) {
+            return;
+        }
+
         $data = [
-            'user_id' => (int) ($_POST['user_id'] ?? ($_SESSION['auth_user_id'] ?? 0)),
+            'user_id' => $userId,
             'institution_id' => (int) ($_POST['institution_id'] ?? 0),
             'course_id' => (int) ($_POST['course_id'] ?? 0),
             'discipline_id' => (int) ($_POST['discipline_id'] ?? 0),
             'academic_level_id' => (int) ($_POST['academic_level_id'] ?? 0),
             'work_type_id' => (int) ($_POST['work_type_id'] ?? 0),
             'title_or_theme' => trim((string) ($_POST['title_or_theme'] ?? '')),
-            'subtitle' => $_POST['subtitle'] ?? null,
-            'problem_statement' => $_POST['problem_statement'] ?? null,
-            'general_objective' => $_POST['general_objective'] ?? null,
+            'subtitle' => trim((string) ($_POST['subtitle'] ?? '')) ?: null,
+            'problem_statement' => trim((string) ($_POST['problem_statement'] ?? '')) ?: null,
+            'general_objective' => trim((string) ($_POST['general_objective'] ?? '')) ?: null,
             'specific_objectives_json' => json_encode($_POST['specific_objectives'] ?? [], JSON_UNESCAPED_UNICODE),
-            'hypothesis' => $_POST['hypothesis'] ?? null,
+            'hypothesis' => trim((string) ($_POST['hypothesis'] ?? '')) ?: null,
             'keywords_json' => json_encode($_POST['keywords'] ?? [], JSON_UNESCAPED_UNICODE),
             'target_pages' => (int) ($_POST['target_pages'] ?? 0),
             'complexity_level' => (string) ($_POST['complexity_level'] ?? 'medium'),
             'deadline_date' => (string) ($_POST['deadline_date'] ?? date('Y-m-d H:i:s', strtotime('+7 days'))),
-            'notes' => $_POST['notes'] ?? null,
+            'notes' => trim((string) ($_POST['notes'] ?? '')) ?: null,
             'status' => 'pending_payment',
             'final_price' => 0.0,
         ];
 
-        if ($data['user_id'] <= 0 || $data['work_type_id'] <= 0 || $data['target_pages'] <= 0 || $data['title_or_theme'] === '') {
-            $this->json(['message' => 'Campos obrigatórios inválidos.'], 422);
+        if (
+            $data['institution_id'] <= 0
+            || $data['course_id'] <= 0
+            || $data['discipline_id'] <= 0
+            || $data['academic_level_id'] <= 0
+            || $data['work_type_id'] <= 0
+            || $data['target_pages'] <= 0
+            || $data['title_or_theme'] === ''
+        ) {
+            $this->json(['message' => 'Campos obrigatórios inválidos para criação do pedido.'], 422);
             return;
         }
 
@@ -68,20 +102,6 @@ final class OrderController extends BaseController
             return;
         }
 
-        $orderRepo = new OrderRepository();
-        $orderId = $orderRepo->create($data);
-        $orderRepo->createRequirement([
-            'order_id' => $orderId,
-            'needs_institution_cover' => !empty($_POST['needs_institution_cover']) ? 1 : 0,
-            'needs_abstract' => isset($_POST['needs_abstract']) ? (int) !!$_POST['needs_abstract'] : 1,
-            'needs_bilingual_abstract' => !empty($_POST['needs_bilingual_abstract']) ? 1 : 0,
-            'needs_methodology_review' => !empty($_POST['needs_methodology_review']) ? 1 : 0,
-            'needs_humanized_revision' => !empty($_POST['needs_humanized_revision']) ? 1 : 0,
-            'needs_slides' => !empty($_POST['needs_slides']) ? 1 : 0,
-            'needs_defense_summary' => !empty($_POST['needs_defense_summary']) ? 1 : 0,
-            'notes' => $_POST['requirement_notes'] ?? null,
-        ]);
-
         $extras = [
             'needs_institution_cover' => !empty($_POST['needs_institution_cover']),
             'needs_bilingual_abstract' => !empty($_POST['needs_bilingual_abstract']),
@@ -91,40 +111,96 @@ final class OrderController extends BaseController
             'needs_defense_summary' => !empty($_POST['needs_defense_summary']),
         ];
 
-        $pricing = (new PricingService())->calculate([
-            'order_id' => $orderId,
-            'user_id' => $data['user_id'],
-            'work_type_id' => $data['work_type_id'],
-            'work_type_slug' => (string) $workType['slug'],
-            'target_pages' => $data['target_pages'],
-            'academic_level_multiplier' => (float) ($academicLevel['multiplier'] ?? 1),
-            'complexity_multiplier' => $this->complexityMultiplier($data['complexity_level']),
-            'urgency_multiplier' => $this->urgencyMultiplier($data['deadline_date']),
-            'extras' => $extras,
-            'requires_human_review' => (bool) ($workType['requires_human_review'] ?? false),
-            'coupon_code' => trim((string) ($_POST['coupon_code'] ?? '')),
-        ]);
+        $db = Database::connect();
+        $orderRepo = new OrderRepository();
 
-        $orderRepo->updateFinalPrice($orderId, $pricing->finalTotal);
+        try {
+            $db->beginTransaction();
 
-        $this->json(['order_id' => $orderId, 'pricing' => $pricing->toArray()], 201);
+            $orderId = $orderRepo->create($data);
+            $orderRepo->createRequirement([
+                'order_id' => $orderId,
+                'needs_institution_cover' => $extras['needs_institution_cover'] ? 1 : 0,
+                'needs_abstract' => isset($_POST['needs_abstract']) ? (int) !!$_POST['needs_abstract'] : 1,
+                'needs_bilingual_abstract' => $extras['needs_bilingual_abstract'] ? 1 : 0,
+                'needs_methodology_review' => $extras['needs_methodology_review'] ? 1 : 0,
+                'needs_humanized_revision' => $extras['needs_humanized_revision'] ? 1 : 0,
+                'needs_slides' => $extras['needs_slides'] ? 1 : 0,
+                'needs_defense_summary' => $extras['needs_defense_summary'] ? 1 : 0,
+                'notes' => trim((string) ($_POST['requirement_notes'] ?? '')) ?: null,
+            ]);
+
+            $pricing = (new PricingService())->calculate([
+                'order_id' => $orderId,
+                'user_id' => $userId,
+                'work_type_id' => $data['work_type_id'],
+                'work_type_slug' => (string) $workType['slug'],
+                'target_pages' => $data['target_pages'],
+                'academic_level_multiplier' => (float) ($academicLevel['multiplier'] ?? 1),
+                'complexity_multiplier' => $this->complexityMultiplier($data['complexity_level']),
+                'urgency_multiplier' => $this->urgencyMultiplier($data['deadline_date']),
+                'extras' => $extras,
+                'requires_human_review' => (bool) ($workType['requires_human_review'] ?? false),
+                'coupon_code' => trim((string) ($_POST['coupon_code'] ?? '')),
+            ]);
+
+            $orderRepo->updateFinalPrice($orderId, $pricing->finalTotal);
+
+            $uploaded = (new SecureUploadService())->storeMany($_FILES['attachments'] ?? [], 'orders/' . $orderId);
+            $attachmentRepo = new OrderAttachmentRepository();
+            foreach ($uploaded as $file) {
+                $attachmentRepo->create([
+                    'order_id' => $orderId,
+                    'attachment_type' => 'supporting_document',
+                    'file_name' => $file['original_name'],
+                    'file_path' => $file['path'],
+                    'mime_type' => $file['mime'],
+                ]);
+            }
+
+            (new AuditLogRepository())->log($userId, 'order.create', 'order', $orderId, [
+                'work_type_id' => $data['work_type_id'],
+                'target_pages' => $data['target_pages'],
+                'attachments_count' => count($uploaded),
+            ]);
+
+            $db->commit();
+
+            $this->json(['order_id' => $orderId, 'pricing' => $pricing->toArray(), 'attachments_count' => count($uploaded)], 201);
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            $this->json(['message' => 'Falha ao criar pedido.', 'error' => $e->getMessage()], 500);
+        }
     }
 
     public function show(int $id): void
     {
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) {
+            return;
+        }
+
         $order = (new OrderRepository())->findDetailedById($id);
-        if ($order === null) {
+        if ($order === null || (int) $order['user_id'] !== $userId) {
             $this->json(['message' => 'Pedido não encontrado.'], 404);
             return;
         }
 
-        $this->json(['order' => $order]);
+        $attachments = (new OrderAttachmentRepository())->listByOrderId($id);
+        $this->json(['order' => $order, 'attachments' => $attachments]);
     }
 
     public function pay(int $id): void
     {
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) {
+            return;
+        }
+
         $order = (new OrderRepository())->findById($id);
-        if ($order === null) {
+        if ($order === null || (int) $order['user_id'] !== $userId) {
             $this->json(['message' => 'Pedido não encontrado.'], 404);
             return;
         }
@@ -144,6 +220,10 @@ final class OrderController extends BaseController
             return;
         }
 
+        if (!$this->requireCsrfToken()) {
+            return;
+        }
+
         $msisdn = trim((string) ($_POST['msisdn'] ?? ''));
         if ($msisdn === '') {
             $this->json(['message' => 'msisdn é obrigatório para iniciar o pagamento.'], 422);
@@ -151,14 +231,16 @@ final class OrderController extends BaseController
         }
 
         try {
-            $invoiceId = (new InvoiceService())->create((int) $order['user_id'], $id, (float) $order['final_price']);
+            $currency = (string) Env::get('DEBITO_CURRENCY', 'MZN');
+            $invoiceId = (new InvoiceService())->create((int) $order['user_id'], $id, (float) $order['final_price'], $currency);
             $payment = (new PaymentService())->initiateMpesa([
                 'user_id' => (int) $order['user_id'],
                 'order_id' => $id,
                 'invoice_id' => $invoiceId,
                 'amount' => (float) $order['final_price'],
-                'currency' => 'MZN',
+                'currency' => $currency,
                 'msisdn' => $msisdn,
+                'callback_url' => $_POST['callback_url'] ?? null,
                 'internal_notes' => $_POST['internal_notes'] ?? null,
             ]);
         } catch (Throwable $e) {
@@ -176,15 +258,43 @@ final class OrderController extends BaseController
 
     public function requestRevision(int $id): void
     {
-        $userId = (int) ($_POST['user_id'] ?? ($_SESSION['auth_user_id'] ?? 0));
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) {
+            return;
+        }
+        if (!$this->requireCsrfToken()) {
+            return;
+        }
+
+        $order = (new OrderRepository())->findById($id);
+        if ($order === null || (int) $order['user_id'] !== $userId) {
+            $this->json(['message' => 'Pedido não encontrado.'], 404);
+            return;
+        }
+
         $reason = trim((string) ($_POST['reason'] ?? ''));
-        if ($userId <= 0 || $reason === '') {
-            $this->json(['message' => 'user_id e reason são obrigatórios.'], 422);
+        if ($reason === '') {
+            $this->json(['message' => 'reason é obrigatório.'], 422);
             return;
         }
 
         $revisionId = (new RevisionService())->request($id, $userId, $reason);
         $this->json(['message' => 'Pedido de revisão registado', 'revision_id' => $revisionId]);
+    }
+
+    private function requireAuthUserId(): int
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        $userId = (int) ($_SESSION['auth_user_id'] ?? 0);
+        if ($userId <= 0) {
+            $this->json(['message' => 'Autenticação obrigatória.'], 401);
+            return 0;
+        }
+
+        return $userId;
     }
 
     private function complexityMultiplier(string $complexity): float

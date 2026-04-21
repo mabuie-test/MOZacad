@@ -16,11 +16,15 @@ final class AuthController extends BaseController
 
     public function login(): void
     {
+        if (!$this->requireCsrfToken()) {
+            return;
+        }
+
         $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
 
-        if ($email === '' || $password === '') {
-            $this->json(['message' => 'Email e senha são obrigatórios.'], 422);
+        if ($email === '' || $password === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->json(['message' => 'Email válido e senha são obrigatórios.'], 422);
             return;
         }
 
@@ -55,12 +59,16 @@ final class AuthController extends BaseController
 
     public function register(): void
     {
+        if (!$this->requireCsrfToken()) {
+            return;
+        }
+
         $name = trim((string) ($_POST['name'] ?? ''));
         $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
 
-        if ($name === '' || $email === '' || strlen($password) < 8) {
-            $this->json(['message' => 'Dados inválidos. Nome, email e senha (mínimo 8) são obrigatórios.'], 422);
+        if ($name === '' || $email === '' || strlen($password) < 8 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->json(['message' => 'Dados inválidos. Nome, email válido e senha (mínimo 8) são obrigatórios.'], 422);
             return;
         }
 
@@ -82,11 +90,23 @@ final class AuthController extends BaseController
 
         (new AuditLogRepository())->log($userId, 'auth.register', 'user', $userId);
 
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        session_regenerate_id(true);
+        $_SESSION['auth_user_id'] = $userId;
+        $_SESSION['auth_user_email'] = $email;
+
         $this->json(['message' => 'Conta criada com sucesso.', 'user_id' => $userId], 201);
     }
 
     public function logout(): void
     {
+        if (!$this->requireCsrfToken()) {
+            return;
+        }
+
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
         }

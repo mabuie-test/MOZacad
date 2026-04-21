@@ -12,9 +12,8 @@ final class DashboardController extends BaseController
 {
     public function index(): void
     {
-        $userId = (int) ($_GET['user_id'] ?? ($_SESSION['auth_user_id'] ?? 0));
+        $userId = $this->requireAuthUserId();
         if ($userId <= 0) {
-            $this->json(['message' => 'Informe user_id para carregar o dashboard.'], 422);
             return;
         }
 
@@ -33,5 +32,20 @@ final class DashboardController extends BaseController
             'payments' => $payments,
             'revisions' => $revisions,
         ]);
+    }
+
+    private function requireAuthUserId(): int
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        $userId = (int) ($_SESSION['auth_user_id'] ?? 0);
+        if ($userId <= 0) {
+            $this->json(['message' => 'Autenticação obrigatória.'], 401);
+            return 0;
+        }
+
+        return $userId;
     }
 }

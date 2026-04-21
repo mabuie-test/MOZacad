@@ -55,15 +55,15 @@ Moz Acad é uma base de produção MVC em PHP 8.2+ para apoio académico assisti
 Use `.env.example` como base. Parâmetros críticos:
 - OpenAI/GPT-5: `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL*`, `OPENAI_TIMEOUT`
 - Débito M-Pesa C2B: `DEBITO_BASE_URL`, `DEBITO_WALLET_ID`, `DEBITO_TOKEN`
-- Fallback opcional de login: `DEBITO_EMAIL`, `DEBITO_PASSWORD`
 - Webhook opcional: `DEBITO_ENABLE_WEBHOOK`, `DEBITO_CALLBACK_URL`
 - Validação M-Pesa: `MPESA_MSISDN_REGEX`
+- Paths de storage: `STORAGE_GENERATED_PATH`, `STORAGE_TEMPLATES_PATH`, `STORAGE_LOGS_PATH`
+- Uploads seguros: `STORAGE_UPLOADS_PATH`, `UPLOAD_MAX_SIZE_MB`, `UPLOAD_ALLOWED_MIME`
 
 ## Débito M-Pesa C2B
 Endpoints utilizados:
 - `POST /api/v1/wallets/{wallet_id}/c2b/mpesa`
 - `GET /api/v1/transactions/{debito_reference}/status`
-- `POST /api/v1/login` (fallback opcional)
 
 Endpoints internos:
 - `POST /payments/mpesa/initiate`
@@ -95,11 +95,8 @@ Rotas admin mínimas:
 - `/admin/work-types`
 - `/admin/pricing`
 
-### Token estático
-Se `DEBITO_USE_STATIC_TOKEN=true` e `DEBITO_TOKEN` definido, o sistema usa bearer estático.
-
-### Login dinâmico
-Se token estático não estiver disponível, o sistema autentica com `DEBITO_EMAIL` + `DEBITO_PASSWORD`.
+### Autenticação com token
+A integração usa `DEBITO_TOKEN` (Bearer) como credencial principal para operações C2B M-Pesa.
 
 ## Polling como meio principal
 `PaymentStatusPollingService` é a fonte primária de confirmação. O webhook é complementar e nunca substitui o polling.
@@ -151,5 +148,8 @@ Admin gerencia utilizadores, regras, pricing, descontos, pedidos, pagamentos, re
 
 ## Notas de produção
 - Sessão HTTP com cookies `httponly` e `SameSite=Lax` ativa em `public/index.php`.
+- Sessões endurecidas: `use_strict_mode`, `use_only_cookies` e regeneração de sessão no login/registo.
+- CSRF básico ativo para operações mutáveis (auth, pedidos, pagamentos e ações admin) via `_csrf` ou header `X-CSRF-TOKEN`.
+- Uploads de anexos com validação de tamanho/MIME e armazenamento em `STORAGE_UPLOADS_PATH`.
 - Login e registo com hash de senha (`password_hash/password_verify`) e auditoria em `audit_logs`.
 - Pipeline AI processa `ai_jobs` reais via `scripts/process_ai_jobs.php` e persiste documentos em `generated_documents`.

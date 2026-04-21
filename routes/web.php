@@ -49,4 +49,8 @@ return static function (Router $router): void {
     $router->post('/admin/discounts', [AdminController::class, 'createDiscount']);
     $router->post('/admin/discounts/{id}', [AdminController::class, 'updateDiscount']);
     $router->get('/admin/human-review', [AdminController::class, 'humanReviewQueue']);
+    $router->post('/admin/human-review/{queueId}/assign', [AdminController::class, 'assignHumanReview']);
+    $router->post('/admin/human-review/{queueId}/decision', [AdminController::class, 'decideHumanReview']);
+    $router->post('/admin/pricing/rules', [AdminController::class, 'upsertPricingRule']);
+    $router->post('/admin/pricing/extras', [AdminController::class, 'upsertPricingExtra']);
 };

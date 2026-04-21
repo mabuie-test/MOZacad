@@ -8,8 +8,11 @@ use App\Services\PaymentStatusPollingService;
 
 final class RunPaymentPollingJob
 {
-    public function handle(): void
+    /**
+     * @return array{checked:int,updated:int,paid:int,errors:int}
+     */
+    public function handle(): array
     {
-        (new PaymentStatusPollingService())->run();
+        return (new PaymentStatusPollingService())->run();
     }
 }

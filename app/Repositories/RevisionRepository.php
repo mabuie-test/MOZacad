@@ -29,4 +29,26 @@ final class RevisionRepository extends BaseRepository
 
         return $stmt->fetchAll();
     }
+
+    public function findLatestByOrderId(int $orderId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM revisions WHERE order_id = :order_id ORDER BY id DESC LIMIT 1');
+        $stmt->execute(['order_id' => $orderId]);
+
+        return $stmt->fetch() ?: null;
+    }
+
+    public function updateStatus(int $id, string $status, ?string $reviewerComment = null): void
+    {
+        $stmt = $this->db->prepare('UPDATE revisions
+            SET status = :status,
+                reviewer_comment = :reviewer_comment,
+                updated_at = NOW()
+            WHERE id = :id');
+        $stmt->execute([
+            'id' => $id,
+            'status' => $status,
+            'reviewer_comment' => $reviewerComment,
+        ]);
+    }
 }
