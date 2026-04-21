@@ -6,6 +6,18 @@ namespace App\Repositories;
 
 final class PaymentRepository extends BaseRepository
 {
+    public function listAll(int $limit = 200): array
+    {
+        $stmt = $this->db->prepare('SELECT p.*, u.email AS user_email
+            FROM payments p
+            INNER JOIN users u ON u.id = p.user_id
+            ORDER BY p.created_at DESC
+            LIMIT :limit');
+        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
     public function create(array $data): int
     {
         $sql = 'INSERT INTO payments (user_id, order_id, invoice_id, provider, method, amount, currency, msisdn, status, internal_reference, created_at, updated_at)

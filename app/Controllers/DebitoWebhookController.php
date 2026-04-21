@@ -17,18 +17,18 @@ final class DebitoWebhookController extends BaseController
 {
     public function handle(): void
     {
+        $payload = json_decode(file_get_contents('php://input') ?: '[]', true) ?? [];
+        (new DebitoLoggerService())->info('Webhook Débito recebido', $payload);
+
         $enabled = filter_var(Env::get('DEBITO_ENABLE_WEBHOOK', false), FILTER_VALIDATE_BOOL);
         if (!$enabled) {
             $this->json(['received' => false, 'reason' => 'webhook_disabled'], 202);
             return;
         }
 
-        $payload = json_decode(file_get_contents('php://input') ?: '[]', true) ?? [];
         $reference = (string) ($payload['reference'] ?? $payload['debito_reference'] ?? '');
         $providerStatus = (string) ($payload['status'] ?? $payload['state'] ?? 'PENDING');
         $internalStatus = (new DebitoStatusMapper())->map($providerStatus);
-
-        (new DebitoLoggerService())->info('Webhook Débito recebido', $payload);
 
         if ($reference === '') {
             $this->json(['received' => true, 'processed' => false, 'reason' => 'missing_reference']);

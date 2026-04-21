@@ -6,6 +6,19 @@ namespace App\Repositories;
 
 final class OrderRepository extends BaseRepository
 {
+    public function listAll(int $limit = 200): array
+    {
+        $stmt = $this->db->prepare('SELECT o.*, u.email AS user_email, wt.name AS work_type_name
+            FROM orders o
+            INNER JOIN users u ON u.id = o.user_id
+            INNER JOIN work_types wt ON wt.id = o.work_type_id
+            ORDER BY o.created_at DESC
+            LIMIT :limit');
+        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
     public function listByUser(int $userId): array
     {
         $stmt = $this->db->prepare('SELECT o.*, wt.name AS work_type_name, i.name AS institution_name FROM orders o
