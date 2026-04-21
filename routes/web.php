@@ -33,8 +33,9 @@ return static function (Router $router): void {
     $router->post('/orders/{id}/pay', [OrderController::class, 'pay']);
     $router->post('/orders/{id}/revision-request', [OrderController::class, 'requestRevision']);
 
-    $router->get('/invoices', fn () => print('Invoices'));
-    $router->get('/downloads', fn () => print('Downloads'));
-
     $router->get('/admin', [AdminController::class, 'index']);
+    $router->get('/admin/orders', [AdminController::class, 'orders']);
+    $router->get('/admin/payments', [AdminController::class, 'payments']);
+    $router->get('/admin/discounts', [AdminController::class, 'discounts']);
+    $router->get('/admin/human-review-queue', [AdminController::class, 'humanReviewQueue']);
 };

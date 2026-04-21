@@ -53,15 +53,22 @@ Moz Acad é uma base de produção MVC em PHP 8.2+ para apoio académico assisti
 
 ## Configuração `.env`
 Use `.env.example` como base. Parâmetros críticos:
-- Débito: `DEBITO_BASE_URL`, `DEBITO_WALLET_ID`, token/credenciais
-- Pricing fallback: `PRICING_*`
+- OpenAI/GPT-5: `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL*`, `OPENAI_TIMEOUT`
+- Débito M-Pesa C2B: `DEBITO_BASE_URL`, `DEBITO_WALLET_ID`, `DEBITO_TOKEN`
+- Fallback opcional de login: `DEBITO_EMAIL`, `DEBITO_PASSWORD`
 - Webhook opcional: `DEBITO_ENABLE_WEBHOOK`, `DEBITO_CALLBACK_URL`
+- Validação M-Pesa: `MPESA_MSISDN_REGEX`
 
 ## Débito M-Pesa C2B
 Endpoints utilizados:
-- `POST /api/v1/login`
 - `POST /api/v1/wallets/{wallet_id}/c2b/mpesa`
 - `GET /api/v1/transactions/{debito_reference}/status`
+- `POST /api/v1/login` (fallback opcional)
+
+Endpoints internos:
+- `POST /payments/mpesa/initiate`
+- `GET /payments/{id}/status`
+- `POST /webhooks/debito`
 
 ### Token estático
 Se `DEBITO_USE_STATIC_TOKEN=true` e `DEBITO_TOKEN` definido, o sistema usa bearer estático.
@@ -119,5 +126,5 @@ Admin gerencia utilizadores, regras, pricing, descontos, pedidos, pagamentos, re
 
 ## Notas de produção
 - Adicionar middleware de sessão segura, CSRF e rate limit antes de go-live.
-- Substituir stubs de Auth e AI provider por integrações reais.
+- Auth ainda precisa evoluir para sessão/ACL completa em produção.
 - Adicionar testes automatizados e observabilidade centralizada.

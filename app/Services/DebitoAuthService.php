@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Helpers\Env;
+use RuntimeException;
 
 final class DebitoAuthService
 {
@@ -12,18 +13,27 @@ final class DebitoAuthService
 
     public function bearerToken(): string
     {
-        $useStatic = filter_var(Env::get('DEBITO_USE_STATIC_TOKEN', true), FILTER_VALIDATE_BOOL);
-        $token = (string) Env::get('DEBITO_TOKEN', '');
-
-        if ($useStatic && $token !== '') {
+        $token = trim((string) Env::get('DEBITO_TOKEN', ''));
+        if ($token !== '') {
             return $token;
         }
 
+        $email = (string) Env::get('DEBITO_EMAIL', '');
+        $password = (string) Env::get('DEBITO_PASSWORD', '');
+        if ($email === '' || $password === '') {
+            throw new RuntimeException('Débito sem token estático e sem credenciais de fallback.');
+        }
+
         $response = $this->client->post('/api/v1/login', [
-            'email' => Env::get('DEBITO_EMAIL'),
-            'password' => Env::get('DEBITO_PASSWORD'),
+            'email' => $email,
+            'password' => $password,
         ], false);
 
-        return (string)($response['token'] ?? '');
+        $dynamicToken = (string) ($response['token'] ?? '');
+        if ($dynamicToken === '') {
+            throw new RuntimeException('Não foi possível obter token dinâmico do Débito.');
+        }
+
+        return $dynamicToken;
     }
 }
