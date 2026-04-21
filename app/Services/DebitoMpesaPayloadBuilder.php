@@ -28,8 +28,9 @@ final class DebitoMpesaPayloadBuilder
             'reference_description' => trim($referenceDescription),
         ];
 
+        $webhookEnabled = filter_var((string) Env::get('DEBITO_ENABLE_WEBHOOK', false), FILTER_VALIDATE_BOOL);
         $effectiveCallbackUrl = trim((string) ($callbackUrl ?? Env::get('DEBITO_CALLBACK_URL', '')));
-        if ($effectiveCallbackUrl !== '') {
+        if ($webhookEnabled && $effectiveCallbackUrl !== '') {
             $payload['callback_url'] = $effectiveCallbackUrl;
         }
 

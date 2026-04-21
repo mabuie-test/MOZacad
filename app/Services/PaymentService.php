@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Helpers\Database;
 use App\Helpers\Env;
 use App\Repositories\DebitoTransactionRepository;
 use App\Repositories\PaymentRepository;
 use RuntimeException;
+use Throwable;
 
 final class PaymentService
 {
@@ -23,6 +25,9 @@ final class PaymentService
     public function initiateMpesa(array $context): array
     {
         $internalRef = Env::get('PAYMENT_REFERENCE_PREFIX', 'PAY') . '-' . date('YmdHis') . '-' . random_int(100, 999);
+        $db = Database::connect();
+        $db->beginTransaction();
+
         $paymentId = $this->payments->create([
             'user_id' => $context['user_id'],
             'order_id' => $context['order_id'],
@@ -36,36 +41,50 @@ final class PaymentService
             'internal_reference' => $internalRef,
         ]);
 
-        $payload = $this->payloadBuilder->build(
-            (float) $context['amount'],
-            (string) $context['msisdn'],
-            $internalRef,
-            $context['callback_url'] ?? null,
-            $context['internal_notes'] ?? null
-        );
-        $providerResponse = $this->provider->initiate($payload);
+        try {
+            $payload = $this->payloadBuilder->build(
+                (float) $context['amount'],
+                (string) $context['msisdn'],
+                $internalRef,
+                $context['callback_url'] ?? null,
+                $context['internal_notes'] ?? null
+            );
+            $providerResponse = $this->provider->initiate($payload);
 
-        $debitoReference = (string) ($providerResponse['debito_reference'] ?? '');
-        if ($debitoReference === '') {
-            throw new RuntimeException('Débito não retornou referência da transação.');
+            $debitoReference = (string) ($providerResponse['debito_reference'] ?? '');
+            if ($debitoReference === '') {
+                throw new RuntimeException('Débito não retornou referência da transação.');
+            }
+
+            $providerStatus = (string) ($providerResponse['provider_status'] ?? 'PENDING');
+            $internalStatus = $this->statusMapper->map($providerStatus);
+
+            $this->payments->setExternalReference($paymentId, $debitoReference, $providerResponse['provider_transaction_id'] ?: null, $providerStatus);
+            $this->payments->updateStatus($paymentId, $internalStatus, $providerStatus, $providerResponse['provider_message'] ?: null);
+
+            $this->debitoTransactions->create([
+                'payment_id' => $paymentId,
+                'wallet_id' => (string) Env::get('DEBITO_WALLET_ID', ''),
+                'debito_reference' => $debitoReference,
+                'request_payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+                'response_payload_json' => json_encode($providerResponse['raw'] ?? [], JSON_UNESCAPED_UNICODE),
+                'provider_response_code' => $providerResponse['provider_code'] ?: null,
+                'provider_response_message' => $providerResponse['provider_message'] ?: null,
+                'status' => $internalStatus,
+            ]);
+
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            $this->logger->error('Débito initiation failed', [
+                'payment_id' => $paymentId,
+                'order_id' => $context['order_id'] ?? null,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
         }
-
-        $providerStatus = (string) ($providerResponse['provider_status'] ?? 'PENDING');
-        $internalStatus = $this->statusMapper->map($providerStatus);
-
-        $this->payments->setExternalReference($paymentId, $debitoReference, $providerResponse['provider_transaction_id'] ?: null, $providerStatus);
-        $this->payments->updateStatus($paymentId, $internalStatus, $providerStatus, $providerResponse['provider_message'] ?: null);
-
-        $this->debitoTransactions->create([
-            'payment_id' => $paymentId,
-            'wallet_id' => (string) Env::get('DEBITO_WALLET_ID', ''),
-            'debito_reference' => $debitoReference,
-            'request_payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE),
-            'response_payload_json' => json_encode($providerResponse['raw'] ?? [], JSON_UNESCAPED_UNICODE),
-            'provider_response_code' => $providerResponse['provider_code'] ?: null,
-            'provider_response_message' => $providerResponse['provider_message'] ?: null,
-            'status' => $internalStatus,
-        ]);
 
         $this->logger->info('Débito initiation', ['payment_id' => $paymentId, 'request' => $payload, 'response' => $providerResponse]);
 

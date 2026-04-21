@@ -97,6 +97,7 @@ Rotas admin mínimas:
 
 ### Autenticação com token
 A integração usa `DEBITO_TOKEN` (Bearer) como credencial principal para operações C2B M-Pesa.
+`callback_url` só é enviado ao Débito quando `DEBITO_ENABLE_WEBHOOK=true` e existir URL configurada.
 
 ## Polling como meio principal
 `PaymentStatusPollingService` é a fonte primária de confirmação. O webhook é complementar e nunca substitui o polling.
