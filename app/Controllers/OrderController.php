@@ -7,14 +7,17 @@ namespace App\Controllers;
 use App\Repositories\AcademicLevelRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\WorkTypeRepository;
+use App\Services\InvoiceService;
+use App\Services\PaymentService;
 use App\Services\PricingService;
 use App\Services\RevisionService;
+use Throwable;
 
 final class OrderController extends BaseController
 {
     public function index(): void
     {
-        $userId = (int) ($_GET['user_id'] ?? 0);
+        $userId = (int) ($_GET['user_id'] ?? ($_SESSION['auth_user_id'] ?? 0));
         if ($userId <= 0) {
             $this->json(['message' => 'Informe user_id para listar pedidos.'], 422);
             return;
@@ -24,12 +27,15 @@ final class OrderController extends BaseController
         $this->json(['orders' => $orders]);
     }
 
-    public function create(): void { $this->view('orders/create'); }
+    public function create(): void
+    {
+        $this->view('orders/create');
+    }
 
     public function store(): void
     {
         $data = [
-            'user_id' => (int) ($_POST['user_id'] ?? 0),
+            'user_id' => (int) ($_POST['user_id'] ?? ($_SESSION['auth_user_id'] ?? 0)),
             'institution_id' => (int) ($_POST['institution_id'] ?? 0),
             'course_id' => (int) ($_POST['course_id'] ?? 0),
             'discipline_id' => (int) ($_POST['discipline_id'] ?? 0),
@@ -96,6 +102,7 @@ final class OrderController extends BaseController
             'urgency_multiplier' => $this->urgencyMultiplier($data['deadline_date']),
             'extras' => $extras,
             'requires_human_review' => (bool) ($workType['requires_human_review'] ?? false),
+            'coupon_code' => trim((string) ($_POST['coupon_code'] ?? '')),
         ]);
 
         $orderRepo->updateFinalPrice($orderId, $pricing->finalTotal);
@@ -122,25 +129,62 @@ final class OrderController extends BaseController
             return;
         }
 
+        if ((float) $order['final_price'] <= 0) {
+            $this->json(['message' => 'Pedido sem valor final. Recalcule o pricing antes do pagamento.'], 422);
+            return;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $this->json([
+                'order_id' => $id,
+                'status' => $order['status'],
+                'amount' => (float) $order['final_price'],
+                'instructions' => 'Submeta POST para este endpoint com msisdn para iniciar M-Pesa C2B.',
+            ]);
+            return;
+        }
+
+        $msisdn = trim((string) ($_POST['msisdn'] ?? ''));
+        if ($msisdn === '') {
+            $this->json(['message' => 'msisdn é obrigatório para iniciar o pagamento.'], 422);
+            return;
+        }
+
+        try {
+            $invoiceId = (new InvoiceService())->create((int) $order['user_id'], $id, (float) $order['final_price']);
+            $payment = (new PaymentService())->initiateMpesa([
+                'user_id' => (int) $order['user_id'],
+                'order_id' => $id,
+                'invoice_id' => $invoiceId,
+                'amount' => (float) $order['final_price'],
+                'currency' => 'MZN',
+                'msisdn' => $msisdn,
+                'internal_notes' => $_POST['internal_notes'] ?? null,
+            ]);
+        } catch (Throwable $e) {
+            $this->json(['message' => 'Falha ao iniciar pagamento.', 'error' => $e->getMessage()], 502);
+            return;
+        }
+
         $this->json([
+            'message' => 'Pagamento iniciado com sucesso.',
             'order_id' => $id,
-            'status' => $order['status'],
-            'amount' => $order['final_price'],
-            'hint' => 'Inicie com POST /payments/mpesa/initiate',
-        ]);
+            'invoice_id' => $invoiceId,
+            'payment' => $payment,
+        ], 201);
     }
 
     public function requestRevision(int $id): void
     {
-        $userId = (int) ($_POST['user_id'] ?? 0);
+        $userId = (int) ($_POST['user_id'] ?? ($_SESSION['auth_user_id'] ?? 0));
         $reason = trim((string) ($_POST['reason'] ?? ''));
         if ($userId <= 0 || $reason === '') {
             $this->json(['message' => 'user_id e reason são obrigatórios.'], 422);
             return;
         }
 
-        (new RevisionService())->request($id, $userId, $reason);
-        $this->json(['message' => 'Pedido de revisão registado']);
+        $revisionId = (new RevisionService())->request($id, $userId, $reason);
+        $this->json(['message' => 'Pedido de revisão registado', 'revision_id' => $revisionId]);
     }
 
     private function complexityMultiplier(string $complexity): float
@@ -156,6 +200,7 @@ final class OrderController extends BaseController
     private function urgencyMultiplier(string $deadline): float
     {
         $hours = max(1, (strtotime($deadline) - time()) / 3600);
+
         return match (true) {
             $hours <= 24 => 2.0,
             $hours <= 72 => 1.5,

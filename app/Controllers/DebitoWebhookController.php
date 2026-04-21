@@ -6,6 +6,8 @@ namespace App\Controllers;
 
 use App\Helpers\Env;
 use App\Repositories\DebitoTransactionRepository;
+use App\Repositories\InvoiceRepository;
+use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
 use App\Repositories\PaymentStatusLogRepository;
 use App\Services\DebitoLoggerService;
@@ -28,23 +30,29 @@ final class DebitoWebhookController extends BaseController
 
         (new DebitoLoggerService())->info('Webhook Débito recebido', $payload);
 
-        if ($reference !== '') {
-            $payments = new PaymentRepository();
-            $payment = null;
-            foreach ($payments->findPendingForPolling(200) as $candidate) {
-                if ((string) ($candidate['external_reference'] ?? '') === $reference) {
-                    $payment = $candidate;
-                    break;
-                }
-            }
-
-            if ($payment !== null) {
-                $payments->updateStatus((int) $payment['id'], $internalStatus, $providerStatus, (string) ($payload['message'] ?? null));
-                (new DebitoTransactionRepository())->updateStatusByReference($reference, $internalStatus, $payload);
-                (new PaymentStatusLogRepository())->create((int) $payment['id'], $internalStatus, $providerStatus, $payload, 'webhook');
-            }
+        if ($reference === '') {
+            $this->json(['received' => true, 'processed' => false, 'reason' => 'missing_reference']);
+            return;
         }
 
-        $this->json(['received' => true]);
+        $payments = new PaymentRepository();
+        $payment = $payments->findByExternalReference($reference);
+
+        if ($payment === null) {
+            $this->json(['received' => true, 'processed' => false, 'reason' => 'payment_not_found']);
+            return;
+        }
+
+        $payments->updateStatus((int) $payment['id'], $internalStatus, $providerStatus, (string) ($payload['message'] ?? null));
+        (new DebitoTransactionRepository())->updateStatusByReference($reference, $internalStatus, $payload);
+        (new PaymentStatusLogRepository())->create((int) $payment['id'], $internalStatus, $providerStatus, $payload, 'webhook');
+
+        if ($internalStatus === 'paid') {
+            $payments->markPaid((int) $payment['id'], $providerStatus);
+            (new InvoiceRepository())->markPaidById((int) $payment['invoice_id']);
+            (new OrderRepository())->updateStatus((int) $payment['order_id'], 'queued');
+        }
+
+        $this->json(['received' => true, 'processed' => true]);
     }
 }

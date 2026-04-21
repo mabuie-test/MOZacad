@@ -11,6 +11,7 @@ final class PaymentRepository extends BaseRepository
         $sql = 'INSERT INTO payments (user_id, order_id, invoice_id, provider, method, amount, currency, msisdn, status, internal_reference, created_at, updated_at)
                 VALUES (:user_id,:order_id,:invoice_id,:provider,:method,:amount,:currency,:msisdn,:status,:internal_reference,NOW(),NOW())';
         $this->db->prepare($sql)->execute($data);
+
         return (int) $this->db->lastInsertId();
     }
 
@@ -18,7 +19,26 @@ final class PaymentRepository extends BaseRepository
     {
         $stmt = $this->db->prepare('SELECT * FROM payments WHERE id = :id LIMIT 1');
         $stmt->execute(['id' => $id]);
+
         return $stmt->fetch() ?: null;
+    }
+
+    public function findByExternalReference(string $reference): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM payments WHERE external_reference = :reference LIMIT 1');
+        $stmt->execute(['reference' => $reference]);
+
+        return $stmt->fetch() ?: null;
+    }
+
+    public function listRecentByUser(int $userId, int $limit = 20): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM payments WHERE user_id = :user_id ORDER BY created_at DESC LIMIT :limit');
+        $stmt->bindValue('user_id', $userId, \PDO::PARAM_INT);
+        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
     }
 
     public function findPendingForPolling(int $limit = 50): array
@@ -26,6 +46,7 @@ final class PaymentRepository extends BaseRepository
         $stmt = $this->db->prepare("SELECT * FROM payments WHERE status IN ('pending','processing','pending_confirmation') AND external_reference IS NOT NULL LIMIT :limit");
         $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
         $stmt->execute();
+
         return $stmt->fetchAll();
     }
 

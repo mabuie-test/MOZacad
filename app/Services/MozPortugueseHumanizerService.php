@@ -6,8 +6,26 @@ namespace App\Services;
 
 final class MozPortugueseHumanizerService
 {
-    public function humanize(array $sections, string $profile = 'academic_humanized'): array
+    private array $replacements = [
+        'você' => 'o estudante',
+        'ônibus' => 'autocarro',
+        'trem' => 'comboio',
+        'fato' => 'facto',
+        'objetivo' => 'objectivo',
+    ];
+
+    public function humanize(array $sections, string $profile = 'academic_humanized_pt_mz'): array
     {
-        return array_map(fn(string $text) => str_replace('você', 'o estudante', $text) . "\nPerfil: {$profile}", $sections);
+        foreach ($sections as &$section) {
+            $text = (string) ($section['content'] ?? '');
+            $text = str_ireplace(array_keys($this->replacements), array_values($this->replacements), $text);
+            $text = preg_replace('/\s+/', ' ', $text) ?? $text;
+            $text = preg_replace('/(\.\s+){2,}/', '. ', $text) ?? $text;
+            $section['content'] = trim($text) . "\n\n[perfil_linguistico={$profile}]";
+        }
+
+        unset($section);
+
+        return $sections;
     }
 }

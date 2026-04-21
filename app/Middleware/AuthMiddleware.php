@@ -8,7 +8,17 @@ final class AuthMiddleware
 {
     public function handle(callable $next): mixed
     {
-        // TODO: validar sessão segura e permissões.
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        if (empty($_SESSION['auth_user_id'])) {
+            http_response_code(401);
+            header('Content-Type: application/json');
+            echo json_encode(['message' => 'Autenticação obrigatória.'], JSON_UNESCAPED_UNICODE);
+            return null;
+        }
+
         return $next();
     }
 }

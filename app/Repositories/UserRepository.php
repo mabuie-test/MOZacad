@@ -1,8 +1,52 @@
 <?php
+
 declare(strict_types=1);
+
 namespace App\Repositories;
+
 final class UserRepository extends BaseRepository
 {
-    public function findById(int $id): ?array { $s=$this->db->prepare('SELECT * FROM users WHERE id=:id LIMIT 1'); $s->execute(['id'=>$id]); return $s->fetch()?:null; }
-    public function all(int $limit = 100): array { $s=$this->db->prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT :limit'); $s->bindValue('limit',$limit,\PDO::PARAM_INT); $s->execute(); return $s->fetchAll(); }
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+
+        return $stmt->fetch() ?: null;
+    }
+
+    public function findByEmail(string $email): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE email = :email LIMIT 1');
+        $stmt->execute(['email' => mb_strtolower(trim($email))]);
+
+        return $stmt->fetch() ?: null;
+    }
+
+    public function create(array $data): int
+    {
+        $stmt = $this->db->prepare('INSERT INTO users (name, email, phone, password_hash, institution_id, course_id, discipline_id, is_active, created_at, updated_at)
+            VALUES (:name, :email, :phone, :password_hash, :institution_id, :course_id, :discipline_id, :is_active, NOW(), NOW())');
+
+        $stmt->execute([
+            'name' => trim((string) $data['name']),
+            'email' => mb_strtolower(trim((string) $data['email'])),
+            'phone' => $data['phone'] ?? null,
+            'password_hash' => $data['password_hash'],
+            'institution_id' => $data['institution_id'] ?? null,
+            'course_id' => $data['course_id'] ?? null,
+            'discipline_id' => $data['discipline_id'] ?? null,
+            'is_active' => $data['is_active'] ?? 1,
+        ]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function all(int $limit = 100): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT :limit');
+        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
 }
