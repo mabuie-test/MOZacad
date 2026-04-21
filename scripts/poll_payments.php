@@ -6,5 +6,12 @@ require_once __DIR__ . '/../bootstrap/app.php';
 
 use App\Jobs\RunPaymentPollingJob;
 
-(new RunPaymentPollingJob())->handle();
-echo "Polling executado\n";
+$summary = (new RunPaymentPollingJob())->handle();
+
+echo sprintf(
+    "Polling executado | checked=%d updated=%d paid=%d errors=%d\n",
+    $summary['checked'],
+    $summary['updated'],
+    $summary['paid'],
+    $summary['errors']
+);

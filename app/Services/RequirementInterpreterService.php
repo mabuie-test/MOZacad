@@ -15,7 +15,7 @@ final class RequirementInterpreterService
 
         return new OrderBriefingDTO(
             orderId: (int) $order['id'],
-            title: trim((string) $order['title_or_theme']),
+            title: trim((string) ($order['title_or_theme'] ?? 'Tema académico')),
             problem: $order['problem_statement'] ? trim((string) $order['problem_statement']) : null,
             generalObjective: $order['general_objective'] ? trim((string) $order['general_objective']) : null,
             specificObjectives: is_array($specificObjectives) ? array_values(array_filter(array_map('strval', $specificObjectives))) : [],
@@ -28,7 +28,10 @@ final class RequirementInterpreterService
                 'needs_humanized_revision' => (bool) ($requirements['needs_humanized_revision'] ?? false),
                 'needs_slides' => (bool) ($requirements['needs_slides'] ?? false),
                 'needs_defense_summary' => (bool) ($requirements['needs_defense_summary'] ?? false),
-                'notes' => $requirements['notes'] ?? null,
+                'target_pages' => (int) ($order['target_pages'] ?? 0),
+                'complexity_level' => (string) ($order['complexity_level'] ?? 'medium'),
+                'deadline_date' => (string) ($order['deadline_date'] ?? ''),
+                'notes' => $requirements['notes'] ?? $order['notes'] ?? null,
             ],
             raw: ['order' => $order, 'requirements' => $requirements],
         );

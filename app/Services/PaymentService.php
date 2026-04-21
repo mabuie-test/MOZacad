@@ -36,7 +36,13 @@ final class PaymentService
             'internal_reference' => $internalRef,
         ]);
 
-        $payload = $this->payloadBuilder->build((float) $context['amount'], (string) $context['msisdn'], $internalRef, $context['internal_notes'] ?? null);
+        $payload = $this->payloadBuilder->build(
+            (float) $context['amount'],
+            (string) $context['msisdn'],
+            $internalRef,
+            $context['callback_url'] ?? null,
+            $context['internal_notes'] ?? null
+        );
         $providerResponse = $this->provider->initiate($payload);
 
         $debitoReference = (string) ($providerResponse['debito_reference'] ?? '');

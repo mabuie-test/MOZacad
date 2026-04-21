@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Helpers\Env;
+use RuntimeException;
 
 final class DebitoMpesaProvider implements PaymentProviderInterface
 {
@@ -12,7 +13,13 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
 
     public function initiate(array $payload): array
     {
-        $wallet = Env::get('DEBITO_WALLET_ID');
+        $this->assertMpesaEnabled();
+
+        $wallet = trim((string) Env::get('DEBITO_WALLET_ID', ''));
+        if ($wallet === '') {
+            throw new RuntimeException('DEBITO_WALLET_ID não configurado.');
+        }
+
         $response = $this->client->post("/api/v1/wallets/{$wallet}/c2b/mpesa", $payload);
 
         return [
@@ -27,12 +34,28 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
 
     public function checkStatus(string $reference): array
     {
-        $response = $this->client->get("/api/v1/transactions/{$reference}/status");
+        $this->assertMpesaEnabled();
+
+        $debitoReference = trim($reference);
+        if ($debitoReference === '') {
+            throw new RuntimeException('Referência Débito inválida para consulta de status.');
+        }
+
+        $response = $this->client->get("/api/v1/transactions/{$debitoReference}/status");
 
         return [
             'raw' => $response,
             'provider_status' => (string) ($response['status'] ?? $response['state'] ?? 'PENDING'),
             'provider_message' => (string) ($response['message'] ?? ''),
+            'provider_code' => (string) ($response['code'] ?? ''),
         ];
+    }
+
+    private function assertMpesaEnabled(): void
+    {
+        $enabled = filter_var((string) Env::get('DEBITO_MPESA_ENABLED', true), FILTER_VALIDATE_BOOL);
+        if (!$enabled) {
+            throw new RuntimeException('Pagamento M-Pesa está desativado por configuração (DEBITO_MPESA_ENABLED=false).');
+        }
     }
 }

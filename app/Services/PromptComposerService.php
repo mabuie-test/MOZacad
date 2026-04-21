@@ -9,36 +9,42 @@ final class PromptComposerService
     public function compose(array $blueprint, array $rules, array $briefing): array
     {
         $prompts = [];
+        $referenceStyle = (string) ($rules['referenceRules']['style'] ?? 'APA');
+        $visualRulesJson = json_encode($rules['visualRules'] ?? [], JSON_UNESCAPED_UNICODE);
 
         foreach ($blueprint as $section) {
-            $template = <<<TXT
+            $title = (string) ($section['title'] ?? 'Secção');
+            $code = (string) ($section['code'] ?? 'section');
+            $minWords = (int) ($section['min_words'] ?? 250);
+            $maxWords = (int) ($section['max_words'] ?? 800);
+            $keywords = implode(', ', $briefing['keywords'] ?? []);
+            $specificObjectives = implode('; ', $briefing['specificObjectives'] ?? []);
+
+            $prompts[] = trim(<<<TXT
 Escreve a secção académica em português de Moçambique.
-Secção: %s
-Tema: %s
-Problema: %s
-Objectivo geral: %s
-Objectivos específicos: %s
-Palavras-chave: %s
-Limite de palavras: %d-%d
-Estilo de referência: %s
-Regras visuais relevantes: %s
 
-Produz conteúdo natural, não repetitivo, com tom académico formal e verificável.
-TXT;
+Dados da secção:
+- Código: {$code}
+- Título: {$title}
+- Limite: {$minWords} a {$maxWords} palavras
 
-            $prompts[] = trim(sprintf(
-                $template,
-                $section['title'],
-                $briefing['title'] ?? '',
-                $briefing['problem'] ?? 'Não informado',
-                $briefing['generalObjective'] ?? 'Não informado',
-                implode('; ', $briefing['specificObjectives'] ?? []),
-                implode(', ', $briefing['keywords'] ?? []),
-                (int) ($section['min_words'] ?? 250),
-                (int) ($section['max_words'] ?? 800),
-                $rules['referenceRules']['style'] ?? 'APA',
-                json_encode($rules['visualRules'] ?? [], JSON_UNESCAPED_UNICODE)
-            ));
+Contexto do pedido:
+- Tema: {$briefing['title']}
+- Problema: {$briefing['problem']}
+- Objectivo geral: {$briefing['generalObjective']}
+- Objectivos específicos: {$specificObjectives}
+- Palavras-chave: {$keywords}
+
+Regras institucionais:
+- Estilo de referências: {$referenceStyle}
+- Regras visuais (JSON): {$visualRulesJson}
+
+Instruções obrigatórias:
+1) Texto académico formal, coeso e verificável.
+2) Sem invenção de dados, sem plágio, sem listas artificiais.
+3) Inclui citações no estilo {$referenceStyle} quando apropriado.
+4) Mantém foco na secção {$title}.
+TXT);
         }
 
         return $prompts;

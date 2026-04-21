@@ -49,4 +49,20 @@ final class UserRepository extends BaseRepository
 
         return $stmt->fetchAll();
     }
+
+    public function listByRole(string $roleName, int $limit = 100): array
+    {
+        $stmt = $this->db->prepare('SELECT u.*
+            FROM users u
+            INNER JOIN user_roles ur ON ur.user_id = u.id
+            INNER JOIN roles r ON r.id = ur.role_id
+            WHERE r.name = :role_name
+            ORDER BY u.created_at DESC
+            LIMIT :limit');
+        $stmt->bindValue('role_name', trim($roleName));
+        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
 }

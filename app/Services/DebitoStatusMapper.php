@@ -8,14 +8,14 @@ final class DebitoStatusMapper
 {
     public function map(string $providerStatus): string
     {
-        return match (strtolower($providerStatus)) {
-            'pending' => 'pending',
-            'processing', 'in_progress' => 'processing',
-            'waiting_confirmation' => 'pending_confirmation',
-            'paid', 'success', 'completed' => 'paid',
-            'failed', 'error' => 'failed',
-            'cancelled' => 'cancelled',
-            'expired' => 'expired',
+        return match (strtolower(trim($providerStatus))) {
+            'pending', 'created', 'queued' => 'pending',
+            'processing', 'in_progress', 'authorizing' => 'processing',
+            'waiting_confirmation', 'awaiting_confirmation' => 'pending_confirmation',
+            'paid', 'success', 'successful', 'completed' => 'paid',
+            'failed', 'error', 'declined' => 'failed',
+            'cancelled', 'canceled' => 'cancelled',
+            'expired', 'timeout' => 'expired',
             default => 'pending_confirmation',
         };
     }

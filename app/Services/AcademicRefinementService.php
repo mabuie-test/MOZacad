@@ -8,7 +8,7 @@ final class AcademicRefinementService
 {
     public function __construct(private readonly AIProviderInterface $provider = new OpenAIProvider()) {}
 
-    public function refine(array $sections): array
+    public function refine(array $sections, array $context = []): array
     {
         $output = [];
 
@@ -18,8 +18,26 @@ final class AcademicRefinementService
                 continue;
             }
 
-            $prompt = "Refina o texto académico abaixo para melhorar coesão, transições e rigor metodológico sem alterar o sentido.\n\n" . $text;
-            $section['content'] = trim($this->provider->refine($prompt, ['goal' => 'coherence']));
+            $sectionTitle = (string) ($section['title'] ?? 'Secção');
+            $rules = [
+                'goal' => 'coherence_and_methodology',
+                'reference_style' => (string) ($context['reference_style'] ?? 'APA'),
+                'section_title' => $sectionTitle,
+            ];
+
+            $prompt = <<<TXT
+Refina a secção académica abaixo para melhorar:
+- coesão argumentativa,
+- rigor metodológico,
+- precisão terminológica.
+
+Mantém o sentido original e o foco da secção "{$sectionTitle}".
+
+Texto base:
+{$text}
+TXT;
+
+            $section['content'] = trim($this->provider->refine($prompt, $rules));
             $output[] = $section;
         }
 

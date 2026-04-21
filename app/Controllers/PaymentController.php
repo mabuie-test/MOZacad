@@ -14,6 +14,14 @@ final class PaymentController extends BaseController
 {
     public function initiateMpesa(): void
     {
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) {
+            return;
+        }
+        if (!$this->requireCsrfToken()) {
+            return;
+        }
+
         $orderId = (int) ($_POST['order_id'] ?? 0);
         $msisdn = trim((string) ($_POST['msisdn'] ?? ''));
 
@@ -23,7 +31,7 @@ final class PaymentController extends BaseController
         }
 
         $order = (new OrderRepository())->findById($orderId);
-        if ($order === null) {
+        if ($order === null || (int) $order['user_id'] !== $userId) {
             $this->json(['message' => 'Pedido não encontrado.'], 404);
             return;
         }
@@ -37,12 +45,13 @@ final class PaymentController extends BaseController
         try {
             $invoiceId = (new InvoiceService())->create((int) $order['user_id'], $orderId, $amount, (string) ($_POST['currency'] ?? 'MZN'));
             $result = (new PaymentService())->initiateMpesa([
-                'user_id' => (int) $order['user_id'],
+                'user_id' => $userId,
                 'order_id' => $orderId,
                 'invoice_id' => $invoiceId,
                 'amount' => $amount,
                 'currency' => $_POST['currency'] ?? 'MZN',
                 'msisdn' => $msisdn,
+                'callback_url' => $_POST['callback_url'] ?? null,
                 'internal_notes' => $_POST['internal_notes'] ?? null,
             ]);
         } catch (Throwable $e) {
@@ -55,8 +64,13 @@ final class PaymentController extends BaseController
 
     public function status(int $id): void
     {
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) {
+            return;
+        }
+
         $payment = (new PaymentRepository())->findById($id);
-        if ($payment === null) {
+        if ($payment === null || (int) $payment['user_id'] !== $userId) {
             $this->json(['message' => 'Pagamento não encontrado.'], 404);
             return;
         }
@@ -68,5 +82,20 @@ final class PaymentController extends BaseController
             'external_reference' => $payment['external_reference'],
             'paid_at' => $payment['paid_at'],
         ]);
+    }
+
+    private function requireAuthUserId(): int
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
+        $userId = (int) ($_SESSION['auth_user_id'] ?? 0);
+        if ($userId <= 0) {
+            $this->json(['message' => 'Autenticação obrigatória.'], 401);
+            return 0;
+        }
+
+        return $userId;
     }
 }

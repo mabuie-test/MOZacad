@@ -16,26 +16,19 @@ final class MozPortugueseHumanizerService
         'objetivo' => 'objectivo',
     ];
 
-    public function humanize(array $sections, string $profile = 'academic_humanized_pt_mz'): array
+    public function humanize(array $sections, string $profile = 'academic_humanized_pt_mz', bool $enabled = true): array
     {
+        if (!$enabled) {
+            return $sections;
+        }
+
         foreach ($sections as $index => &$section) {
             $text = (string) ($section['content'] ?? '');
             if (trim($text) === '') {
                 continue;
             }
 
-            $prompt = <<<PROMPT
-Reescreve o texto abaixo em português de Moçambique com tom académico humano, natural e sem marcadores artificiais.
-- Mantém rigor conceptual.
-- Não inventes dados nem fontes.
-- Evita repetição mecânica e frases robóticas.
-- Preserva o sentido original.
-
-Texto:
-{$text}
-PROMPT;
-
-            $humanizedByAi = trim($this->provider->refine($prompt, ['locale' => 'pt_MZ', 'profile' => $profile]));
+            $humanizedByAi = trim($this->provider->humanize($text, $profile));
             if ($humanizedByAi !== '') {
                 $text = $humanizedByAi;
             }

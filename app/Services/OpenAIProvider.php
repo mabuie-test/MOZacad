@@ -17,49 +17,109 @@ final class OpenAIProvider implements AIProviderInterface
 
     public function __construct()
     {
-        $this->apiKey = (string) Env::get('OPENAI_API_KEY', '');
+        $this->apiKey = trim((string) Env::get('OPENAI_API_KEY', ''));
         $this->http = new Client([
             'base_uri' => rtrim((string) Env::get('OPENAI_BASE_URL', 'https://api.openai.com/v1'), '/') . '/',
             'timeout' => (int) Env::get('OPENAI_TIMEOUT', 60),
         ]);
     }
 
-    public function generate(string $prompt): string
+    public function generate(string $prompt, array $context = []): string
     {
-        return $this->request(
-            (string) Env::get('OPENAI_MODEL_CONTENT', Env::get('OPENAI_MODEL', 'gpt-5')),
-            $prompt
-        );
+        $contextText = $context === []
+            ? ''
+            : "Contexto adicional (JSON):\n" . json_encode($context, JSON_UNESCAPED_UNICODE) . "\n\n";
+
+        return $this->requestText($this->resolveModel('content'), $contextText . $prompt);
     }
 
     public function refine(string $text, array $rules = []): string
     {
-        $rulesText = $rules !== [] ? 'Regras de refinamento: ' . json_encode($rules, JSON_UNESCAPED_UNICODE) . "\n\n" : '';
-        return $this->request((string) Env::get('OPENAI_MODEL_REFINEMENT', Env::get('OPENAI_MODEL', 'gpt-5')), $rulesText . $text);
+        $rulesText = $rules === []
+            ? ''
+            : "Regras de refinamento (JSON):\n" . json_encode($rules, JSON_UNESCAPED_UNICODE) . "\n\n";
+
+        return $this->requestText($this->resolveModel('refinement'), $rulesText . $text);
     }
 
-    private function request(string $model, string $input): string
+    public function humanize(string $text, string $profile = 'academic_humanized_pt_mz'): string
+    {
+        $prompt = <<<PROMPT
+Reescreve o texto em português de Moçambique com fluidez humana e tom académico.
+Perfil: {$profile}
+- Mantém o sentido original.
+- Não inventes factos nem citações.
+- Reduz marcas de texto artificial.
+
+Texto:
+{$text}
+PROMPT;
+
+        return $this->requestText($this->resolveModel('humanizer'), $prompt);
+    }
+
+    public function generateStructured(string $prompt, array $schema): array
+    {
+        if ($schema === []) {
+            throw new RuntimeException('Schema estruturado inválido para generateStructured().');
+        }
+
+        $payload = $this->buildBasePayload($this->resolveModel('structure'), $prompt);
+        $payload['text'] = [
+            'format' => [
+                'type' => 'json_schema',
+                'name' => 'mozacad_structured_output',
+                'schema' => $schema,
+                'strict' => true,
+            ],
+        ];
+
+        $decoded = $this->sendRequest($payload);
+        $outputText = $this->extractOutputText($decoded);
+        $structured = json_decode($outputText, true);
+
+        if (!is_array($structured)) {
+            throw new RuntimeException('OpenAI retornou structured output não-JSON válido.');
+        }
+
+        return $structured;
+    }
+
+    private function requestText(string $model, string $input): string
+    {
+        $payload = $this->buildBasePayload($model, $input);
+
+        if (filter_var((string) Env::get('OPENAI_ENABLE_STRUCTURED_OUTPUT', false), FILTER_VALIDATE_BOOL)) {
+            $payload['text'] = ['format' => ['type' => 'text']];
+        }
+
+        $decoded = $this->sendRequest($payload);
+
+        return $this->extractOutputText($decoded);
+    }
+
+    private function buildBasePayload(string $model, string $input): array
     {
         if ($this->apiKey === '') {
             throw new RuntimeException('OPENAI_API_KEY não configurada.');
         }
 
-        $payload = [
+        return [
             'model' => $model,
             'input' => $input,
             'max_output_tokens' => (int) Env::get('OPENAI_MAX_OUTPUT_TOKENS', 4000),
             'temperature' => (float) Env::get('OPENAI_TEMPERATURE', 0.7),
         ];
+    }
 
-        if (filter_var(Env::get('OPENAI_ENABLE_STRUCTURED_OUTPUT', false), FILTER_VALIDATE_BOOL)) {
-            $payload['text'] = ['format' => ['type' => 'text']];
-        }
-
+    private function sendRequest(array $payload): array
+    {
         try {
             $response = $this->http->post('responses', [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $this->apiKey,
                     'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
                 ],
                 'json' => $payload,
                 'http_errors' => false,
@@ -72,40 +132,78 @@ final class OpenAIProvider implements AIProviderInterface
 
         $decoded = json_decode((string) $response->getBody(), true);
         if (!is_array($decoded)) {
-            throw new RuntimeException('Resposta inválida da OpenAI.');
+            throw new RuntimeException('Resposta inválida da OpenAI (JSON malformado).');
         }
 
+        return $decoded;
+    }
+
+    private function extractOutputText(array $decoded): string
+    {
         $outputText = $decoded['output_text'] ?? null;
-        if (is_string($outputText) && $outputText !== '') {
-            return $outputText;
+        if (is_string($outputText) && trim($outputText) !== '') {
+            return trim($outputText);
         }
 
         $parts = [];
         foreach (($decoded['output'] ?? []) as $outputItem) {
             foreach (($outputItem['content'] ?? []) as $content) {
-                if (($content['type'] ?? '') === 'output_text' && !empty($content['text'])) {
-                    $parts[] = $content['text'];
+                $contentType = (string) ($content['type'] ?? '');
+                $text = (string) ($content['text'] ?? '');
+
+                if (in_array($contentType, ['output_text', 'text'], true) && trim($text) !== '') {
+                    $parts[] = trim($text);
                 }
             }
         }
 
         if ($parts === []) {
-            throw new RuntimeException('OpenAI retornou resposta sem conteúdo textual.');
+            throw new RuntimeException('OpenAI retornou resposta sem conteúdo textual utilizável.');
         }
 
         return implode("\n", $parts);
     }
 
+    private function resolveModel(string $useCase): string
+    {
+        $baseModel = (string) Env::get('OPENAI_MODEL', 'gpt-5');
+
+        return match ($useCase) {
+            'structure' => (string) Env::get('OPENAI_MODEL_STRUCTURE', $baseModel),
+            'content' => (string) Env::get('OPENAI_MODEL_CONTENT', $baseModel),
+            'refinement' => (string) Env::get('OPENAI_MODEL_REFINEMENT', $baseModel),
+            'humanizer' => (string) Env::get('OPENAI_MODEL_HUMANIZER', $baseModel),
+            default => $baseModel,
+        };
+    }
+
     private function assertSuccessResponse(ResponseInterface $response): void
     {
         $status = $response->getStatusCode();
-        if ($status < 200 || $status >= 300) {
-            $decoded = json_decode((string) $response->getBody(), true);
-            $error = is_array($decoded)
-                ? (string) ($decoded['error']['message'] ?? $decoded['message'] ?? 'Erro desconhecido da OpenAI.')
-                : 'Erro desconhecido da OpenAI.';
-
-            throw new RuntimeException(sprintf('OpenAI retornou HTTP %d: %s', $status, $error));
+        if ($status >= 200 && $status < 300) {
+            return;
         }
+
+        $rawBody = (string) $response->getBody();
+        $decoded = json_decode($rawBody, true);
+
+        $errorMessage = is_array($decoded)
+            ? (string) ($decoded['error']['message'] ?? $decoded['message'] ?? 'Erro desconhecido da OpenAI.')
+            : 'Erro desconhecido da OpenAI.';
+
+        $errorType = is_array($decoded) ? (string) ($decoded['error']['type'] ?? '') : '';
+        $requestId = $response->getHeaderLine('x-request-id');
+
+        $details = trim(implode(' | ', array_filter([
+            $errorType !== '' ? 'type=' . $errorType : null,
+            $requestId !== '' ? 'request_id=' . $requestId : null,
+        ])));
+
+        throw new RuntimeException(sprintf(
+            'OpenAI retornou HTTP %d: %s%s',
+            $status,
+            $errorMessage,
+            $details !== '' ? ' (' . $details . ')' : ''
+        ));
     }
 }
