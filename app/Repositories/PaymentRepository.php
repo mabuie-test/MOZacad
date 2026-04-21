@@ -14,9 +14,16 @@ final class PaymentRepository extends BaseRepository
         return (int) $this->db->lastInsertId();
     }
 
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM payments WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
     public function findPendingForPolling(int $limit = 50): array
     {
-        $stmt = $this->db->prepare("SELECT * FROM payments WHERE status IN ('pending','processing','pending_confirmation') LIMIT :limit");
+        $stmt = $this->db->prepare("SELECT * FROM payments WHERE status IN ('pending','processing','pending_confirmation') AND external_reference IS NOT NULL LIMIT :limit");
         $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
@@ -26,6 +33,18 @@ final class PaymentRepository extends BaseRepository
     {
         $stmt = $this->db->prepare('UPDATE payments SET status = :status, provider_status = :provider_status, paid_at = NOW(), updated_at = NOW() WHERE id = :id');
         $stmt->execute(['status' => 'paid', 'provider_status' => $providerStatus, 'id' => $id]);
+    }
+
+    public function setExternalReference(int $id, string $externalReference, ?string $providerTransactionId = null, ?string $providerStatus = null): void
+    {
+        $stmt = $this->db->prepare('UPDATE payments SET external_reference = :external_reference, provider_transaction_id = :provider_transaction_id,
+                provider_status = :provider_status, updated_at = NOW() WHERE id = :id');
+        $stmt->execute([
+            'id' => $id,
+            'external_reference' => $externalReference,
+            'provider_transaction_id' => $providerTransactionId,
+            'provider_status' => $providerStatus,
+        ]);
     }
 
     public function updateStatus(int $id, string $status, string $providerStatus, ?string $message = null): void

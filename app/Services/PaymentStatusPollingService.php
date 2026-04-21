@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Repositories\DebitoTransactionRepository;
+use App\Repositories\InvoiceRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
+use App\Repositories\PaymentStatusLogRepository;
 
 final class PaymentStatusPollingService
 {
@@ -13,6 +16,9 @@ final class PaymentStatusPollingService
         private readonly PaymentProviderInterface $provider = new DebitoMpesaProvider(),
         private readonly PaymentRepository $payments = new PaymentRepository(),
         private readonly OrderRepository $orders = new OrderRepository(),
+        private readonly InvoiceRepository $invoices = new InvoiceRepository(),
+        private readonly DebitoTransactionRepository $debitoTransactions = new DebitoTransactionRepository(),
+        private readonly PaymentStatusLogRepository $paymentStatusLogs = new PaymentStatusLogRepository(),
         private readonly DebitoStatusMapper $mapper = new DebitoStatusMapper(),
         private readonly DebitoLoggerService $logger = new DebitoLoggerService(),
     ) {}
@@ -20,19 +26,23 @@ final class PaymentStatusPollingService
     public function run(): void
     {
         foreach ($this->payments->findPendingForPolling() as $payment) {
-            if (empty($payment['external_reference'])) {
+            $externalReference = (string) ($payment['external_reference'] ?? '');
+            if ($externalReference === '') {
                 continue;
             }
 
-            $statusPayload = $this->provider->checkStatus($payment['external_reference']);
-            $providerStatus = (string)($statusPayload['status'] ?? 'pending_confirmation');
+            $statusPayload = $this->provider->checkStatus($externalReference);
+            $providerStatus = (string) ($statusPayload['provider_status'] ?? 'PENDING');
             $internal = $this->mapper->map($providerStatus);
 
+            $this->payments->updateStatus((int) $payment['id'], $internal, $providerStatus, $statusPayload['provider_message'] ?? null);
+            $this->debitoTransactions->updateStatusByReference($externalReference, $internal, $statusPayload['raw'] ?? []);
+            $this->paymentStatusLogs->create((int) $payment['id'], $internal, $providerStatus, $statusPayload['raw'] ?? [], 'polling');
+
             if ($internal === 'paid') {
-                $this->payments->markPaid((int)$payment['id'], $providerStatus);
-                $this->orders->updateStatus((int)$payment['order_id'], 'queued');
-            } else {
-                $this->payments->updateStatus((int)$payment['id'], $internal, $providerStatus);
+                $this->payments->markPaid((int) $payment['id'], $providerStatus);
+                $this->invoices->markPaidById((int) $payment['invoice_id']);
+                $this->orders->updateStatus((int) $payment['order_id'], 'queued');
             }
 
             $this->logger->info('Polling status check', [
