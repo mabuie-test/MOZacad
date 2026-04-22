@@ -14,6 +14,14 @@ final class RuleResolverService
         $workVisual = $this->decodeJson($workTypeRules['custom_visual_rules_json'] ?? null);
         $workReferences = $this->decodeJson($workTypeRules['custom_reference_rules_json'] ?? null);
         $customStructure = $this->decodeJson($workTypeRules['custom_structure_json'] ?? null);
+        $metadata = is_array($normDocumentContext['metadata'] ?? null) ? $normDocumentContext['metadata'] : [];
+
+        $diskOverrides = [
+            'visual' => is_array($metadata['visual_overrides'] ?? null) ? $metadata['visual_overrides'] : [],
+            'front_page' => is_array($metadata['front_page_overrides'] ?? null) ? $metadata['front_page_overrides'] : [],
+            'structure' => is_array($metadata['structure_overrides'] ?? null) ? $metadata['structure_overrides'] : [],
+            'reference_style' => is_string($metadata['reference_style'] ?? null) ? $metadata['reference_style'] : null,
+        ];
 
         $visualDefaults = [
             'font_family' => 'Times New Roman',
@@ -49,19 +57,40 @@ final class RuleResolverService
             'citation_profile_id' => $institutionRules['citation_profile_id'] ?? null,
         ], static fn (mixed $value): bool => $value !== null);
 
+        $mergedFrontPage = array_merge(
+            is_array($institutionVisual['front_page'] ?? null) ? $institutionVisual['front_page'] : [],
+            $diskOverrides['front_page']
+        );
+
+        $visual = array_merge($visualDefaults, $institutionVisual, $workVisual, $diskOverrides['visual']);
+        $visual['front_page'] = $mergedFrontPage;
+
+        $reference = array_merge($referenceDefaults, $institutionReferences, $workReferences);
+        if (!empty($diskOverrides['reference_style'])) {
+            $reference['style'] = strtoupper((string) $diskOverrides['reference_style']);
+        }
+
+        $structure = array_merge([
+            'work_type_id' => (int) ($workTypeRules['work_type_id'] ?? 0),
+            'institution_id' => (int) ($workTypeRules['institution_id'] ?? 0),
+            'academic_level_id' => (int) ($academicLevelRules['id'] ?? 0),
+            'level_multiplier' => (float) ($academicLevelRules['multiplier'] ?? 1),
+            'level_slug' => (string) ($academicLevelRules['slug'] ?? ''),
+            'custom_structure' => $customStructure,
+        ], $diskOverrides['structure']);
+
         return new ResolvedRuleSetDTO(
-            visualRules: array_merge($visualDefaults, $institutionVisual, $workVisual),
-            referenceRules: array_merge($referenceDefaults, $institutionReferences, $workReferences),
-            structureRules: [
-                'work_type_id' => (int) ($workTypeRules['work_type_id'] ?? 0),
-                'institution_id' => (int) ($workTypeRules['institution_id'] ?? 0),
-                'academic_level_id' => (int) ($academicLevelRules['id'] ?? 0),
-                'level_multiplier' => (float) ($academicLevelRules['multiplier'] ?? 1),
-                'level_slug' => (string) ($academicLevelRules['slug'] ?? ''),
-                'custom_structure' => $customStructure,
-            ],
+            visualRules: $visual,
+            referenceRules: $reference,
+            structureRules: $structure,
             meta: [
                 'resolved_at' => date('c'),
+                'resolution_precedence' => [
+                    'disk_institution_overrides',
+                    'institution_work_type_rules',
+                    'institution_rules',
+                    'system_defaults',
+                ],
                 'institution_rule_id' => $institutionRules['id'] ?? null,
                 'institution_work_type_rule_id' => $workTypeRules['id'] ?? null,
                 'academic_level_name' => $academicLevelRules['name'] ?? null,
@@ -70,7 +99,7 @@ final class RuleResolverService
                     'source' => $normDocumentContext['source'] ?? 'none',
                     'has_txt' => !empty($normDocumentContext['txt_path']),
                     'has_pdf' => !empty($normDocumentContext['pdf_path']),
-                    'metadata' => is_array($normDocumentContext['metadata'] ?? null) ? $normDocumentContext['metadata'] : [],
+                    'metadata' => $metadata,
                     'excerpt' => mb_substr(trim((string) ($normDocumentContext['content'] ?? '')), 0, 3000),
                 ],
             ]

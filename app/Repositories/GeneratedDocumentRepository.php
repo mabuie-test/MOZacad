@@ -22,6 +22,19 @@ final class GeneratedDocumentRepository extends BaseRepository
         return $stmt->fetch() ?: null;
     }
 
+
+    public function findDetailedById(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT gd.*, o.user_id, o.status AS order_status, o.title_or_theme
+            FROM generated_documents gd
+            INNER JOIN orders o ON o.id = gd.order_id
+            WHERE gd.id = :id
+            LIMIT 1');
+        $stmt->execute(['id' => $id]);
+
+        return $stmt->fetch() ?: null;
+    }
+
     public function listByUser(int $userId, int $limit = 50): array
     {
         $stmt = $this->db->prepare('SELECT gd.*, o.user_id, o.title_or_theme

@@ -22,7 +22,7 @@ final class SecureUploadService
         $maxSizeBytes = (int) max(1, (int) Env::get('UPLOAD_MAX_SIZE_MB', 10)) * 1024 * 1024;
         $allowedMime = array_filter(array_map('trim', explode(',', (string) Env::get('UPLOAD_ALLOWED_MIME', 'application/pdf'))));
 
-        $basePath = rtrim((string) Env::get('STORAGE_UPLOADS_PATH', 'storage/uploads'), '/');
+        $basePath = dirname(__DIR__, 2) . '/' . trim((string) Env::get('STORAGE_UPLOADS_PATH', 'storage/uploads'), '/');
         $targetDir = $basePath . '/' . trim($subDir, '/');
         if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
             throw new RuntimeException('Falha ao criar directório de uploads.');

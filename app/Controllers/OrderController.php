@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Helpers\Database;
-use App\Helpers\Env;
 use App\Repositories\AcademicLevelRepository;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\CourseRepository;
@@ -14,8 +13,7 @@ use App\Repositories\InstitutionRepository;
 use App\Repositories\OrderAttachmentRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\WorkTypeRepository;
-use App\Services\InvoiceService;
-use App\Services\PaymentService;
+use App\Services\OrderPaymentFlowService;
 use App\Services\PricingService;
 use App\Services\RevisionService;
 use App\Services\SecureUploadService;
@@ -236,18 +234,15 @@ final class OrderController extends BaseController
         }
 
         try {
-            $currency = (string) Env::get('DEBITO_CURRENCY', 'MZN');
-            $invoiceId = (new InvoiceService())->create((int) $order['user_id'], $id, (float) $order['final_price'], $currency);
-            $payment = (new PaymentService())->initiateMpesa([
-                'user_id' => (int) $order['user_id'],
-                'order_id' => $id,
-                'invoice_id' => $invoiceId,
-                'amount' => (float) $order['final_price'],
-                'currency' => $currency,
-                'msisdn' => $msisdn,
-                'callback_url' => $_POST['callback_url'] ?? null,
-                'internal_notes' => $_POST['internal_notes'] ?? null,
-            ]);
+            $flow = (new OrderPaymentFlowService())->initiateOrderPayment(
+                $id,
+                (int) $order['user_id'],
+                $msisdn,
+                !empty($_POST['callback_url']) ? (string) $_POST['callback_url'] : null,
+                !empty($_POST['internal_notes']) ? (string) $_POST['internal_notes'] : null
+            );
+            $invoiceId = (int) $flow['invoice_id'];
+            $payment = $flow['payment'];
         } catch (Throwable $e) {
             $this->json(['message' => 'Falha ao iniciar pagamento.', 'error' => $e->getMessage()], 502);
             return;
@@ -285,21 +280,6 @@ final class OrderController extends BaseController
 
         $revisionId = (new RevisionService())->request($id, $userId, $reason);
         $this->json(['message' => 'Pedido de revisão registado', 'revision_id' => $revisionId]);
-    }
-
-    private function requireAuthUserId(): int
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
-
-        $userId = (int) ($_SESSION['auth_user_id'] ?? 0);
-        if ($userId <= 0) {
-            $this->json(['message' => 'Autenticação obrigatória.'], 401);
-            return 0;
-        }
-
-        return $userId;
     }
 
     private function complexityMultiplier(string $complexity): float

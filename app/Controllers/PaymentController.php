@@ -6,8 +6,7 @@ namespace App\Controllers;
 
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
-use App\Services\InvoiceService;
-use App\Services\PaymentService;
+use App\Services\OrderPaymentFlowService;
 use Throwable;
 
 final class PaymentController extends BaseController
@@ -43,17 +42,15 @@ final class PaymentController extends BaseController
         }
 
         try {
-            $invoiceId = (new InvoiceService())->create((int) $order['user_id'], $orderId, $amount, (string) ($_POST['currency'] ?? 'MZN'));
-            $result = (new PaymentService())->initiateMpesa([
-                'user_id' => $userId,
-                'order_id' => $orderId,
-                'invoice_id' => $invoiceId,
-                'amount' => $amount,
-                'currency' => $_POST['currency'] ?? 'MZN',
-                'msisdn' => $msisdn,
-                'callback_url' => $_POST['callback_url'] ?? null,
-                'internal_notes' => $_POST['internal_notes'] ?? null,
-            ]);
+            $flow = (new OrderPaymentFlowService())->initiateOrderPayment(
+                $orderId,
+                $userId,
+                $msisdn,
+                !empty($_POST['callback_url']) ? (string) $_POST['callback_url'] : null,
+                !empty($_POST['internal_notes']) ? (string) $_POST['internal_notes'] : null
+            );
+            $invoiceId = (int) $flow['invoice_id'];
+            $result = $flow['payment'];
         } catch (Throwable $e) {
             $this->json(['message' => 'Erro ao iniciar pagamento.', 'error' => $e->getMessage()], 502);
             return;
@@ -84,18 +81,5 @@ final class PaymentController extends BaseController
         ]);
     }
 
-    private function requireAuthUserId(): int
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
 
-        $userId = (int) ($_SESSION['auth_user_id'] ?? 0);
-        if ($userId <= 0) {
-            $this->json(['message' => 'Autenticação obrigatória.'], 401);
-            return 0;
-        }
-
-        return $userId;
-    }
 }

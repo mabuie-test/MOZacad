@@ -50,8 +50,35 @@ INSERT INTO pricing_extras (extra_code, name, amount, is_active, created_at, upd
 ('needs_defense_summary','Resumo de defesa',450,1,NOW(),NOW());
 
 INSERT INTO users (name, email, phone, password_hash, is_active, created_at, updated_at) VALUES
-('VIP Student','vip@mozacad.test','841111111','$2y$10$examplehash',1,NOW(),NOW()),
-('Super Admin','superadmin@mozacad.test','851111111','$2y$10$examplehash',1,NOW(),NOW());
+('VIP Student','vip@mozacad.test','841111111','$2y$12$FKAVAGTDq8h//J9Kba80gOVGeJUhKWQjnBqVQ7ZPuJEQXWtOuqiLa',1,NOW(),NOW()),
+('Super Admin','superadmin@mozacad.test','851111111','$2y$12$FKAVAGTDq8h//J9Kba80gOVGeJUhKWQjnBqVQ7ZPuJEQXWtOuqiLa',1,NOW(),NOW());
 
 INSERT INTO user_discounts (user_id, name, discount_type, discount_value, usage_limit, used_count, starts_at, ends_at, is_active, created_by_admin_id, notes, created_at, updated_at) VALUES
 (1,'VIP 10%','percent',10,100,0,NOW(),DATE_ADD(NOW(), INTERVAL 30 DAY),1,2,'Benefício promocional VIP',NOW(),NOW());
+
+
+INSERT INTO user_roles (user_id, role_id) VALUES
+(1, 1),
+(2, 2),
+(2, 4);
+
+INSERT INTO institution_rules (institution_id, font_family, font_size, heading_font_size, line_spacing, margin_top, margin_right, margin_bottom, margin_left, references_style, front_page_rules_json, notes, created_at, updated_at) VALUES
+(1, 'Times New Roman', 12, 14, 1.5, 2.5, 3, 2.5, 3, 'APA', '{"institution_name":"Universidade Eduardo Mondlane","city":"Maputo"}', 'Regras base UEM', NOW(), NOW()),
+(2, 'Times New Roman', 12, 14, 1.5, 2.5, 3, 2.5, 3, 'APA', '{"institution_name":"Universidade Pedagógica de Maputo","city":"Maputo"}', 'Regras base UP Maputo', NOW(), NOW());
+
+INSERT INTO courses (institution_id, name, code, is_active, created_at, updated_at) VALUES
+(1, 'Engenharia Informática', 'EINF', 1, NOW(), NOW()),
+(1, 'Direito', 'DIR', 1, NOW(), NOW()),
+(2, 'Administração e Gestão', 'ADG', 1, NOW(), NOW());
+
+INSERT INTO disciplines (institution_id, course_id, name, code, is_active, created_at, updated_at) VALUES
+(1, 1, 'Metodologia de Investigação', 'METINV', 1, NOW(), NOW()),
+(1, 1, 'Programação Web', 'PWEB', 1, NOW(), NOW()),
+(2, 3, 'Seminário de Pesquisa', 'SEMPES', 1, NOW(), NOW());
+
+INSERT INTO work_type_structures (work_type_id, section_code, section_title, section_order, is_required, min_words, max_words, notes) VALUES
+(1, 'introducao', 'Introdução', 1, 1, 350, 700, 'Secção introdutória'),
+(1, 'metodologia', 'Metodologia', 2, 1, 400, 900, 'Descrever abordagem'),
+(1, 'resultados', 'Resultados e Discussão', 3, 1, 500, 1200, 'Análise crítica'),
+(1, 'conclusao', 'Conclusão', 4, 1, 250, 600, 'Síntese final'),
+(1, 'references', 'Referências', 5, 1, 50, 400, 'Lista de referências');

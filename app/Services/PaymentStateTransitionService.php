@@ -21,6 +21,7 @@ final class PaymentStateTransitionService
         private readonly PaymentStatusLogRepository $paymentStatusLogs = new PaymentStatusLogRepository(),
         private readonly InvoiceRepository $invoices = new InvoiceRepository(),
         private readonly OrderRepository $orders = new OrderRepository(),
+        private readonly AIJobDispatchService $dispatcher = new AIJobDispatchService(),
     ) {}
 
     public function apply(array $payment, string $reference, string $internalStatus, string $providerStatus, array $rawPayload, string $source): bool
@@ -40,6 +41,7 @@ final class PaymentStateTransitionService
         $db->beginTransaction();
 
         try {
+            $lockedOrder = $this->orders->lockByIdForUpdate((int) $payment['order_id']);
             $this->payments->updateStatus($paymentId, $internalStatus, $providerStatus, (string) ($rawPayload['message'] ?? null));
             $this->debitoTransactions->updateStatusByReference($reference, $internalStatus, $rawPayload);
             $this->paymentStatusLogs->create($paymentId, $internalStatus, $providerStatus, $rawPayload, $source);
@@ -48,6 +50,9 @@ final class PaymentStateTransitionService
                 $this->payments->markPaid($paymentId, $providerStatus);
                 $this->invoices->markStatusById((int) $payment['invoice_id'], 'paid');
                 $this->orders->updateStatus((int) $payment['order_id'], 'queued');
+                if (is_array($lockedOrder)) {
+                    $this->dispatcher->enqueueDocumentGeneration($lockedOrder, $payment, $source);
+                }
             } elseif (in_array($internalStatus, ['failed', 'cancelled', 'expired'], true)) {
                 $this->invoices->markStatusById((int) $payment['invoice_id'], 'pending');
                 $this->orders->updateStatus((int) $payment['order_id'], 'pending_payment');

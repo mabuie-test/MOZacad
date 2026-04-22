@@ -18,8 +18,8 @@
   <div class="card-header fw-semibold">Fila de revisão humana</div>
   <div class="card-body">
     <div class="table-responsive mb-3">
-      <table class="table table-sm table-striped">
-        <thead><tr><th>ID</th><th>Order</th><th>Status</th><th>Reviewer</th><th>Decision</th><th>Atualizado</th></tr></thead>
+      <table class="table table-sm table-striped align-middle">
+        <thead><tr><th>ID</th><th>Order</th><th>Status</th><th>Reviewer</th><th>Decision</th><th>Atualizado</th><th>Ações</th></tr></thead>
         <tbody>
         <?php foreach (($humanReviewQueue ?? []) as $row): ?>
           <tr>
@@ -29,47 +29,31 @@
             <td><?= htmlspecialchars((string) ($row['reviewer_id'] ?? '-')) ?></td>
             <td><?= htmlspecialchars((string) ($row['decision'] ?? '-')) ?></td>
             <td><?= htmlspecialchars((string) ($row['updated_at'] ?? '-')) ?></td>
+            <td>
+              <form method="post" action="/admin/human-review/<?= (int) $row['id'] ?>/assign" class="d-flex gap-1 mb-1">
+                <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+                <select name="reviewer_id" class="form-select form-select-sm" required>
+                  <option value="">Revisor...</option>
+                  <?php foreach (($reviewers ?? []) as $reviewer): ?>
+                    <option value="<?= (int) $reviewer['id'] ?>"><?= htmlspecialchars((string) $reviewer['name']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <button class="btn btn-sm btn-outline-primary">Atribuir</button>
+              </form>
+              <form method="post" action="/admin/human-review/<?= (int) $row['id'] ?>/decision" class="d-flex gap-1">
+                <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+                <select class="form-select form-select-sm" name="decision" required>
+                  <option value="approve">Aprovar</option>
+                  <option value="reject">Rejeitar</option>
+                </select>
+                <input class="form-control form-control-sm" name="notes" placeholder="Notas">
+                <button class="btn btn-sm btn-warning">OK</button>
+              </form>
+            </td>
           </tr>
         <?php endforeach; ?>
         </tbody>
       </table>
-    </div>
-
-    <div class="row g-3">
-      <div class="col-md-6">
-        <form method="post" action="/admin/human-review/1/assign" class="border rounded p-3">
-          <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
-          <h2 class="h6">Atribuir revisor (trocar queueId na URL)</h2>
-          <div class="mb-2">
-            <label class="form-label">Revisor</label>
-            <select name="reviewer_id" class="form-select form-select-sm" required>
-              <option value="">Selecionar...</option>
-              <?php foreach (($reviewers ?? []) as $reviewer): ?>
-                <option value="<?= (int) $reviewer['id'] ?>"><?= htmlspecialchars((string) $reviewer['name']) ?> (#<?= (int) $reviewer['id'] ?>)</option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <button class="btn btn-sm btn-primary">Atribuir</button>
-        </form>
-      </div>
-      <div class="col-md-6">
-        <form method="post" action="/admin/human-review/1/decision" class="border rounded p-3">
-          <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
-          <h2 class="h6">Decidir revisão (trocar queueId na URL)</h2>
-          <div class="mb-2">
-            <label class="form-label">Decisão</label>
-            <select class="form-select form-select-sm" name="decision" required>
-              <option value="approve">Aprovar</option>
-              <option value="reject">Devolver</option>
-            </select>
-          </div>
-          <div class="mb-2">
-            <label class="form-label">Notas</label>
-            <textarea class="form-control form-control-sm" name="notes" rows="2"></textarea>
-          </div>
-          <button class="btn btn-sm btn-warning">Guardar decisão</button>
-        </form>
-      </div>
     </div>
   </div>
 </div>

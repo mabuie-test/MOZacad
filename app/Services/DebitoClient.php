@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Helpers\Env;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
 use RuntimeException;
 
@@ -17,9 +18,11 @@ final class DebitoClient
         private readonly DebitoAuthService $authService = new DebitoAuthService(),
         private readonly DebitoLoggerService $logger = new DebitoLoggerService(),
     ) {
+        $timeout = (int) Env::get('DEBITO_TIMEOUT', 30);
         $this->http = new Client([
             'base_uri' => rtrim((string) Env::get('DEBITO_BASE_URL', 'http://localhost:9000'), '/') . '/',
-            'timeout' => (int) Env::get('DEBITO_TIMEOUT', 30),
+            'timeout' => max(3, $timeout),
+            'connect_timeout' => min(10, max(2, (int) floor($timeout / 2))),
         ]);
     }
 
@@ -36,12 +39,14 @@ final class DebitoClient
     private function request(string $method, string $uri, array $payload = [], bool $auth = true): array
     {
         $requestId = bin2hex(random_bytes(8));
+        $retries = max(0, (int) Env::get('DEBITO_HTTP_RETRIES', 2));
+        $backoffMs = max(100, (int) Env::get('DEBITO_HTTP_BACKOFF_MS', 500));
 
         $headers = [
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
             'X-Request-ID' => $requestId,
-            'User-Agent' => 'MOZacad-DebitoClient/1.0',
+            'User-Agent' => 'MOZacad-DebitoClient/1.1',
         ];
 
         if ($auth) {
@@ -64,13 +69,23 @@ final class DebitoClient
             'payload' => $method === 'POST' ? $payload : [],
         ]);
 
+        $attempt = 0;
+        start:
+        $attempt++;
+
         try {
             $response = $this->http->request($method, ltrim($uri, '/'), $options);
-        } catch (GuzzleException $e) {
+        } catch (ConnectException|GuzzleException $e) {
+            if ($attempt <= ($retries + 1) && $this->isTransientException($e)) {
+                usleep(($backoffMs * $attempt) * 1000);
+                goto start;
+            }
+
             $this->logger->error('Erro na comunicação com Débito', [
                 'request_id' => $requestId,
                 'uri' => $uri,
                 'method' => $method,
+                'attempt' => $attempt,
                 'exception' => $e->getMessage(),
             ]);
             throw new RuntimeException('Falha ao comunicar com gateway Débito: ' . $e->getMessage(), 0, $e);
@@ -84,7 +99,13 @@ final class DebitoClient
             $decoded = [
                 'status' => $status,
                 'raw_body' => mb_substr($rawBody, 0, 2000),
+                'non_json_response' => true,
             ];
+        }
+
+        if ($status >= 500 && $status < 600 && $attempt <= ($retries + 1)) {
+            usleep(($backoffMs * $attempt) * 1000);
+            goto start;
         }
 
         if ($status < 200 || $status >= 300) {
@@ -95,6 +116,7 @@ final class DebitoClient
                 'method' => $method,
                 'uri' => $uri,
                 'status' => $status,
+                'attempt' => $attempt,
                 'response' => $decoded,
             ]);
 
@@ -105,9 +127,19 @@ final class DebitoClient
             'request_id' => $requestId,
             'method' => $method,
             'uri' => $uri,
+            'attempt' => $attempt,
             'response' => $decoded,
         ]);
 
         return $decoded;
+    }
+
+    private function isTransientException(GuzzleException $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        return str_contains($message, 'timed out')
+            || str_contains($message, 'connection')
+            || str_contains($message, 'temporar')
+            || str_contains($message, 'reset');
     }
 }

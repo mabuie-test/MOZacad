@@ -61,6 +61,15 @@ final class OrderRepository extends BaseRepository
         return $stmt->fetch() ?: null;
     }
 
+
+    public function lockByIdForUpdate(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM orders WHERE id = :id FOR UPDATE');
+        $stmt->execute(['id' => $id]);
+
+        return $stmt->fetch() ?: null;
+    }
+
     public function findDetailedById(int $id): ?array
     {
         $stmt = $this->db->prepare('SELECT o.*, wt.slug AS work_type_slug, wt.requires_human_review,
