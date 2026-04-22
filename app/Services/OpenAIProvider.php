@@ -140,6 +140,10 @@ PROMPT;
 
     private function extractOutputText(array $decoded): string
     {
+        if ((string) ($decoded['status'] ?? '') === 'incomplete') {
+            throw new RuntimeException('OpenAI retornou resposta incompleta; aumente OPENAI_MAX_OUTPUT_TOKENS.');
+        }
+
         $outputText = $decoded['output_text'] ?? null;
         if (is_string($outputText) && trim($outputText) !== '') {
             return trim($outputText);
@@ -149,7 +153,12 @@ PROMPT;
         foreach (($decoded['output'] ?? []) as $outputItem) {
             foreach (($outputItem['content'] ?? []) as $content) {
                 $contentType = (string) ($content['type'] ?? '');
-                $text = (string) ($content['text'] ?? '');
+                $text = '';
+                if (is_string($content['text'] ?? null)) {
+                    $text = (string) $content['text'];
+                } elseif (is_array($content['text'] ?? null) && is_string($content['text']['value'] ?? null)) {
+                    $text = (string) $content['text']['value'];
+                }
 
                 if (in_array($contentType, ['output_text', 'text'], true) && trim($text) !== '') {
                     $parts[] = trim($text);

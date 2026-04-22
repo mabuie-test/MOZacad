@@ -49,6 +49,9 @@ final class PaymentStateTransitionService
             }
 
             $lockedOrder = $this->orders->lockByIdForUpdate((int) $lockedPayment['order_id']);
+            if (!is_array($lockedOrder)) {
+                throw new RuntimeException('Pedido não encontrado para transição de pagamento.');
+            }
             $this->payments->updateStatus($paymentId, $internalStatus, $providerStatus, (string) ($rawPayload['message'] ?? null));
             $this->debitoTransactions->updateStatusByReference($reference, $internalStatus, $rawPayload);
             $this->paymentStatusLogs->create($paymentId, $internalStatus, $providerStatus, $rawPayload, $source);
@@ -56,13 +59,16 @@ final class PaymentStateTransitionService
             if ($internalStatus === 'paid') {
                 $this->logger->info('payment.transition.paid', ['payment_id' => $paymentId, 'order_id' => (int) $lockedPayment['order_id'], 'source' => $source]);
                 $this->payments->markPaid($paymentId, $providerStatus);
-                $this->invoices->markStatusById((int) $lockedPayment['invoice_id'], 'paid');
+                $invoiceId = (int) ($lockedPayment['invoice_id'] ?? 0);
+                if ($invoiceId <= 0) {
+                    throw new RuntimeException('Pagamento sem invoice_id válido.');
+                }
+
+                $this->invoices->markStatusById($invoiceId, 'paid');
                 if ($this->canMoveOrderToQueued($lockedOrder)) {
                     $this->orders->updateStatus((int) $lockedPayment['order_id'], 'queued');
                 }
-                if (is_array($lockedOrder)) {
-                    $this->dispatcher->enqueueDocumentGeneration($lockedOrder, $lockedPayment, $source);
-                }
+                $this->dispatcher->enqueueDocumentGeneration($lockedOrder, $lockedPayment, $source);
             } elseif (in_array($internalStatus, ['failed', 'cancelled', 'expired'], true)) {
                 $this->logger->error('payment.transition.failed_like', ['payment_id' => $paymentId, 'status' => $internalStatus, 'source' => $source]);
                 if (!$this->isOrderBeyondPayment((string) ($lockedOrder['status'] ?? ''))) {

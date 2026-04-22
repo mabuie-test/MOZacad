@@ -22,6 +22,14 @@ final class GeneratedDocumentRepository extends BaseRepository
         return $stmt->fetch() ?: null;
     }
 
+    public function findLatestByOrderIdForUpdate(int $orderId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM generated_documents WHERE order_id = :order_id ORDER BY version DESC LIMIT 1 FOR UPDATE');
+        $stmt->execute(['order_id' => $orderId]);
+
+        return $stmt->fetch() ?: null;
+    }
+
 
     public function findDetailedById(int $id): ?array
     {
@@ -80,5 +88,14 @@ final class GeneratedDocumentRepository extends BaseRepository
             'status' => $status,
             'order_id' => $orderId,
         ]);
+    }
+
+    public function isLatestVersion(int $documentId, int $orderId): bool
+    {
+        $stmt = $this->db->prepare('SELECT id FROM generated_documents WHERE order_id = :order_id ORDER BY version DESC LIMIT 1');
+        $stmt->execute(['order_id' => $orderId]);
+        $row = $stmt->fetch();
+
+        return is_array($row) && (int) ($row['id'] ?? 0) === $documentId;
     }
 }

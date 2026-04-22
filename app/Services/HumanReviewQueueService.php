@@ -21,6 +21,11 @@ final class HumanReviewQueueService
 
     public function enqueue(int $orderId, ?int $reviewerId = null): int
     {
+        $existingOpen = $this->queue->findOpenByOrderId($orderId);
+        if ($existingOpen !== null) {
+            return (int) $existingOpen['id'];
+        }
+
         return $this->queue->enqueue($orderId, $reviewerId);
     }
 
@@ -40,18 +45,25 @@ final class HumanReviewQueueService
 
     public function approve(int $queueId, ?string $notes = null): void
     {
-        $entry = $this->queue->findById($queueId);
-        if ($entry === null) {
-            throw new RuntimeException('Item de fila de revisão humana não encontrado.');
-        }
-        $latestDocument = $this->documents->findLatestByOrderId((int) $entry['order_id']);
-        if ($latestDocument === null) {
-            throw new RuntimeException('Não é possível aprovar sem documento gerado.');
-        }
-
         $db = Database::connect();
         $db->beginTransaction();
         try {
+            $entry = $this->queue->lockByIdForUpdate($queueId);
+            if ($entry === null) {
+                throw new RuntimeException('Item de fila de revisão humana não encontrado.');
+            }
+            if (in_array((string) ($entry['status'] ?? ''), ['approved', 'rejected'], true)) {
+                throw new RuntimeException('Este item já foi decidido e não pode ser aprovado novamente.');
+            }
+
+            $latestDocument = $this->documents->findLatestByOrderId((int) $entry['order_id']);
+            if ($latestDocument === null) {
+                throw new RuntimeException('Não é possível aprovar sem documento gerado.');
+            }
+            if ((string) ($latestDocument['status'] ?? '') !== 'pending_human_review') {
+                throw new RuntimeException('Documento não está pendente de revisão humana.');
+            }
+
             $this->queue->updateDecision($queueId, 'approved', $notes);
             $this->documents->updateLatestStatusByOrderId((int) $entry['order_id'], 'approved');
             $this->orders->updateStatus((int) $entry['order_id'], 'ready');
@@ -65,18 +77,25 @@ final class HumanReviewQueueService
 
     public function reject(int $queueId, ?string $notes = null): void
     {
-        $entry = $this->queue->findById($queueId);
-        if ($entry === null) {
-            throw new RuntimeException('Item de fila de revisão humana não encontrado.');
-        }
-        $latestDocument = $this->documents->findLatestByOrderId((int) $entry['order_id']);
-        if ($latestDocument === null) {
-            throw new RuntimeException('Não é possível rejeitar sem documento gerado.');
-        }
-
         $db = Database::connect();
         $db->beginTransaction();
         try {
+            $entry = $this->queue->lockByIdForUpdate($queueId);
+            if ($entry === null) {
+                throw new RuntimeException('Item de fila de revisão humana não encontrado.');
+            }
+            if (in_array((string) ($entry['status'] ?? ''), ['approved', 'rejected'], true)) {
+                throw new RuntimeException('Este item já foi decidido e não pode ser rejeitado novamente.');
+            }
+
+            $latestDocument = $this->documents->findLatestByOrderId((int) $entry['order_id']);
+            if ($latestDocument === null) {
+                throw new RuntimeException('Não é possível rejeitar sem documento gerado.');
+            }
+            if ((string) ($latestDocument['status'] ?? '') !== 'pending_human_review') {
+                throw new RuntimeException('Documento não está pendente de revisão humana.');
+            }
+
             $this->queue->updateDecision($queueId, 'rejected', $notes);
             $this->documents->updateLatestStatusByOrderId((int) $entry['order_id'], 'returned_for_revision');
             $this->orders->updateStatus((int) $entry['order_id'], 'revision_requested');

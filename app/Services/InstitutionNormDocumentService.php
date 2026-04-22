@@ -49,7 +49,7 @@ final class InstitutionNormDocumentService
             'source' => $source,
             'metadata' => $metadata,
             'notes' => $this->normalizeNotes($metadata['notes'] ?? []),
-            'reference_style' => is_string($metadata['reference_style'] ?? null) ? trim((string) $metadata['reference_style']) : null,
+            'reference_style' => $this->normalizeReferenceStyle($metadata['reference_style'] ?? null),
             'visual_overrides' => is_array($metadata['visual_overrides'] ?? null) ? $metadata['visual_overrides'] : [],
             'front_page_overrides' => is_array($metadata['front_page_overrides'] ?? null) ? $metadata['front_page_overrides'] : [],
             'structure_overrides' => is_array($metadata['structure_overrides'] ?? null) ? $metadata['structure_overrides'] : [],
@@ -97,6 +97,20 @@ final class InstitutionNormDocumentService
         $decoded = json_decode(is_string($raw) ? $raw : '', true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    private function normalizeReferenceStyle(mixed $referenceStyle): ?string
+    {
+        if (!is_string($referenceStyle)) {
+            return null;
+        }
+
+        $normalized = strtoupper(trim($referenceStyle));
+        if ($normalized === '') {
+            return null;
+        }
+
+        return preg_replace('/[^A-Z0-9\-_]/', '', $normalized) ?: null;
     }
 
     private function cleanText(string $content): string
