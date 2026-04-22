@@ -24,6 +24,17 @@ final class PaymentService
 
     public function initiateMpesa(array $context): array
     {
+        $existingOpen = $this->payments->findOpenByOrderId((int) $context['order_id']);
+        if ($existingOpen !== null) {
+            return [
+                'payment_id' => (int) $existingOpen['id'],
+                'internal_reference' => (string) ($existingOpen['internal_reference'] ?? ''),
+                'debito_reference' => (string) ($existingOpen['external_reference'] ?? ''),
+                'status' => (string) ($existingOpen['status'] ?? 'pending'),
+                'provider_status' => (string) ($existingOpen['provider_status'] ?? 'PENDING'),
+                'reused_pending_payment' => true,
+            ];
+        }
         $internalRef = Env::get('PAYMENT_REFERENCE_PREFIX', 'PAY') . '-' . date('YmdHis') . '-' . random_int(100, 999);
         $db = Database::connect();
         $db->beginTransaction();

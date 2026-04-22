@@ -35,9 +35,13 @@ final class DebitoClient
 
     private function request(string $method, string $uri, array $payload = [], bool $auth = true): array
     {
+        $requestId = bin2hex(random_bytes(8));
+
         $headers = [
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
+            'X-Request-ID' => $requestId,
+            'User-Agent' => 'MOZacad-DebitoClient/1.0',
         ];
 
         if ($auth) {
@@ -53,13 +57,18 @@ final class DebitoClient
             $options['json'] = $payload;
         }
 
-        $requestLogPayload = $method === 'POST' ? $payload : [];
-        $this->logger->info('Débito request', ['method' => $method, 'uri' => $uri, 'payload' => $requestLogPayload]);
+        $this->logger->info('Débito request', [
+            'request_id' => $requestId,
+            'method' => $method,
+            'uri' => $uri,
+            'payload' => $method === 'POST' ? $payload : [],
+        ]);
 
         try {
             $response = $this->http->request($method, ltrim($uri, '/'), $options);
         } catch (GuzzleException $e) {
             $this->logger->error('Erro na comunicação com Débito', [
+                'request_id' => $requestId,
                 'uri' => $uri,
                 'method' => $method,
                 'exception' => $e->getMessage(),
@@ -68,14 +77,21 @@ final class DebitoClient
         }
 
         $status = $response->getStatusCode();
-        $decoded = json_decode((string) $response->getBody(), true);
+        $rawBody = trim((string) $response->getBody());
+        $decoded = $rawBody !== '' ? json_decode($rawBody, true) : null;
+
+        if (!is_array($decoded)) {
+            $decoded = [
+                'status' => $status,
+                'raw_body' => mb_substr($rawBody, 0, 2000),
+            ];
+        }
 
         if ($status < 200 || $status >= 300) {
-            $providerMessage = is_array($decoded)
-                ? (string) ($decoded['message'] ?? $decoded['error']['message'] ?? 'erro desconhecido')
-                : 'erro desconhecido';
+            $providerMessage = (string) ($decoded['message'] ?? $decoded['error']['message'] ?? $decoded['raw_body'] ?? 'erro desconhecido');
 
             $this->logger->error('Débito retornou erro HTTP', [
+                'request_id' => $requestId,
                 'method' => $method,
                 'uri' => $uri,
                 'status' => $status,
@@ -85,11 +101,12 @@ final class DebitoClient
             throw new RuntimeException(sprintf('Débito retornou HTTP %d para %s %s: %s', $status, $method, $uri, $providerMessage));
         }
 
-        if (!is_array($decoded)) {
-            throw new RuntimeException('Resposta inválida do gateway Débito (JSON malformado).');
-        }
-
-        $this->logger->info('Débito response', ['method' => $method, 'uri' => $uri, 'response' => $decoded]);
+        $this->logger->info('Débito response', [
+            'request_id' => $requestId,
+            'method' => $method,
+            'uri' => $uri,
+            'response' => $decoded,
+        ]);
 
         return $decoded;
     }

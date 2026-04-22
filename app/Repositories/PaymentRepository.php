@@ -43,6 +43,14 @@ final class PaymentRepository extends BaseRepository
         return $stmt->fetch() ?: null;
     }
 
+
+    public function findOpenByOrderId(int $orderId): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM payments WHERE order_id = :order_id AND status IN ('pending','processing','pending_confirmation') ORDER BY id DESC LIMIT 1");
+        $stmt->execute(['order_id' => $orderId]);
+
+        return $stmt->fetch() ?: null;
+    }
     public function listRecentByUser(int $userId, int $limit = 20): array
     {
         $stmt = $this->db->prepare('SELECT * FROM payments WHERE user_id = :user_id ORDER BY created_at DESC LIMIT :limit');
