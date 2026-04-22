@@ -1,176 +1,79 @@
-# Moz Acad
+# MOZacad
 
-**Tagline:** Plataforma inteligente de apoio à escrita científica, normalização institucional e geração documental académica.
+Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento Débito M-Pesa C2B, geração DOCX, revisão humana e entrega segura.
 
-## Visão geral
-Moz Acad é uma base de produção MVC em PHP 8.2+ para apoio académico assistido, pricing avançado, pagamento Débito M-Pesa C2B, geração DOCX e revisão humana obrigatória para monografias.
-
-## Stack
-- PHP 8.2+
-- MySQL/MariaDB
-- Composer
-- GuzzleHTTP
-- PHPWord
-- vlucas/phpdotenv
-- Bootstrap (UI)
-
-## Arquitectura
-- **Controllers leves**: camada HTTP e validação superficial.
-- **Services fortes**: regras de pricing, descontos, regras institucionais, integração Débito, pipeline de geração.
-- **Repositories**: persistência SQL isolada.
-- **Jobs**: polling de pagamentos e pipeline assíncrona.
-
-## Estrutura de pastas
-```text
-/public
-/app
-  /Controllers
-  /Models
-  /Repositories
-  /Services
-  /Jobs
-  /Middleware
-  /Helpers
-  /DTOs
-/config
-/routes
-/database
-  /migrations
-  /seeders
-/storage
-  /generated
-  /templates
-  /logs
-```
-
-## Instalação
+## Setup rápido
 1. `composer install`
 2. `cp .env.example .env`
-3. Criar base de dados `moz_acad`
-4. Executar schema SQL em `database/migrations/001_schema.sql`
-5. Executar seed em `database/seeders/001_seed_base.sql` (ou `php database/seeders/SeederRunner.php`)
-6. Configurar web root para `public/`
+3. Criar base `moz_acad`
+4. Executar migrations SQL por ordem:
+   - `database/migrations/001_schema.sql`
+   - `database/migrations/002_hardening.sql`
+5. Executar seed base:
+   - `php database/seeders/SeederRunner.php`
+6. Servir `public/` como document root (`public_html` compatível).
 
-## Configuração `.env`
-Use `.env.example` como base. Parâmetros críticos:
-- OpenAI/GPT-5: `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL*`, `OPENAI_TIMEOUT`
-- Débito M-Pesa C2B: `DEBITO_BASE_URL`, `DEBITO_WALLET_ID`, `DEBITO_TOKEN`
-- Callback webhook: `DEBITO_CALLBACK_URL` (opcional, enviado ao gateway apenas quando configurado)
-- Polling principal: `DEBITO_POLLING_ENABLED`
-- Validação M-Pesa: `MPESA_MSISDN_REGEX`
-- Paths de storage: `STORAGE_GENERATED_PATH`, `STORAGE_TEMPLATES_PATH`, `STORAGE_LOGS_PATH`
-- Uploads seguros: `STORAGE_UPLOADS_PATH`, `UPLOAD_MAX_SIZE_MB`, `UPLOAD_ALLOWED_MIME`
-- Normas institucionais: `STORAGE_NORMS_PATH` com convenção `storage/norms/{institution_slug}/norma.(txt|pdf)` + `metadata.json`
+## Fluxo real ponta-a-ponta
+1. Utilizador cria pedido (`orders`).
+2. Sistema calcula pricing (regras + extras + descontos).
+3. Gera/reaproveita invoice aberta.
+4. Inicia pagamento Débito C2B (idempotente por pedido com lock).
+5. Confirmação principal por polling (`scripts/poll_payments.php`).
+6. Webhook Débito é complementar (não regressa estado `paid`).
+7. Ao transitar para `paid`, sistema enfileira `ai_jobs` (`stage=document_generation`) sem duplicação de job aberto.
+8. `scripts/process_ai_jobs.php` processa fila real e cria versão em `generated_documents`.
+9. Se tipo exigir revisão humana, entra em `human_review_queue`; admin aprova/rejeita.
+10. Documento aprovado (ou `generated` sem revisão obrigatória) pode ser descarregado por rota segura.
 
-## Débito M-Pesa C2B
-Endpoints utilizados:
-- `POST /api/v1/wallets/{wallet_id}/c2b/mpesa`
-- `GET /api/v1/transactions/{debito_reference}/status`
+## Pagamentos Débito (robustez)
+- Polling continua como fonte primária.
+- Webhook com validação defensiva opcional por HMAC (`DEBITO_WEBHOOK_SECRET`).
+- Cliente HTTP com timeout, retry e backoff simples (`DEBITO_HTTP_RETRIES`, `DEBITO_HTTP_BACKOFF_MS`).
+- Tratamento de respostas não-JSON e erros transitórios.
+- `paid` é terminal na máquina de estados.
 
-Requisito de iniciação: no fluxo M-Pesa o campo `msisdn` é obrigatório no início do pagamento.
+### Endpoint webhook
+A rota é configurável por `.env`:
+- `DEBITO_WEBHOOK_PATH=/webhooks/debito`
 
-Endpoints internos:
-- `POST /payments/mpesa/initiate`
-- `GET /payments/{id}/status`
-- `POST /webhooks/debito`
-
-Rotas web principais:
-- `/`
-- `/login`
-- `/register`
-- `/dashboard`
-- `/orders`
-- `/orders/create`
-- `/orders/{id}`
-- `/orders/{id}/pay`
-- `/invoices`
-- `/downloads`
-
-Rotas admin mínimas:
-- `/admin`
-- `/admin/users`
-- `/admin/orders`
-- `/admin/payments`
-- `/admin/discounts`
-- `/admin/human-review`
-- `/admin/institutions`
-- `/admin/courses`
-- `/admin/disciplines`
-- `/admin/work-types`
-- `/admin/pricing`
-
-### Autenticação com token
-A integração usa `DEBITO_TOKEN` (Bearer) como credencial principal para operações C2B M-Pesa.
-`callback_url` é enviado para o Débito usando a seguinte prioridade: payload HTTP > `DEBITO_CALLBACK_URL` (quando configurado).
-
-## Polling como meio principal
-`PaymentStatusPollingService` é a fonte primária de confirmação. O webhook é complementar e nunca substitui o polling.
-
-## Webhook
-Rota pública: `POST /webhooks/debito`.
-Recebe payload e faz reconciliação complementar de estado.
-O webhook **não** sobrepõe um pagamento já marcado como `paid`; o polling continua como fonte principal.
-
+## Cron jobs
+```bash
+* * * * * php /path/to/MOZacad/scripts/poll_payments.php
+*/2 * * * * php /path/to/MOZacad/scripts/process_ai_jobs.php
+```
 
 ## Normas institucionais por directório
-A resolução normativa agora combina regras da base com documentos institucionais em disco.
+Estrutura suportada:
+- `storage/norms/{institution_slug}/norma.txt`
+- `storage/norms/{institution_slug}/norma.pdf`
+- `storage/norms/{institution_slug}/metadata.json`
 
-Convenção suportada:
-- `storage/norms/{institution_slug}/norma.txt` (prioridade 1)
-- `storage/norms/{institution_slug}/metadata.json` com `normalized_text` (fallback textual)
-- `storage/norms/{institution_slug}/norma.pdf` (referência de origem)
+Campos relevantes em `metadata.json`:
+- `normalized_text`
+- `reference_style`
+- `visual_overrides`
+- `front_page_overrides`
+- `structure_overrides`
+- `notes`
 
-`InstitutionNormDocumentService` localiza, limpa e disponibiliza o texto normativo para:
-- `RuleResolverService` (meta e contexto resolvido),
-- `PromptComposerService` (composição de prompts com contexto normativo),
-- `InstitutionFormattingService` (metadados de formatação institucional).
+### Precedência de regras
+1. Overrides em disco por instituição (`metadata.json`).
+2. `institution_work_type_rules`.
+3. `institution_rules`.
+4. Defaults do sistema.
 
-## Cron jobs sugeridos
-```bash
-* * * * * php /path/to/project/scripts/poll_payments.php
-*/2 * * * * php /path/to/project/scripts/process_ai_jobs.php
-```
-`poll_payments.php` actualiza em cascata: `payments`, `debito_transactions`, `payment_status_logs`, `invoices` e `orders`.
+## Download seguro
+- `GET /downloads/{documentId}`
+- Verifica ownership (ou admin), estado permitido (`approved` ou `generated` com pedido `ready`), existência física e path seguro dentro de `STORAGE_GENERATED_PATH`.
+- Regista auditoria de download.
 
-## Módulos implementados (execução real)
-1. Autenticação e autorização (base)
-2. Catálogo académico (instituições, cursos, disciplinas, níveis, tipos)
-3. Pedidos e anexos
-4. Pricing com breakdown
-5. Cupões e descontos por utilizador
-6. Facturação
-7. Pagamentos Débito M-Pesa C2B
-8. Polling e webhook opcional
-9. Rule engine institucional (base)
-10. Pipeline de geração académica
-11. Humanização pt_MZ
-12. Geração DOCX
-13. Fila de revisão humana
-14. Painéis user/admin (base)
-15. Logs/auditoria e relatórios (fundação em tabelas)
+## Dados mínimos seedados
+- Instituições, níveis académicos, tipos de trabalho.
+- Cursos, disciplinas, regras institucionais base.
+- Estrutura inicial de tipo de trabalho.
+- Utilizador de teste + admin com hash de password válido.
 
-## Regras especiais de monografia
-- `allows_full_auto_generation = false`
-- `requires_human_review = true`
-- Fluxo obrigatório: gerar → revisão humana → aprovação → ready.
-
-## Deploy em host PHP tradicional
-- Compatível com `public_html`.
-- Sem Docker obrigatório.
-- Sem Node.js obrigatório no core.
-
-## Uso do painel admin
-Admin gerencia utilizadores, regras, pricing, descontos, pedidos, pagamentos, revisão humana e templates.
-
-## Uso de descontos para utilizadores seleccionados
-- Tipos: `percent`, `fixed`, `extra_waiver`
-- Controle por validade, limite, tipo de trabalho e extra.
-- Uso auditável em `discount_usage_logs`.
-
-## Notas de produção
-- Sessão HTTP com cookies `httponly` e `SameSite=Lax` ativa em `public/index.php`.
-- Sessões endurecidas: `use_strict_mode`, `use_only_cookies` e regeneração de sessão no login/registo.
-- CSRF básico ativo para operações mutáveis (auth, pedidos, pagamentos e ações admin) via `_csrf` ou header `X-CSRF-TOKEN`.
-- Uploads de anexos com validação de tamanho/MIME e armazenamento em `STORAGE_UPLOADS_PATH`.
-- Login e registo com hash de senha (`password_hash/password_verify`) e auditoria em `audit_logs`.
-- Pipeline AI processa `ai_jobs` reais via `scripts/process_ai_jobs.php` e persiste documentos em `generated_documents`.
+## Limitações honestas
+- Validação criptográfica do webhook depende de o gateway enviar header de assinatura compatível.
+- Sem credenciais reais Débito/OpenAI não é possível validar integração externa end-to-end.
+- Formatação de referências gera entradas provisórias e marca necessidade de revisão manual quando metadados são incompletos.

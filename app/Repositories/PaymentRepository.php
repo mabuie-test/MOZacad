@@ -44,6 +44,15 @@ final class PaymentRepository extends BaseRepository
     }
 
 
+
+    public function findByInternalReference(string $reference): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM payments WHERE internal_reference = :reference LIMIT 1');
+        $stmt->execute(['reference' => $reference]);
+
+        return $stmt->fetch() ?: null;
+    }
+
     public function findOpenByOrderId(int $orderId): ?array
     {
         $stmt = $this->db->prepare("SELECT * FROM payments WHERE order_id = :order_id AND status IN ('pending','processing','pending_confirmation') ORDER BY id DESC LIMIT 1");

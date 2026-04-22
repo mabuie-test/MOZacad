@@ -22,14 +22,15 @@ final class PaymentWebhookService
      */
     public function processDebitoWebhook(string $rawBody, array $headers = []): array
     {
-        $this->logger->info('Webhook Débito recebido', [
-            'payload' => $rawBody,
-            'headers' => $headers,
-        ]);
+        $this->logger->info('Webhook Débito recebido', ['headers' => $headers]);
 
         $enabled = filter_var((string) Env::get('DEBITO_ENABLE_WEBHOOK', true), FILTER_VALIDATE_BOOL);
         if (!$enabled) {
             return ['received' => true, 'processed' => false, 'http_status' => 202, 'reason' => 'webhook_disabled'];
+        }
+
+        if (!$this->validateSignature($rawBody, $headers)) {
+            return ['received' => true, 'processed' => false, 'http_status' => 401, 'reason' => 'invalid_signature'];
         }
 
         $payload = json_decode($rawBody, true);
@@ -75,6 +76,26 @@ final class PaymentWebhookService
             'payment_id' => (int) $payment['id'],
             'status' => $internalStatus,
         ];
+    }
+
+    private function validateSignature(string $rawBody, array $headers): bool
+    {
+        $secret = trim((string) Env::get('DEBITO_WEBHOOK_SECRET', ''));
+        if ($secret === '') {
+            $this->logger->info('Webhook sem segredo configurado; validação forte ignorada');
+            return true;
+        }
+
+        $headerValue = trim((string) ($headers['x_debito_signature'] ?? $headers['x-webhook-signature'] ?? ''));
+        if ($headerValue === '') {
+            $this->logger->error('Webhook sem header de assinatura com segredo configurado');
+            return false;
+        }
+
+        $expected = hash_hmac('sha256', $rawBody, $secret);
+        $incoming = str_starts_with($headerValue, 'sha256=') ? substr($headerValue, 7) : $headerValue;
+
+        return hash_equals($expected, $incoming);
     }
 
     private function extractReference(array $payload): string

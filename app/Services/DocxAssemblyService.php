@@ -18,10 +18,30 @@ final class DocxAssemblyService
         $font = (string) ($rules['font_family'] ?? 'Times New Roman');
         $fontSize = (int) ($rules['font_size'] ?? 12);
         $headingFontSize = (int) ($rules['heading_font_size'] ?? 14);
+        $lineSpacing = (float) ($rules['line_spacing'] ?? 1.5);
 
         $phpWord->setDefaultFontName($font);
         $phpWord->setDefaultFontSize($fontSize);
-        $phpWord->addTitleStyle(1, ['bold' => true, 'size' => $headingFontSize], ['alignment' => Jc::CENTER, 'spaceAfter' => 240]);
+
+        $phpWord->addParagraphStyle('body_text', [
+            'alignment' => Jc::BOTH,
+            'spaceAfter' => 160,
+            'lineHeight' => $lineSpacing,
+            'indentation' => ['firstLine' => 600],
+        ]);
+        $phpWord->addParagraphStyle('quote_long', [
+            'alignment' => Jc::BOTH,
+            'spaceAfter' => 120,
+            'lineHeight' => 1.0,
+            'indentation' => ['left' => 720, 'right' => 720],
+        ]);
+        $phpWord->addParagraphStyle('references_item', [
+            'alignment' => Jc::LEFT,
+            'spaceAfter' => 100,
+            'lineHeight' => 1.0,
+            'indentation' => ['hanging' => 360],
+        ]);
+        $phpWord->addTitleStyle(1, ['bold' => true, 'size' => $headingFontSize], ['alignment' => Jc::CENTER, 'spaceAfter' => 200]);
         $phpWord->addTitleStyle(2, ['bold' => true, 'size' => max(12, $headingFontSize - 1)], ['alignment' => Jc::LEFT, 'spaceAfter' => 180]);
 
         $section = $phpWord->addSection([
@@ -30,6 +50,8 @@ final class DocxAssemblyService
             'marginLeft' => (int) round(((float) ($rules['margins']['left'] ?? 3.0)) * 567),
             'marginRight' => (int) round(((float) ($rules['margins']['right'] ?? 3.0)) * 567),
         ]);
+
+        $this->addHeaderFooter($section, $rules);
 
         $frontPage = is_array($rules['front_page'] ?? null) ? $rules['front_page'] : [];
         $sections = is_array($formatted['sections'] ?? null) ? $formatted['sections'] : [];
@@ -45,28 +67,23 @@ final class DocxAssemblyService
         return $phpWord;
     }
 
+    private function addHeaderFooter(Section $section, array $rules): void
+    {
+        $header = $section->addHeader();
+        $header->addText((string) ($rules['front_page']['institution_name'] ?? 'MOZacad'), ['size' => 10], ['alignment' => Jc::CENTER]);
+
+        $footer = $section->addFooter();
+        $footer->addPreserveText('Página {PAGE} de {NUMPAGES}', ['size' => 10], ['alignment' => Jc::CENTER]);
+    }
+
     private function addCoverPage(Section $section, string $title, array $frontPage, int $headingFontSize): void
     {
         $section->addText((string) ($frontPage['institution_name'] ?? 'Instituição Académica'), ['bold' => true, 'size' => $headingFontSize], ['alignment' => Jc::CENTER]);
-        if (!empty($frontPage['faculty_name'])) {
-            $section->addText((string) $frontPage['faculty_name'], ['size' => 12], ['alignment' => Jc::CENTER]);
-        }
-        if (!empty($frontPage['course_name'])) {
-            $section->addText((string) $frontPage['course_name'], ['size' => 12], ['alignment' => Jc::CENTER]);
-        }
-
+        $section->addText((string) ($frontPage['course_name'] ?? ''), ['size' => 12], ['alignment' => Jc::CENTER]);
         $section->addTextBreak(4);
         $section->addText($title, ['bold' => true, 'size' => 16], ['alignment' => Jc::CENTER]);
-
-        if (!empty($frontPage['author_name'])) {
-            $section->addTextBreak(2);
-            $section->addText('Autor: ' . (string) $frontPage['author_name'], ['size' => 12], ['alignment' => Jc::CENTER]);
-        }
-
         $section->addTextBreak(8);
-        $year = (string) ($frontPage['year'] ?? date('Y'));
-        $city = (string) ($frontPage['city'] ?? 'Maputo');
-        $section->addText($city . ', ' . $year, ['size' => 12], ['alignment' => Jc::CENTER]);
+        $section->addText(((string) ($frontPage['city'] ?? 'Maputo')) . ', ' . ((string) ($frontPage['year'] ?? date('Y'))), ['size' => 12], ['alignment' => Jc::CENTER]);
         $section->addPageBreak();
     }
 
@@ -74,17 +91,16 @@ final class DocxAssemblyService
     {
         $section->addTitle('Folha de rosto', 1);
         $section->addText($title, ['bold' => true, 'size' => 14], ['alignment' => Jc::CENTER]);
-
         if (!empty($frontPage['submission_note'])) {
             $section->addTextBreak(2);
-            $section->addText((string) $frontPage['submission_note'], ['size' => 12], ['alignment' => Jc::BOTH]);
+            $section->addText((string) $frontPage['submission_note'], [], 'body_text');
         }
-
         $section->addPageBreak();
     }
 
     private function addPreTextSections(Section $section, array $sections, array $codes): void
     {
+        $added = 0;
         foreach ($sections as $item) {
             $code = mb_strtolower((string) ($item['code'] ?? ''));
             if (!in_array($code, $codes, true)) {
@@ -93,6 +109,13 @@ final class DocxAssemblyService
 
             $section->addTitle((string) ($item['title'] ?? ucfirst($code)), 1);
             $this->appendParagraphs($section, (string) ($item['content'] ?? ''));
+            $section->addPageBreak();
+            $added++;
+        }
+
+        if ($added === 0) {
+            $section->addTitle('Resumo', 1);
+            $section->addText('Resumo indisponível - requer revisão manual.', [], 'body_text');
             $section->addPageBreak();
         }
     }
@@ -112,10 +135,11 @@ final class DocxAssemblyService
                 continue;
             }
 
-            $title = (string) ($item['title'] ?? 'Capítulo');
-            $section->addTitle($title, 1);
+            $section->addTitle((string) ($item['title'] ?? 'Capítulo'), 1);
             $this->appendParagraphs($section, (string) ($item['content'] ?? ''));
-            $section->addPageBreak();
+            if (mb_strlen((string) ($item['content'] ?? '')) > 900) {
+                $section->addPageBreak();
+            }
         }
     }
 
@@ -127,33 +151,28 @@ final class DocxAssemblyService
                 continue;
             }
 
-            $section->addTitle((string) ($item['title'] ?? 'Referências'), 1);
-            $references = preg_split('/\n+/', (string) ($item['content'] ?? '')) ?: [];
-            foreach ($references as $reference) {
-                $reference = trim($reference);
-                if ($reference === '') {
-                    continue;
-                }
-
-                $section->addListItem($reference, 0, ['size' => 11]);
-            }
-
             $section->addPageBreak();
+            $section->addTitle((string) ($item['title'] ?? 'Referências'), 1);
+            foreach (preg_split('/\n+/', (string) ($item['content'] ?? '')) ?: [] as $reference) {
+                $reference = trim($reference);
+                if ($reference !== '') {
+                    $section->addText($reference, [], 'references_item');
+                }
+            }
             break;
         }
     }
 
     private function addAnnexesAndAppendices(Section $section, array $sections): void
     {
-        $annexes = array_filter($sections, static function (array $item): bool {
+        foreach ($sections as $item) {
             $code = mb_strtolower((string) ($item['code'] ?? ''));
-            return str_starts_with($code, 'anexo') || str_starts_with($code, 'apendice');
-        });
-
-        foreach ($annexes as $item) {
+            if (!str_starts_with($code, 'anexo') && !str_starts_with($code, 'apendice')) {
+                continue;
+            }
+            $section->addPageBreak();
             $section->addTitle((string) ($item['title'] ?? 'Anexo/Apêndice'), 1);
             $this->appendParagraphs($section, (string) ($item['content'] ?? ''));
-            $section->addPageBreak();
         }
     }
 
@@ -165,7 +184,8 @@ final class DocxAssemblyService
                 continue;
             }
 
-            $section->addText($paragraph, [], ['alignment' => Jc::BOTH, 'spaceAfter' => 180]);
+            $style = mb_strlen($paragraph) > 450 ? 'quote_long' : 'body_text';
+            $section->addText($paragraph, [], $style);
         }
     }
 }

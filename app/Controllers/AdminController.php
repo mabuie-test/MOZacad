@@ -380,36 +380,6 @@ final class AdminController extends BaseController
         $this->json(['message' => 'Extra de pricing guardado com sucesso.', 'extra_code' => $extraCode]);
     }
 
-    private function requireAdminAccess(): bool
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
-
-        $userId = (int) ($_SESSION['auth_user_id'] ?? 0);
-        if ($userId <= 0) {
-            $this->json(['message' => 'Autenticação obrigatória.'], 401);
-            return false;
-        }
-
-        $stmt = Database::connect()->prepare('SELECT 1
-            FROM user_roles ur
-            INNER JOIN roles r ON r.id = ur.role_id
-            WHERE ur.user_id = :user_id AND r.name = :role_name
-            LIMIT 1');
-        $stmt->execute([
-            'user_id' => $userId,
-            'role_name' => 'admin',
-        ]);
-
-        if ($stmt->fetch() === false) {
-            $this->json(['message' => 'Sem permissão para recursos administrativos.'], 403);
-            return false;
-        }
-
-        return true;
-    }
-
     private function isHtmlRequest(): bool
     {
         $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
