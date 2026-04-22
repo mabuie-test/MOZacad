@@ -24,15 +24,32 @@ use App\Services\RequirementInterpreterService;
 use App\Services\RuleResolverService;
 use App\Services\StructureBuilderService;
 use RuntimeException;
+use App\Services\ApplicationLoggerService;
 
 final class GenerateOrderDocumentJob
 {
     public function handle(int $orderId): array
     {
+        $logger = new ApplicationLoggerService();
         $orders = new OrderRepository();
         $order = $orders->findById($orderId);
         if ($order === null) {
             throw new RuntimeException('Pedido não encontrado para geração documental.');
+        }
+
+        $latestExisting = (new GeneratedDocumentRepository())->findLatestByOrderId($orderId);
+        if ($latestExisting !== null && in_array((string) ($latestExisting['status'] ?? ''), ['generated', 'approved', 'pending_human_review'], true) && in_array((string) ($order['status'] ?? ''), ['ready', 'under_human_review'], true)) {
+            $logger->info('ai_job.document_generation.reused_latest', ['order_id' => $orderId, 'document_id' => (int) $latestExisting['id']]);
+
+            return [
+                'order_id' => $orderId,
+                'generated_document_id' => (int) $latestExisting['id'],
+                'version' => (int) ($latestExisting['version'] ?? 1),
+                'file_path' => (string) ($latestExisting['file_path'] ?? ''),
+                'queued_for_human_review' => (string) ($latestExisting['status'] ?? '') === 'pending_human_review',
+                'human_review_queue_id' => null,
+                'reused_existing_document' => true,
+            ];
         }
 
         $requirements = (new OrderRequirementRepository())->findByOrderId($orderId) ?? [];
@@ -98,6 +115,8 @@ final class GenerateOrderDocumentJob
         if ($requiresReview) {
             $queueId = (new HumanReviewQueueService())->enqueue($orderId);
         }
+
+        $logger->info('ai_job.document_generation.completed', ['order_id' => $orderId, 'document_id' => $documentId, 'version' => $nextVersion, 'requires_review' => $requiresReview]);
 
         return [
             'order_id' => $orderId,

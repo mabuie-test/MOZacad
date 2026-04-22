@@ -9,24 +9,39 @@ final class AIJobRepository extends BaseRepository
     public function findOpenByOrderAndStage(int $orderId, string $stage): ?array
     {
         $stmt = $this->db->prepare("SELECT * FROM ai_jobs WHERE order_id = :order_id AND stage = :stage AND status IN ('queued','pending','processing') ORDER BY id DESC LIMIT 1");
-        $stmt->execute([
-            'order_id' => $orderId,
-            'stage' => $stage,
-        ]);
-
+        $stmt->execute(['order_id' => $orderId, 'stage' => $stage]);
         return $stmt->fetch() ?: null;
     }
 
     public function create(int $orderId, string $stage, string $status, array $payload): int
     {
         $stmt = $this->db->prepare('INSERT INTO ai_jobs (order_id, stage, status, payload_json, created_at, updated_at) VALUES (:order_id, :stage, :status, :payload_json, NOW(), NOW())');
-        $stmt->execute([
-            'order_id' => $orderId,
-            'stage' => $stage,
-            'status' => $status,
-            'payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        ]);
-
+        $stmt->execute(['order_id' => $orderId, 'stage' => $stage, 'status' => $status, 'payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE)]);
         return (int) $this->db->lastInsertId();
+    }
+
+    public function reserveQueued(int $limit = 5): array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM ai_jobs WHERE status IN ('queued','pending') ORDER BY created_at ASC LIMIT :limit");
+        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    public function markProcessing(int $id): void
+    {
+        $this->db->prepare("UPDATE ai_jobs SET status='processing', updated_at=NOW() WHERE id=:id")->execute(['id' => $id]);
+    }
+
+    public function markCompleted(int $id, array $result): void
+    {
+        $this->db->prepare("UPDATE ai_jobs SET status='completed', result_json=:result_json, updated_at=NOW() WHERE id=:id")
+            ->execute(['id' => $id, 'result_json' => json_encode($result, JSON_UNESCAPED_UNICODE)]);
+    }
+
+    public function markFailed(int $id, string $error): void
+    {
+        $this->db->prepare("UPDATE ai_jobs SET status='failed', error_text=:error_text, updated_at=NOW() WHERE id=:id")
+            ->execute(['id' => $id, 'error_text' => $error]);
     }
 }

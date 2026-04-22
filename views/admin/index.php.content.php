@@ -1,11 +1,23 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h4 mb-0">Admin MOZacad</h1>
-  <small class="text-muted">MVP operacional</small>
+  <small class="text-muted">Operação administrativa</small>
 </div>
 
 <?php if (!empty($flashMessage)): ?>
   <div class="alert alert-success py-2"><?= htmlspecialchars((string) $flashMessage) ?></div>
 <?php endif; ?>
+
+<form method="get" action="/admin" class="row g-2 mb-3">
+  <div class="col-md-3">
+    <select name="review_status" class="form-select form-select-sm">
+      <option value="">Todos status revisão</option>
+      <?php foreach (['pending','assigned','approved','rejected'] as $status): ?>
+        <option value="<?= $status ?>" <?= (($reviewStatusFilter ?? '') === $status) ? 'selected' : '' ?>><?= htmlspecialchars($status) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <div class="col-md-2"><button class="btn btn-sm btn-outline-secondary">Filtrar</button></div>
+</form>
 
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted d-block">Utilizadores</small><strong><?= count($users ?? []) ?></strong></div></div></div>
@@ -25,8 +37,8 @@
           <tr>
             <td><?= (int) $row['id'] ?></td>
             <td>#<?= (int) $row['order_id'] ?></td>
-            <td><?= htmlspecialchars((string) $row['status']) ?></td>
-            <td><?= htmlspecialchars((string) ($row['reviewer_id'] ?? '-')) ?></td>
+            <td><span class="badge text-bg-<?= (string) $row['status'] === 'approved' ? 'success' : ((string) $row['status'] === 'rejected' ? 'danger' : ((string) $row['status'] === 'assigned' ? 'info' : 'secondary')) ?>"><?= htmlspecialchars((string) $row['status']) ?></span></td>
+            <td><?= !empty($row['reviewer_id']) ? '#'.(int)$row['reviewer_id'] : '<span class=\"text-muted\">Não atribuído</span>' ?></td>
             <td><?= htmlspecialchars((string) ($row['decision'] ?? '-')) ?></td>
             <td><?= htmlspecialchars((string) ($row['updated_at'] ?? '-')) ?></td>
             <td>
@@ -141,7 +153,7 @@
 
     <div class="table-responsive">
       <table class="table table-sm table-striped">
-        <thead><tr><th>ID</th><th>User</th><th>Nome</th><th>Tipo</th><th>Valor</th><th>Ativo</th></tr></thead>
+        <thead><tr><th>ID</th><th>User</th><th>Nome</th><th>Tipo</th><th>Valor</th><th>Uso</th><th>Ativo</th></tr></thead>
         <tbody>
           <?php foreach (($discounts ?? []) as $discount): ?>
             <tr>
@@ -150,6 +162,7 @@
               <td><?= htmlspecialchars((string) $discount['name']) ?></td>
               <td><?= htmlspecialchars((string) $discount['discount_type']) ?></td>
               <td><?= htmlspecialchars((string) $discount['discount_value']) ?></td>
+              <td><?= (int) ($discount['used_count'] ?? 0) ?>/<?= htmlspecialchars((string) ($discount['usage_limit'] ?? 'N/A')) ?></td>
               <td><?= (int) $discount['is_active'] ?></td>
             </tr>
           <?php endforeach; ?>

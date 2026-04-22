@@ -4,101 +4,71 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\DTOs\ReferenceEntryDTO;
+
 final class CitationFormatterService
 {
+    public function __construct(private readonly BibliographicSignalParserService $signals = new BibliographicSignalParserService()) {}
+
     public function format(array $sections, string $style = 'APA'): array
     {
         $style = strtoupper(trim($style)) !== '' ? strtoupper(trim($style)) : 'APA';
-        $extracted = $this->extractCitationSignals($sections);
-        $references = $this->buildProvisionalReferences($extracted, $style);
+        $detectedSignals = $this->signals->parse($sections);
+        $references = $this->buildReferences($detectedSignals, $style);
 
         foreach ($sections as $index => &$section) {
             $text = trim((string) ($section['content'] ?? ''));
-            if ($text === '') {
-                continue;
-            }
-
+            if ($text === '') continue;
             $section['content'] = $text;
             $section['citation_style'] = $style;
             $section['section_number'] = $index + 1;
         }
         unset($section);
 
+        $referenceArrays = array_map(static fn (ReferenceEntryDTO $entry): array => $entry->toArray(), $references);
         $sections[] = [
             'title' => 'Referências',
             'code' => 'references',
-            'content' => implode("\n", array_map(static fn (array $r): string => $r['formatted'], $references)),
+            'content' => implode("\n", array_map(static fn (ReferenceEntryDTO $r): string => $r->formatted, $references)),
             'citation_style' => $style,
-            'requires_manual_completion' => in_array(true, array_column($references, 'requires_manual_completion'), true),
-            'reference_entries' => $references,
+            'signals_detected' => $detectedSignals,
+            'requires_manual_completion' => in_array(true, array_column($referenceArrays, 'requires_manual_completion'), true),
+            'reference_entries' => $referenceArrays,
         ];
 
         return $sections;
     }
 
-    private function extractCitationSignals(array $sections): array
+    /** @return array<int,ReferenceEntryDTO> */
+    private function buildReferences(array $signals, string $style): array
     {
-        $signals = [];
-
-        foreach ($sections as $section) {
-            $text = (string) ($section['content'] ?? '');
-            if ($text === '') {
-                continue;
-            }
-
-            preg_match_all('/\(([A-Za-zÀ-ÖØ-öø-ÿ\-\s.&]+),\s*(\d{4}[a-z]?)\)/u', $text, $authorYear, PREG_SET_ORDER);
-            foreach ($authorYear as $match) {
-                $signals[] = ['type' => 'author_year', 'author' => trim($match[1]), 'year' => trim($match[2])];
-            }
-
-            preg_match_all('/\bhttps?:\/\/[^\s)]+/iu', $text, $urls);
-            foreach (($urls[0] ?? []) as $url) {
-                $signals[] = ['type' => 'url', 'value' => trim($url)];
-            }
-
-            preg_match_all('/\b(?:doi:\s*|10\.\d{4,9}\/[\w.()\-;\/:]+)\b/iu', $text, $dois);
-            foreach (($dois[0] ?? []) as $doi) {
-                $clean = preg_replace('/^doi:\s*/i', '', trim($doi)) ?? trim($doi);
-                $signals[] = ['type' => 'doi', 'value' => $clean];
-            }
-        }
-
-        return $signals;
-    }
-
-    private function buildProvisionalReferences(array $signals, string $style): array
-    {
-        $references = [];
+        $items = [];
         $seen = [];
 
         foreach ($signals as $signal) {
-            $key = md5(json_encode($signal));
-            if (isset($seen[$key])) {
-                continue;
-            }
-            $seen[$key] = true;
+            $hash = md5(json_encode($signal, JSON_UNESCAPED_UNICODE));
+            if (isset($seen[$hash])) continue;
+            $seen[$hash] = true;
 
-            if ($signal['type'] === 'author_year') {
-                $formatted = sprintf('%s. (%s). [Referência incompleta - completar manualmente].', $this->normalizeAuthor((string) $signal['author']), $signal['year']);
-                $references[] = ['formatted' => $formatted, 'style' => $style, 'requires_manual_completion' => true];
-                continue;
-            }
-
-            if ($signal['type'] === 'doi') {
-                $references[] = ['formatted' => 'DOI: ' . (string) $signal['value'], 'style' => $style, 'requires_manual_completion' => true];
-                continue;
-            }
-
-            if ($signal['type'] === 'url') {
-                $references[] = ['formatted' => 'Fonte online: ' . (string) $signal['value'], 'style' => $style, 'requires_manual_completion' => true];
-            }
+            $items[] = match ((string) ($signal['type'] ?? '')) {
+                'author_year' => new ReferenceEntryDTO(
+                    'author_year',
+                    sprintf('%s|%s', (string) ($signal['author'] ?? ''), (string) ($signal['year'] ?? '')),
+                    sprintf('%s. (%s). [Referência provisória incompleta — revisão manual obrigatória].', $this->normalizeAuthor((string) ($signal['author'] ?? 'Autor')), (string) ($signal['year'] ?? 's.d.')),
+                    true,
+                    'provisional'
+                ),
+                'doi' => new ReferenceEntryDTO('doi', (string) ($signal['value'] ?? ''), 'DOI: ' . (string) ($signal['value'] ?? ''), true, 'incomplete'),
+                'url' => new ReferenceEntryDTO('url', (string) ($signal['value'] ?? ''), 'Fonte online: ' . (string) ($signal['value'] ?? ''), true, 'incomplete'),
+                default => new ReferenceEntryDTO('unknown', json_encode($signal), '[Sinal bibliográfico não estruturado - revisão manual]', true, 'incomplete'),
+            };
         }
 
-        if ($references === []) {
-            $references[] = ['formatted' => 'Nenhuma referência detectada automaticamente. Completar manualmente.', 'style' => $style, 'requires_manual_completion' => true];
+        if ($items === []) {
+            $items[] = new ReferenceEntryDTO('none', 'none', 'Nenhuma referência detectada automaticamente. Completar manualmente.', true, 'empty');
         }
 
-        return $references;
+        return $items;
     }
 
     private function normalizeAuthor(string $author): string

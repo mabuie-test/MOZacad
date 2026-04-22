@@ -1,6 +1,6 @@
 # MOZacad
 
-Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento Débito M-Pesa C2B, geração DOCX, revisão humana e entrega segura.
+Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento Débito M-Pesa C2B, geração DOCX, revisão humana e entrega segura, com autorização centralizada e observabilidade operacional.
 
 ## Setup rápido
 1. `composer install`
@@ -61,6 +61,14 @@ Campos relevantes em `metadata.json`:
 2. `institution_work_type_rules`.
 3. `institution_rules`.
 4. Defaults do sistema.
+
+
+## Hardening e consistência adicionais
+- Controllers críticos afinados com serviços de aplicação (`OrderApplicationService`, `PaymentApplicationService`, `AdminPricingService`, `AdminHumanReviewService`).
+- Autorização centralizada (`AuthContextService`, `AuthorizationService`, `AdminAccessService`) para autenticação, acesso admin e ownership.
+- Paths de storage ancorados com `StoragePathService` para uploads, generated, logs e norms com validação defensiva de path traversal.
+- Logs operacionais em `storage/logs/application.log` para criação de pedido, transições de pagamento e processamento de AI jobs.
+- Pipeline de referências com parser dedicado (`BibliographicSignalParserService`) e entradas estruturadas (`ReferenceEntryDTO`).
 
 ## Download seguro
 - `GET /downloads/{documentId}`

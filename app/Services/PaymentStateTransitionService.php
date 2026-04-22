@@ -22,6 +22,7 @@ final class PaymentStateTransitionService
         private readonly InvoiceRepository $invoices = new InvoiceRepository(),
         private readonly OrderRepository $orders = new OrderRepository(),
         private readonly AIJobDispatchService $dispatcher = new AIJobDispatchService(),
+        private readonly ApplicationLoggerService $logger = new ApplicationLoggerService(),
     ) {}
 
     public function apply(array $payment, string $reference, string $internalStatus, string $providerStatus, array $rawPayload, string $source): bool
@@ -47,6 +48,7 @@ final class PaymentStateTransitionService
             $this->paymentStatusLogs->create($paymentId, $internalStatus, $providerStatus, $rawPayload, $source);
 
             if ($internalStatus === 'paid') {
+                $this->logger->info('payment.transition.paid', ['payment_id' => $paymentId, 'order_id' => (int) $payment['order_id'], 'source' => $source]);
                 $this->payments->markPaid($paymentId, $providerStatus);
                 $this->invoices->markStatusById((int) $payment['invoice_id'], 'paid');
                 $this->orders->updateStatus((int) $payment['order_id'], 'queued');
@@ -54,11 +56,13 @@ final class PaymentStateTransitionService
                     $this->dispatcher->enqueueDocumentGeneration($lockedOrder, $payment, $source);
                 }
             } elseif (in_array($internalStatus, ['failed', 'cancelled', 'expired'], true)) {
+                $this->logger->error('payment.transition.failed_like', ['payment_id' => $paymentId, 'status' => $internalStatus, 'source' => $source]);
                 $this->invoices->markStatusById((int) $payment['invoice_id'], 'pending');
                 $this->orders->updateStatus((int) $payment['order_id'], 'pending_payment');
             }
 
             $db->commit();
+            $this->logger->info('payment.transition.updated', ['payment_id' => $paymentId, 'from' => $currentStatus, 'to' => $internalStatus, 'source' => $source]);
             return true;
         } catch (Throwable $e) {
             if ($db->inTransaction()) {
