@@ -17,6 +17,7 @@ use App\Services\DocxAssemblyService;
 use App\Services\ExportService;
 use App\Services\HumanReviewQueueService;
 use App\Services\InstitutionFormattingService;
+use App\Services\InstitutionNormDocumentService;
 use App\Services\MozPortugueseHumanizerService;
 use App\Services\PromptComposerService;
 use App\Services\RequirementInterpreterService;
@@ -50,11 +51,13 @@ final class GenerateOrderDocumentJob
         $workTypeRepo = new WorkTypeRepository();
         $academicRepo = new AcademicLevelRepository();
 
+        $institution = $institutionRepo->findById((int) $order['institution_id']) ?? [];
         $institutionRules = $institutionRepo->findRuleByInstitutionId((int) $order['institution_id']) ?? [];
         $institutionWorkTypeRules = $workTypeRepo->findInstitutionWorkTypeRule((int) $order['institution_id'], (int) $order['work_type_id']) ?? [];
         $academicLevel = $academicRepo->findById((int) $order['academic_level_id']) ?? [];
+        $normContext = (new InstitutionNormDocumentService())->resolveForInstitution($institution);
 
-        $resolvedRulesDto = (new RuleResolverService())->resolve($institutionRules, $institutionWorkTypeRules, $academicLevel);
+        $resolvedRulesDto = (new RuleResolverService())->resolve($institutionRules, $institutionWorkTypeRules, $academicLevel, $normContext);
         $resolvedRules = [
             'visualRules' => $resolvedRulesDto->visualRules,
             'referenceRules' => $resolvedRulesDto->referenceRules,

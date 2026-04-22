@@ -52,11 +52,6 @@ final class DebitoMpesaPayloadBuilder
             return $envCallback;
         }
 
-        $appUrl = rtrim((string) Env::get('APP_URL', ''), '/');
-        if ($appUrl === '') {
-            return '';
-        }
-
-        return $appUrl . '/webhooks/debito';
+        return '';
     }
 }

@@ -8,7 +8,7 @@ use App\DTOs\ResolvedRuleSetDTO;
 
 final class RuleResolverService
 {
-    public function resolve(array $institutionRules, array $workTypeRules, array $academicLevelRules): ResolvedRuleSetDTO
+    public function resolve(array $institutionRules, array $workTypeRules, array $academicLevelRules, array $normDocumentContext = []): ResolvedRuleSetDTO
     {
         $frontPage = $this->decodeJson($institutionRules['front_page_rules_json'] ?? null);
         $workVisual = $this->decodeJson($workTypeRules['custom_visual_rules_json'] ?? null);
@@ -65,6 +65,14 @@ final class RuleResolverService
                 'institution_rule_id' => $institutionRules['id'] ?? null,
                 'institution_work_type_rule_id' => $workTypeRules['id'] ?? null,
                 'academic_level_name' => $academicLevelRules['name'] ?? null,
+                'institution_norm' => [
+                    'slug' => $normDocumentContext['slug'] ?? null,
+                    'source' => $normDocumentContext['source'] ?? 'none',
+                    'has_txt' => !empty($normDocumentContext['txt_path']),
+                    'has_pdf' => !empty($normDocumentContext['pdf_path']),
+                    'metadata' => is_array($normDocumentContext['metadata'] ?? null) ? $normDocumentContext['metadata'] : [],
+                    'excerpt' => mb_substr(trim((string) ($normDocumentContext['content'] ?? '')), 0, 3000),
+                ],
             ]
         );
     }

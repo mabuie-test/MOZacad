@@ -6,6 +6,7 @@ use App\Controllers\AdminController;
 use App\Controllers\AuthController;
 use App\Controllers\BillingController;
 use App\Controllers\DashboardController;
+use App\Controllers\DebitoWebhookController;
 use App\Controllers\HomeController;
 use App\Controllers\OrderController;
 use App\Helpers\Router;
@@ -35,6 +36,8 @@ return static function (Router $router): void {
     $router->post('/orders/{id}/revision-request', [OrderController::class, 'requestRevision']);
     $router->get('/invoices', [BillingController::class, 'invoices']);
     $router->get('/downloads', [BillingController::class, 'downloads']);
+
+    $router->post('/webhooks/debito', [DebitoWebhookController::class, 'handle']);
 
     $router->get('/admin', [AdminController::class, 'index']);
     $router->get('/admin/users', [AdminController::class, 'users']);
