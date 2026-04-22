@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Helpers\Database;
 use App\Repositories\AIJobRepository;
 use App\Repositories\AuditLogRepository;
+use App\Repositories\OrderRepository;
+use Throwable;
 
 final class AIJobDispatchService
 {
     public function __construct(
         private readonly AIJobRepository $jobs = new AIJobRepository(),
         private readonly AuditLogRepository $audit = new AuditLogRepository(),
+        private readonly OrderRepository $orders = new OrderRepository(),
         private readonly DebitoLoggerService $logger = new DebitoLoggerService(),
     ) {}
 
@@ -23,31 +27,48 @@ final class AIJobDispatchService
         }
 
         $stage = 'document_generation';
-        $existing = $this->jobs->findOpenByOrderAndStage($orderId, $stage);
-        if ($existing !== null) {
-            $this->logger->info('AI job dispatch skipped (open job exists)', [
+        $db = Database::connect();
+        $db->beginTransaction();
+        try {
+            $lockedOrder = $this->orders->lockByIdForUpdate($orderId);
+            if (!is_array($lockedOrder)) {
+                $db->rollBack();
+                return null;
+            }
+
+            $existing = $this->jobs->findOpenByOrderAndStage($orderId, $stage);
+            if ($existing !== null) {
+                $db->commit();
+                $this->logger->info('AI job dispatch skipped (open job exists)', [
+                    'order_id' => $orderId,
+                    'existing_job_id' => (int) $existing['id'],
+                    'stage' => $stage,
+                    'source' => $source,
+                ]);
+
+                return null;
+            }
+
+            $payload = [
                 'order_id' => $orderId,
-                'existing_job_id' => (int) $existing['id'],
-                'stage' => $stage,
+                'user_id' => (int) ($lockedOrder['user_id'] ?? 0),
+                'work_type_id' => (int) ($lockedOrder['work_type_id'] ?? 0),
+                'institution_id' => (int) ($lockedOrder['institution_id'] ?? 0),
+                'title_or_theme' => (string) ($lockedOrder['title_or_theme'] ?? ''),
+                'payment_id' => (int) ($payment['id'] ?? 0),
+                'payment_reference' => (string) ($payment['external_reference'] ?? $payment['internal_reference'] ?? ''),
+                'dispatched_at' => date('c'),
                 'source' => $source,
-            ]);
+            ];
 
-            return null;
+            $jobId = $this->jobs->create($orderId, $stage, 'queued', $payload);
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $e;
         }
-
-        $payload = [
-            'order_id' => $orderId,
-            'user_id' => (int) ($order['user_id'] ?? 0),
-            'work_type_id' => (int) ($order['work_type_id'] ?? 0),
-            'institution_id' => (int) ($order['institution_id'] ?? 0),
-            'title_or_theme' => (string) ($order['title_or_theme'] ?? ''),
-            'payment_id' => (int) ($payment['id'] ?? 0),
-            'payment_reference' => (string) ($payment['external_reference'] ?? $payment['internal_reference'] ?? ''),
-            'dispatched_at' => date('c'),
-            'source' => $source,
-        ];
-
-        $jobId = $this->jobs->create($orderId, $stage, 'queued', $payload);
 
         $this->audit->log(
             null,

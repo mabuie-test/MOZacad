@@ -9,10 +9,12 @@ use Throwable;
 final class AIOrchestrationService
 {
     private AIProviderInterface $provider;
+    private ApplicationLoggerService $logger;
 
     public function __construct(?AIProviderInterface $provider = null)
     {
         $this->provider = $provider ?? (new AIProviderResolverService())->resolve();
+        $this->logger = new ApplicationLoggerService();
     }
 
     public function run(array $prompts, array $blueprint = []): array
@@ -45,10 +47,24 @@ final class AIOrchestrationService
     private function generateSection(string $prompt, array $context): string
     {
         try {
-            return trim($this->provider->generate($prompt, $context));
-        } catch (Throwable) {
+            $generated = trim($this->provider->generate($prompt, $context));
+            if ($generated === '') {
+                throw new \RuntimeException('Resposta vazia do provider IA.');
+            }
+            return $generated;
+        } catch (Throwable $firstError) {
+            $this->logger->error('ai.section.generate.primary_failed', [
+                'section_code' => (string) ($context['section_code'] ?? ''),
+                'error' => $firstError->getMessage(),
+            ]);
+
             $fallbackPrompt = $prompt . "\n\nReescreve em formato mais objetivo e sem bullets.";
-            return trim($this->provider->generate($fallbackPrompt, $context));
+            $fallback = trim($this->provider->generate($fallbackPrompt, $context));
+            if ($fallback === '') {
+                throw new \RuntimeException('Resposta vazia do provider IA no fallback.');
+            }
+
+            return $fallback;
         }
     }
 }

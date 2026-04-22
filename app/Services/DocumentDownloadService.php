@@ -22,7 +22,10 @@ final class DocumentDownloadService
         $doc = $this->documents->findDetailedById($documentId);
         if ($doc === null) throw new RuntimeException('Documento não encontrado.');
 
-        $allowedStatus = (string) ($doc['status'] ?? '') === 'approved' || ((string) ($doc['status'] ?? '') === 'generated' && (string) ($doc['order_status'] ?? '') === 'ready');
+        $status = (string) ($doc['status'] ?? '');
+        $orderStatus = (string) ($doc['order_status'] ?? '');
+        $isLatest = $this->documents->isLatestVersion((int) $doc['id'], (int) $doc['order_id']);
+        $allowedStatus = $isLatest && ($status === 'approved' || ($status === 'generated' && $orderStatus === 'ready'));
         $own = (int) $doc['user_id'] === $actorUserId;
         if (!$allowedStatus || (!$own && !$this->authorization->isAdmin($actorUserId))) {
             throw new RuntimeException('Sem permissão para descarregar este documento.');
@@ -33,6 +36,10 @@ final class DocumentDownloadService
 
         $this->auditLogs->log($actorUserId, 'document.download', 'generated_document', $documentId, ['order_id' => (int) $doc['order_id'], 'file_path' => $path]);
 
-        return ['path' => $path, 'download_name' => sprintf('pedido-%d-v%d.docx', (int) $doc['order_id'], (int) ($doc['version'] ?? 1)), 'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        return [
+            'path' => $path,
+            'download_name' => sprintf('pedido-%d-v%d.docx', (int) $doc['order_id'], (int) ($doc['version'] ?? 1)),
+            'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
     }
 }

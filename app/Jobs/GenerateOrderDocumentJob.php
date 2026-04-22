@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Helpers\Database;
 use App\Repositories\AcademicLevelRepository;
 use App\Repositories\GeneratedDocumentRepository;
 use App\Repositories\InstitutionRepository;
@@ -12,6 +13,7 @@ use App\Repositories\OrderRequirementRepository;
 use App\Repositories\WorkTypeRepository;
 use App\Services\AIOrchestrationService;
 use App\Services\AcademicRefinementService;
+use App\Services\ApplicationLoggerService;
 use App\Services\CitationFormatterService;
 use App\Services\DocxAssemblyService;
 use App\Services\ExportService;
@@ -22,9 +24,9 @@ use App\Services\MozPortugueseHumanizerService;
 use App\Services\PromptComposerService;
 use App\Services\RequirementInterpreterService;
 use App\Services\RuleResolverService;
+use App\Services\StoragePathService;
 use App\Services\StructureBuilderService;
 use RuntimeException;
-use App\Services\ApplicationLoggerService;
 
 final class GenerateOrderDocumentJob
 {
@@ -38,7 +40,12 @@ final class GenerateOrderDocumentJob
         }
 
         $latestExisting = (new GeneratedDocumentRepository())->findLatestByOrderId($orderId);
-        if ($latestExisting !== null && in_array((string) ($latestExisting['status'] ?? ''), ['generated', 'approved', 'pending_human_review'], true) && in_array((string) ($order['status'] ?? ''), ['ready', 'under_human_review'], true)) {
+        if (
+            $latestExisting !== null
+            && in_array((string) ($latestExisting['status'] ?? ''), ['generated', 'approved', 'pending_human_review'], true)
+            && in_array((string) ($order['status'] ?? ''), ['ready', 'under_human_review'], true)
+            && $this->documentFileExists((string) ($latestExisting['file_path'] ?? ''))
+        ) {
             $logger->info('ai_job.document_generation.reused_latest', ['order_id' => $orderId, 'document_id' => (int) $latestExisting['id']]);
 
             return [
@@ -100,20 +107,58 @@ final class GenerateOrderDocumentJob
 
         $doc = (new DocxAssemblyService())->assemble($formatted, $briefing['title']);
 
-        $latest = (new GeneratedDocumentRepository())->findLatestByOrderId($orderId);
+        $documents = new GeneratedDocumentRepository();
+        $latest = $documents->findLatestByOrderId($orderId);
         $nextVersion = ((int) ($latest['version'] ?? 0)) + 1;
         $filename = sprintf('order-%d-v%d-%s.docx', $orderId, $nextVersion, date('YmdHis'));
         $path = (new ExportService())->saveDocx($doc, $filename);
 
         $requiresReview = (bool) ($order['work_type_id'] && ((new WorkTypeRepository())->findById((int) $order['work_type_id'])['requires_human_review'] ?? false));
         $documentStatus = $requiresReview ? 'pending_human_review' : 'generated';
-        $orders->updateStatus($orderId, $requiresReview ? 'under_human_review' : 'ready');
-
-        $documentId = (new GeneratedDocumentRepository())->create($orderId, $path, $documentStatus, $nextVersion);
 
         $queueId = null;
-        if ($requiresReview) {
-            $queueId = (new HumanReviewQueueService())->enqueue($orderId);
+        $db = Database::connect();
+        $db->beginTransaction();
+        try {
+            $lockedOrder = $orders->lockByIdForUpdate($orderId);
+            if (!is_array($lockedOrder)) {
+                throw new RuntimeException('Pedido não encontrado para persistência documental.');
+            }
+
+            $lockedLatest = $documents->findLatestByOrderIdForUpdate($orderId);
+            if (
+                $lockedLatest !== null
+                && in_array((string) ($lockedLatest['status'] ?? ''), ['generated', 'approved', 'pending_human_review'], true)
+                && in_array((string) ($lockedOrder['status'] ?? ''), ['ready', 'under_human_review'], true)
+                && $this->documentFileExists((string) ($lockedLatest['file_path'] ?? ''))
+            ) {
+                $db->commit();
+
+                return [
+                    'order_id' => $orderId,
+                    'generated_document_id' => (int) $lockedLatest['id'],
+                    'version' => (int) ($lockedLatest['version'] ?? 1),
+                    'file_path' => (string) ($lockedLatest['file_path'] ?? ''),
+                    'queued_for_human_review' => (string) ($lockedLatest['status'] ?? '') === 'pending_human_review',
+                    'human_review_queue_id' => null,
+                    'reused_existing_document' => true,
+                ];
+            }
+
+            $effectiveVersion = ((int) ($lockedLatest['version'] ?? 0)) + 1;
+            $orders->updateStatus($orderId, $requiresReview ? 'under_human_review' : 'ready');
+
+            $documentId = $documents->create($orderId, $path, $documentStatus, $effectiveVersion);
+            if ($requiresReview) {
+                $queueId = (new HumanReviewQueueService())->enqueue($orderId);
+            }
+            $db->commit();
+            $nextVersion = $effectiveVersion;
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $e;
         }
 
         $logger->info('ai_job.document_generation.completed', ['order_id' => $orderId, 'document_id' => $documentId, 'version' => $nextVersion, 'requires_review' => $requiresReview]);
@@ -126,5 +171,21 @@ final class GenerateOrderDocumentJob
             'queued_for_human_review' => $requiresReview,
             'human_review_queue_id' => $queueId,
         ];
+    }
+
+    private function documentFileExists(string $candidatePath): bool
+    {
+        if (trim($candidatePath) === '') {
+            return false;
+        }
+
+        $paths = new StoragePathService();
+        try {
+            $fullPath = $paths->ensurePathInside($candidatePath, $paths->generatedBase());
+        } catch (RuntimeException) {
+            return false;
+        }
+
+        return is_file($fullPath) && filesize($fullPath) > 0;
     }
 }

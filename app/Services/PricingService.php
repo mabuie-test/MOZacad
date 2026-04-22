@@ -39,7 +39,9 @@ final class PricingService
         $couponResult = $this->couponService->apply(
             (string) ($context['coupon_code'] ?? ''),
             $subtotal,
-            (bool) ($context['consume_coupon'] ?? false)
+            (bool) ($context['consume_coupon'] ?? false),
+            isset($context['order_id']) ? (int) $context['order_id'] : null,
+            isset($context['user_id']) ? (int) $context['user_id'] : null
         );
         $couponDiscount = (float) $couponResult['amount'];
 

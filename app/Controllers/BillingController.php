@@ -44,6 +44,8 @@ final class BillingController extends BaseController
             header('Content-Disposition: attachment; filename="' . basename($file['download_name']) . '"');
             header('Content-Length: ' . (string) filesize($file['path']));
             header('X-Content-Type-Options: nosniff');
+            header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+            header('Pragma: no-cache');
             readfile($file['path']);
         } catch (RuntimeException $e) {
             $this->json(['message' => $e->getMessage()], 403);

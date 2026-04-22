@@ -14,8 +14,7 @@ final class AIProviderResolverService
 
         return match ($provider) {
             'openai', '' => new OpenAIProvider(),
-            default => new OpenAIProvider(),
+            default => throw new \RuntimeException(sprintf('AI_PROVIDER inválido: %s', $provider)),
         };
     }
 }
-
