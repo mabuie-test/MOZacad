@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Helpers\Env;
 use App\Repositories\PaymentRepository;
 use Throwable;
 
@@ -28,6 +29,12 @@ final class PaymentStatusPollingService
             'paid' => 0,
             'errors' => 0,
         ];
+
+        $enabled = filter_var((string) Env::get('DEBITO_POLLING_ENABLED', true), FILTER_VALIDATE_BOOL);
+        if (!$enabled) {
+            $this->logger->info('Polling desativado por configuração', ['env' => 'DEBITO_POLLING_ENABLED']);
+            return $summary;
+        }
 
         foreach ($this->payments->findPendingForPolling() as $payment) {
             $summary['checked']++;

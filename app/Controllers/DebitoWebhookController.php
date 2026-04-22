@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Helpers\Env;
 use App\Repositories\PaymentRepository;
 use App\Services\DebitoLoggerService;
 use App\Services\DebitoStatusMapper;
@@ -29,12 +28,6 @@ final class DebitoWebhookController extends BaseController
 
         if (!is_array($payload)) {
             $this->json(['received' => false, 'processed' => false, 'reason' => 'invalid_json'], 400);
-            return;
-        }
-
-        $enabled = filter_var((string) Env::get('DEBITO_ENABLE_WEBHOOK', false), FILTER_VALIDATE_BOOL);
-        if (!$enabled) {
-            $this->json(['received' => true, 'processed' => false, 'reason' => 'webhook_disabled'], 202);
             return;
         }
 

@@ -55,7 +55,8 @@ Moz Acad é uma base de produção MVC em PHP 8.2+ para apoio académico assisti
 Use `.env.example` como base. Parâmetros críticos:
 - OpenAI/GPT-5: `AI_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL*`, `OPENAI_TIMEOUT`
 - Débito M-Pesa C2B: `DEBITO_BASE_URL`, `DEBITO_WALLET_ID`, `DEBITO_TOKEN`
-- Webhook opcional: `DEBITO_ENABLE_WEBHOOK`, `DEBITO_CALLBACK_URL`
+- Callback webhook: `DEBITO_CALLBACK_URL` (ou fallback automático `APP_URL + /webhooks/debito`)
+- Polling opcional: `DEBITO_POLLING_ENABLED` para auxiliar quando webhook falhar
 - Validação M-Pesa: `MPESA_MSISDN_REGEX`
 - Paths de storage: `STORAGE_GENERATED_PATH`, `STORAGE_TEMPLATES_PATH`, `STORAGE_LOGS_PATH`
 - Uploads seguros: `STORAGE_UPLOADS_PATH`, `UPLOAD_MAX_SIZE_MB`, `UPLOAD_ALLOWED_MIME`
@@ -64,6 +65,8 @@ Use `.env.example` como base. Parâmetros críticos:
 Endpoints utilizados:
 - `POST /api/v1/wallets/{wallet_id}/c2b/mpesa`
 - `GET /api/v1/transactions/{debito_reference}/status`
+
+Requisito de iniciação: no fluxo M-Pesa o campo `msisdn` é obrigatório no início do pagamento.
 
 Endpoints internos:
 - `POST /payments/mpesa/initiate`
@@ -97,14 +100,14 @@ Rotas admin mínimas:
 
 ### Autenticação com token
 A integração usa `DEBITO_TOKEN` (Bearer) como credencial principal para operações C2B M-Pesa.
-`callback_url` só é enviado ao Débito quando `DEBITO_ENABLE_WEBHOOK=true` e existir URL configurada.
+`callback_url` é enviado para o Débito usando a seguinte prioridade: payload HTTP > `DEBITO_CALLBACK_URL` > `APP_URL/webhooks/debito`.
 
 ## Polling como meio principal
 `PaymentStatusPollingService` é a fonte primária de confirmação. O webhook é complementar e nunca substitui o polling.
 
-## Webhook opcional
+## Webhook
 Rota pública: `POST /webhooks/debito`.
-Recebe payload, regista logs e faz reconciliação complementar de estado quando `DEBITO_ENABLE_WEBHOOK=true`.
+Recebe payload e faz reconciliação complementar de estado.
 O webhook **não** sobrepõe um pagamento já marcado como `paid`; o polling continua como fonte principal.
 
 ## Cron jobs sugeridos
