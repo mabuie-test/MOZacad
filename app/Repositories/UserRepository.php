@@ -65,4 +65,29 @@ final class UserRepository extends BaseRepository
 
         return $stmt->fetchAll();
     }
+    public function hasAnyRole(int $userId, array $roleNames): bool
+    {
+        if ($userId <= 0 || $roleNames === []) {
+            return false;
+        }
+
+        $placeholders = [];
+        $params = ['user_id' => $userId];
+        foreach (array_values($roleNames) as $index => $roleName) {
+            $key = 'role_' . $index;
+            $placeholders[] = ':' . $key;
+            $params[$key] = trim((string) $roleName);
+        }
+
+        $stmt = $this->db->prepare('SELECT 1
+            FROM user_roles ur
+            INNER JOIN roles r ON r.id = ur.role_id
+            WHERE ur.user_id = :user_id
+              AND r.name IN (' . implode(',', $placeholders) . ')
+            LIMIT 1');
+        $stmt->execute($params);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
 }

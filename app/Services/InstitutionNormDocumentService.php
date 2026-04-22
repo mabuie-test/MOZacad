@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Helpers\Env;
 
 final class InstitutionNormDocumentService
 {
@@ -64,7 +63,7 @@ final class InstitutionNormDocumentService
 
     private function basePath(): string
     {
-        return dirname(__DIR__, 2) . '/' . trim((string) Env::get('STORAGE_NORMS_PATH', 'storage/norms'), '/');
+        return (new StoragePathService())->normsBase();
     }
 
     private function resolveExisting(string $path): ?string

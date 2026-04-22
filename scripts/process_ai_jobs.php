@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 use App\Helpers\Database;
 use App\Jobs\GenerateOrderDocumentJob;
+use App\Repositories\AIJobRepository;
+use App\Services\ApplicationLoggerService;
 
 require_once __DIR__ . '/../bootstrap/app.php';
 
-$db = Database::connect();
-$job = new GenerateOrderDocumentJob();
+Database::connect();
+$jobRunner = new GenerateOrderDocumentJob();
+$repo = new AIJobRepository();
+$logger = new ApplicationLoggerService();
 
-$stmt = $db->query("SELECT * FROM ai_jobs WHERE status IN ('queued','pending') ORDER BY created_at ASC LIMIT 5");
-$jobs = $stmt->fetchAll();
-
+$jobs = $repo->reserveQueued(5);
 if ($jobs === []) {
     echo "Nenhum AI job pendente.\n";
     exit(0);
@@ -21,27 +23,25 @@ if ($jobs === []) {
 foreach ($jobs as $row) {
     $jobId = (int) $row['id'];
     $orderId = (int) $row['order_id'];
+    $stage = (string) ($row['stage'] ?? 'unknown');
 
-    $db->prepare("UPDATE ai_jobs SET status='processing', updated_at=NOW() WHERE id=:id")
-        ->execute(['id' => $jobId]);
+    if ($stage !== 'document_generation') {
+        $repo->markFailed($jobId, 'Stage não suportado: ' . $stage);
+        $logger->error('ai_job.unsupported_stage', ['job_id' => $jobId, 'stage' => $stage]);
+        continue;
+    }
+
+    $repo->markProcessing($jobId);
+    $logger->info('ai_job.processing.started', ['job_id' => $jobId, 'order_id' => $orderId]);
 
     try {
-        $result = $job->handle($orderId);
-
-        $db->prepare("UPDATE ai_jobs SET status='completed', result_json=:result_json, updated_at=NOW() WHERE id=:id")
-            ->execute([
-                'id' => $jobId,
-                'result_json' => json_encode($result, JSON_UNESCAPED_UNICODE),
-            ]);
-
+        $result = $jobRunner->handle($orderId);
+        $repo->markCompleted($jobId, $result);
+        $logger->info('ai_job.processing.completed', ['job_id' => $jobId, 'order_id' => $orderId, 'result' => $result]);
         echo sprintf("AI job %d concluído para order %d\n", $jobId, $orderId);
     } catch (Throwable $e) {
-        $db->prepare("UPDATE ai_jobs SET status='failed', error_text=:error_text, updated_at=NOW() WHERE id=:id")
-            ->execute([
-                'id' => $jobId,
-                'error_text' => $e->getMessage(),
-            ]);
-
+        $repo->markFailed($jobId, $e->getMessage());
+        $logger->error('ai_job.processing.failed', ['job_id' => $jobId, 'order_id' => $orderId, 'error' => $e->getMessage()]);
         echo sprintf("AI job %d falhou: %s\n", $jobId, $e->getMessage());
     }
 }
