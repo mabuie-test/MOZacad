@@ -14,7 +14,9 @@ $jobRunner = new GenerateOrderDocumentJob();
 $repo = new AIJobRepository();
 $logger = new ApplicationLoggerService();
 
-$jobs = $repo->reserveQueued(5);
+$limit = max(1, (int) ($_ENV['AI_JOB_BATCH_LIMIT'] ?? 5));
+$staleTimeout = max(300, (int) ($_ENV['AI_JOB_STALE_PROCESSING_TIMEOUT'] ?? 1800));
+$jobs = $repo->reserveQueued($limit, $staleTimeout);
 if ($jobs === []) {
     echo "Nenhum AI job pendente.\n";
     exit(0);
@@ -24,6 +26,12 @@ foreach ($jobs as $row) {
     $jobId = (int) $row['id'];
     $orderId = (int) $row['order_id'];
     $stage = (string) ($row['stage'] ?? 'unknown');
+    $reservationToken = (string) ($row['reservation_token'] ?? '');
+
+    if ($reservationToken === '' || !$repo->markProcessing($jobId, $reservationToken)) {
+        $logger->info('ai_job.processing.skipped_reservation_lost', ['job_id' => $jobId, 'order_id' => $orderId]);
+        continue;
+    }
 
     if ($stage !== 'document_generation') {
         $repo->markFailed($jobId, 'Stage não suportado: ' . $stage);
@@ -31,7 +39,6 @@ foreach ($jobs as $row) {
         continue;
     }
 
-    $repo->markProcessing($jobId);
     $logger->info('ai_job.processing.started', ['job_id' => $jobId, 'order_id' => $orderId]);
 
     try {

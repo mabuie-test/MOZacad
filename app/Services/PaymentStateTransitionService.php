@@ -32,33 +32,43 @@ final class PaymentStateTransitionService
             throw new RuntimeException('Pagamento inválido para transição de estado.');
         }
 
-        $currentStatus = (string) ($payment['status'] ?? 'pending');
-        if ($this->shouldIgnoreStatusChange($currentStatus, $internalStatus)) {
-            $this->paymentStatusLogs->create($paymentId, $currentStatus, $providerStatus, $rawPayload, $source . ':ignored');
-            return false;
-        }
-
         $db = Database::connect();
         $db->beginTransaction();
 
         try {
-            $lockedOrder = $this->orders->lockByIdForUpdate((int) $payment['order_id']);
+            $lockedPayment = $this->payments->lockByIdForUpdate($paymentId);
+            if ($lockedPayment === null) {
+                throw new RuntimeException('Pagamento não encontrado durante transição.');
+            }
+
+            $currentStatus = (string) ($lockedPayment['status'] ?? 'pending');
+            if ($this->shouldIgnoreStatusChange($currentStatus, $internalStatus)) {
+                $this->paymentStatusLogs->create($paymentId, $currentStatus, $providerStatus, $rawPayload, $source . ':ignored');
+                $db->commit();
+                return false;
+            }
+
+            $lockedOrder = $this->orders->lockByIdForUpdate((int) $lockedPayment['order_id']);
             $this->payments->updateStatus($paymentId, $internalStatus, $providerStatus, (string) ($rawPayload['message'] ?? null));
             $this->debitoTransactions->updateStatusByReference($reference, $internalStatus, $rawPayload);
             $this->paymentStatusLogs->create($paymentId, $internalStatus, $providerStatus, $rawPayload, $source);
 
             if ($internalStatus === 'paid') {
-                $this->logger->info('payment.transition.paid', ['payment_id' => $paymentId, 'order_id' => (int) $payment['order_id'], 'source' => $source]);
+                $this->logger->info('payment.transition.paid', ['payment_id' => $paymentId, 'order_id' => (int) $lockedPayment['order_id'], 'source' => $source]);
                 $this->payments->markPaid($paymentId, $providerStatus);
-                $this->invoices->markStatusById((int) $payment['invoice_id'], 'paid');
-                $this->orders->updateStatus((int) $payment['order_id'], 'queued');
+                $this->invoices->markStatusById((int) $lockedPayment['invoice_id'], 'paid');
+                if ($this->canMoveOrderToQueued($lockedOrder)) {
+                    $this->orders->updateStatus((int) $lockedPayment['order_id'], 'queued');
+                }
                 if (is_array($lockedOrder)) {
-                    $this->dispatcher->enqueueDocumentGeneration($lockedOrder, $payment, $source);
+                    $this->dispatcher->enqueueDocumentGeneration($lockedOrder, $lockedPayment, $source);
                 }
             } elseif (in_array($internalStatus, ['failed', 'cancelled', 'expired'], true)) {
                 $this->logger->error('payment.transition.failed_like', ['payment_id' => $paymentId, 'status' => $internalStatus, 'source' => $source]);
-                $this->invoices->markStatusById((int) $payment['invoice_id'], 'pending');
-                $this->orders->updateStatus((int) $payment['order_id'], 'pending_payment');
+                if (!$this->isOrderBeyondPayment((string) ($lockedOrder['status'] ?? ''))) {
+                    $this->invoices->markStatusById((int) $lockedPayment['invoice_id'], 'pending');
+                    $this->orders->updateStatus((int) $lockedPayment['order_id'], 'pending_payment');
+                }
             }
 
             $db->commit();
@@ -86,5 +96,20 @@ final class PaymentStateTransitionService
         }
 
         return $normalizedCurrent === $normalizedIncoming;
+    }
+
+    private function canMoveOrderToQueued(?array $order): bool
+    {
+        if (!is_array($order)) {
+            return false;
+        }
+
+        $status = (string) ($order['status'] ?? '');
+        return !in_array($status, ['queued', 'under_human_review', 'ready', 'revision_requested'], true);
+    }
+
+    private function isOrderBeyondPayment(string $status): bool
+    {
+        return in_array($status, ['queued', 'under_human_review', 'ready', 'revision_requested'], true);
     }
 }

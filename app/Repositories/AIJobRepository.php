@@ -20,28 +20,90 @@ final class AIJobRepository extends BaseRepository
         return (int) $this->db->lastInsertId();
     }
 
-    public function reserveQueued(int $limit = 5): array
+    public function reserveQueued(int $limit = 5, int $staleProcessingSeconds = 1800): array
     {
-        $stmt = $this->db->prepare("SELECT * FROM ai_jobs WHERE status IN ('queued','pending') ORDER BY created_at ASC LIMIT :limit");
-        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll();
+        $limit = max(1, min(100, $limit));
+        $staleProcessingSeconds = max(60, $staleProcessingSeconds);
+        $token = bin2hex(random_bytes(16));
+
+        $this->db->beginTransaction();
+        try {
+            $sql = "UPDATE ai_jobs
+                SET status = 'reserved',
+                    reservation_token = :token,
+                    reserved_at = NOW(),
+                    updated_at = NOW()
+                WHERE (
+                    status IN ('queued','pending')
+                    OR (status = 'processing' AND processing_started_at IS NOT NULL AND processing_started_at < DATE_SUB(NOW(), INTERVAL :stale_seconds SECOND))
+                    OR (status = 'reserved' AND reserved_at IS NOT NULL AND reserved_at < DATE_SUB(NOW(), INTERVAL 600 SECOND))
+                )
+                ORDER BY created_at ASC
+                LIMIT :limit";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue('token', $token);
+            $stmt->bindValue('stale_seconds', $staleProcessingSeconds, \PDO::PARAM_INT);
+            $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+            $stmt->execute();
+
+            $selected = $this->db->prepare('SELECT * FROM ai_jobs WHERE reservation_token = :token ORDER BY created_at ASC');
+            $selected->execute(['token' => $token]);
+            $rows = $selected->fetchAll();
+
+            $this->db->commit();
+            return $rows;
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
     }
 
-    public function markProcessing(int $id): void
+    public function markProcessing(int $id, string $reservationToken): bool
     {
-        $this->db->prepare("UPDATE ai_jobs SET status='processing', updated_at=NOW() WHERE id=:id")->execute(['id' => $id]);
+        $stmt = $this->db->prepare("UPDATE ai_jobs
+            SET status = 'processing',
+                processing_started_at = NOW(),
+                reservation_token = NULL,
+                reserved_at = NULL,
+                attempts = attempts + 1,
+                updated_at = NOW()
+            WHERE id = :id
+              AND status = 'reserved'
+              AND reservation_token = :reservation_token");
+        $stmt->execute([
+            'id' => $id,
+            'reservation_token' => $reservationToken,
+        ]);
+
+        return $stmt->rowCount() > 0;
     }
 
     public function markCompleted(int $id, array $result): void
     {
-        $this->db->prepare("UPDATE ai_jobs SET status='completed', result_json=:result_json, updated_at=NOW() WHERE id=:id")
+        $this->db->prepare("UPDATE ai_jobs
+            SET status='completed',
+                result_json=:result_json,
+                reservation_token = NULL,
+                reserved_at = NULL,
+                processing_started_at = NULL,
+                updated_at=NOW()
+            WHERE id=:id")
             ->execute(['id' => $id, 'result_json' => json_encode($result, JSON_UNESCAPED_UNICODE)]);
     }
 
     public function markFailed(int $id, string $error): void
     {
-        $this->db->prepare("UPDATE ai_jobs SET status='failed', error_text=:error_text, updated_at=NOW() WHERE id=:id")
+        $this->db->prepare("UPDATE ai_jobs
+            SET status='failed',
+                error_text=:error_text,
+                reservation_token = NULL,
+                reserved_at = NULL,
+                processing_started_at = NULL,
+                updated_at=NOW()
+            WHERE id=:id")
             ->execute(['id' => $id, 'error_text' => $error]);
     }
 }

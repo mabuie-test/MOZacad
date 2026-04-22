@@ -6,7 +6,12 @@ namespace App\Services;
 
 final class AcademicRefinementService
 {
-    public function __construct(private readonly AIProviderInterface $provider = new OpenAIProvider()) {}
+    private AIProviderInterface $provider;
+
+    public function __construct(?AIProviderInterface $provider = null)
+    {
+        $this->provider = $provider ?? (new AIProviderResolverService())->resolve();
+    }
 
     public function refine(array $sections, array $context = []): array
     {

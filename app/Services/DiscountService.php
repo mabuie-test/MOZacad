@@ -37,7 +37,10 @@ final class DiscountService
         $amount = round(max(0.0, min($amount, $subtotal)), 2);
 
         if ($amount > 0) {
-            $this->repo->incrementUsage((int) $discount['id']);
+            $reserved = $this->repo->incrementUsage((int) $discount['id']);
+            if (!$reserved) {
+                return ['amount' => 0.0, 'discount' => null, 'extras' => $extras];
+            }
             $this->logger->log((int) $discount['id'], $userId, $orderId, $amount, [
                 'type' => $discount['discount_type'],
                 'name' => $discount['name'] ?? null,

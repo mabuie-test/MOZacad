@@ -36,7 +36,8 @@ final class PaymentStatusPollingService
             return $summary;
         }
 
-        foreach ($this->payments->findPendingForPolling() as $payment) {
+        $batchLimit = max(5, (int) Env::get('DEBITO_POLLING_BATCH_LIMIT', 50));
+        foreach ($this->payments->findPendingForPolling($batchLimit) as $payment) {
             $summary['checked']++;
 
             try {
@@ -76,13 +77,25 @@ final class PaymentStatusPollingService
                 ]);
             } catch (Throwable $e) {
                 $summary['errors']++;
+                $category = $this->isTransientFailure($e) ? 'transient' : 'definitive';
                 $this->logger->error('Polling falhou para pagamento', [
                     'payment_id' => $payment['id'] ?? null,
                     'error' => $e->getMessage(),
+                    'category' => $category,
                 ]);
             }
         }
 
+        $this->logger->info('Polling lote concluído', $summary + ['batch_limit' => $batchLimit]);
         return $summary;
+    }
+
+    private function isTransientFailure(Throwable $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        return str_contains($message, 'timeout')
+            || str_contains($message, 'tempor')
+            || str_contains($message, 'connection')
+            || str_contains($message, 'http 5');
     }
 }

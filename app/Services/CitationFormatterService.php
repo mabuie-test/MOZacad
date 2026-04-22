@@ -60,6 +60,7 @@ final class CitationFormatterService
                 ),
                 'doi' => new ReferenceEntryDTO('doi', (string) ($signal['value'] ?? ''), 'DOI: ' . (string) ($signal['value'] ?? ''), true, 'incomplete'),
                 'url' => new ReferenceEntryDTO('url', (string) ($signal['value'] ?? ''), 'Fonte online: ' . (string) ($signal['value'] ?? ''), true, 'incomplete'),
+                'isbn' => new ReferenceEntryDTO('isbn', (string) ($signal['value'] ?? ''), 'ISBN: ' . (string) ($signal['value'] ?? '') . ' [Confirmar dados editoriais manualmente].', true, 'incomplete'),
                 default => new ReferenceEntryDTO('unknown', json_encode($signal), '[Sinal bibliográfico não estruturado - revisão manual]', true, 'incomplete'),
             };
         }

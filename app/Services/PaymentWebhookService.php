@@ -22,14 +22,15 @@ final class PaymentWebhookService
      */
     public function processDebitoWebhook(string $rawBody, array $headers = []): array
     {
-        $this->logger->info('Webhook Débito recebido', ['headers' => $headers]);
+        $normalizedHeaders = $this->normalizeHeaders($headers);
+        $this->logger->info('Webhook Débito recebido', ['headers' => $normalizedHeaders]);
 
         $enabled = filter_var((string) Env::get('DEBITO_ENABLE_WEBHOOK', true), FILTER_VALIDATE_BOOL);
         if (!$enabled) {
             return ['received' => true, 'processed' => false, 'http_status' => 202, 'reason' => 'webhook_disabled'];
         }
 
-        if (!$this->validateSignature($rawBody, $headers)) {
+        if (!$this->validateSignature($rawBody, $normalizedHeaders)) {
             return ['received' => true, 'processed' => false, 'http_status' => 401, 'reason' => 'invalid_signature'];
         }
 
@@ -86,7 +87,7 @@ final class PaymentWebhookService
             return true;
         }
 
-        $headerValue = trim((string) ($headers['x_debito_signature'] ?? $headers['x-webhook-signature'] ?? ''));
+        $headerValue = trim((string) ($headers['x_debito_signature'] ?? $headers['x_webhook_signature'] ?? ''));
         if ($headerValue === '') {
             $this->logger->error('Webhook sem header de assinatura com segredo configurado');
             return false;
@@ -100,13 +101,23 @@ final class PaymentWebhookService
 
     private function extractReference(array $payload): string
     {
-        return trim((string) (
+        $reference = trim((string) (
             $payload['reference']
             ?? $payload['debito_reference']
             ?? $payload['transaction_reference']
             ?? $payload['data']['reference']
             ?? ''
         ));
+
+        if ($reference === '' || strlen($reference) > 120) {
+            return '';
+        }
+
+        if (!preg_match('/^[a-zA-Z0-9._\-:\/]+$/', $reference)) {
+            return '';
+        }
+
+        return $reference;
     }
 
     private function extractProviderStatus(array $payload): string
@@ -118,5 +129,15 @@ final class PaymentWebhookService
             ?? $payload['data']['status']
             ?? 'PENDING'
         );
+    }
+
+    private function normalizeHeaders(array $headers): array
+    {
+        $normalized = [];
+        foreach ($headers as $key => $value) {
+            $normalized[strtolower(str_replace('-', '_', (string) $key))] = is_scalar($value) ? (string) $value : '';
+        }
+
+        return $normalized;
     }
 }

@@ -41,3 +41,7 @@
 │   └── templates
 └── views
 ```
+## Normas institucionais (fallback PDF)
+
+- O pipeline de normas tenta carregar, por ordem: `norma.txt` → `metadata.normalized_text` → extração de `norma.pdf` via `pdftotext` (quando disponível no host).
+- Se apenas `norma.pdf` existir e não houver `pdftotext`, o contexto permanece com `source=pdf_unparsed` sem quebrar o fluxo; as regras estruturadas continuam a vir de `metadata.json` quando presente.

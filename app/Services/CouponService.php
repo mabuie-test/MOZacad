@@ -10,14 +10,14 @@ final class CouponService
 {
     public function __construct(private readonly CouponRepository $coupons = new CouponRepository()) {}
 
-    public function apply(?string $couponCode, float $subtotal): array
+    public function apply(?string $couponCode, float $subtotal, bool $consume = false): array
     {
         $code = strtoupper(trim((string) $couponCode));
         if ($code === '' || $subtotal <= 0) {
             return ['amount' => 0.0, 'coupon' => null];
         }
 
-        $coupon = $this->coupons->findActiveByCode($code);
+        $coupon = $consume ? $this->coupons->reserveUsageByCode($code) : $this->coupons->findActiveByCode($code);
         if ($coupon === null) {
             return ['amount' => 0.0, 'coupon' => null];
         }

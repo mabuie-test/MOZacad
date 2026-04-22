@@ -8,7 +8,12 @@ use Throwable;
 
 final class AIOrchestrationService
 {
-    public function __construct(private readonly AIProviderInterface $provider = new OpenAIProvider()) {}
+    private AIProviderInterface $provider;
+
+    public function __construct(?AIProviderInterface $provider = null)
+    {
+        $this->provider = $provider ?? (new AIProviderResolverService())->resolve();
+    }
 
     public function run(array $prompts, array $blueprint = []): array
     {

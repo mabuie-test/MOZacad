@@ -29,17 +29,32 @@ final class AdminController extends BaseController
         }
 
         $statusFilter = trim((string) ($_GET['review_status'] ?? ''));
-        $queueRows = (new HumanReviewQueueRepository())->listQueue(200);
+        $orderStatusFilter = trim((string) ($_GET['order_status'] ?? ''));
+        $paymentStatusFilter = trim((string) ($_GET['payment_status'] ?? ''));
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $perPage = max(10, min(100, (int) ($_GET['per_page'] ?? 20)));
+        $offset = ($page - 1) * $perPage;
+
+        $queueRows = (new HumanReviewQueueRepository())->listQueue(500);
         if ($statusFilter !== '') {
             $queueRows = array_values(array_filter($queueRows, static fn (array $row): bool => (string) ($row['status'] ?? '') === $statusFilter));
+        }
+
+        $orders = (new OrderRepository())->listAll(500);
+        if ($orderStatusFilter !== '') {
+            $orders = array_values(array_filter($orders, static fn (array $row): bool => (string) ($row['status'] ?? '') === $orderStatusFilter));
+        }
+        $payments = (new PaymentRepository())->listAll(500);
+        if ($paymentStatusFilter !== '') {
+            $payments = array_values(array_filter($payments, static fn (array $row): bool => (string) ($row['status'] ?? '') === $paymentStatusFilter));
         }
 
         $this->view('admin/index', [
             'flashMessage' => isset($_GET['message']) ? (string) $_GET['message'] : null,
             'users' => (new UserRepository())->all(20),
-            'orders' => (new OrderRepository())->listAll(20),
-            'payments' => (new PaymentRepository())->listAll(20),
-            'humanReviewQueue' => $queueRows,
+            'orders' => array_slice($orders, $offset, $perPage),
+            'payments' => array_slice($payments, $offset, $perPage),
+            'humanReviewQueue' => array_slice($queueRows, $offset, $perPage),
             'reviewers' => (new UserRepository())->listByRole('human_reviewer', 50),
             'discounts' => (new UserDiscountRepository())->listAll(20),
             'institutions' => (new InstitutionRepository())->all(),
@@ -49,6 +64,10 @@ final class AdminController extends BaseController
             'pricingRules' => (new PricingRuleRepository())->all(100),
             'pricingExtras' => (new PricingExtraRepository())->all(100),
             'reviewStatusFilter' => $statusFilter,
+            'orderStatusFilter' => $orderStatusFilter,
+            'paymentStatusFilter' => $paymentStatusFilter,
+            'page' => $page,
+            'perPage' => $perPage,
         ]);
     }
 
