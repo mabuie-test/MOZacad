@@ -21,6 +21,7 @@ final class InstitutionFormattingService
             ],
             'references_style' => $rules['referenceRules']['style'] ?? 'APA',
             'front_page' => $rules['visualRules']['front_page'] ?? [],
+            'institution_norm' => $rules['meta']['institution_norm'] ?? [],
         ];
 
         $formattedSections = array_map(static function (array $section): array {

@@ -17,10 +17,20 @@ final class InvoiceRepository extends BaseRepository
 
     public function markPaidById(int $id): void
     {
-        $stmt = $this->db->prepare("UPDATE invoices SET status='paid', paid_at=NOW(), updated_at=NOW() WHERE id=:id");
-        $stmt->execute(['id' => $id]);
+        $this->markStatusById($id, 'paid', true);
     }
 
+    public function markStatusById(int $id, string $status, bool $markPaidAt = false): void
+    {
+        $sql = 'UPDATE invoices SET status = :status, updated_at = NOW()';
+        if ($markPaidAt || $status === 'paid') {
+            $sql .= ', paid_at = NOW()';
+        }
+        $sql .= ' WHERE id = :id';
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['id' => $id, 'status' => $status]);
+    }
 
     public function findOpenByOrderId(int $orderId): ?array
     {

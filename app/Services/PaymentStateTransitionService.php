@@ -46,8 +46,11 @@ final class PaymentStateTransitionService
 
             if ($internalStatus === 'paid') {
                 $this->payments->markPaid($paymentId, $providerStatus);
-                $this->invoices->markPaidById((int) $payment['invoice_id']);
+                $this->invoices->markStatusById((int) $payment['invoice_id'], 'paid');
                 $this->orders->updateStatus((int) $payment['order_id'], 'queued');
+            } elseif (in_array($internalStatus, ['failed', 'cancelled', 'expired'], true)) {
+                $this->invoices->markStatusById((int) $payment['invoice_id'], 'pending');
+                $this->orders->updateStatus((int) $payment['order_id'], 'pending_payment');
             }
 
             $db->commit();
@@ -66,6 +69,10 @@ final class PaymentStateTransitionService
         $normalizedIncoming = strtolower(trim($incomingStatus));
 
         if ($normalizedCurrent === 'paid' && $normalizedIncoming !== 'paid') {
+            return true;
+        }
+
+        if (in_array($normalizedCurrent, ['failed', 'cancelled', 'expired'], true) && $normalizedIncoming === 'pending') {
             return true;
         }
 
