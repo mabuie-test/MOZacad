@@ -44,6 +44,10 @@ final class HumanReviewQueueService
         if ($entry === null) {
             throw new RuntimeException('Item de fila de revisão humana não encontrado.');
         }
+        $latestDocument = $this->documents->findLatestByOrderId((int) $entry['order_id']);
+        if ($latestDocument === null) {
+            throw new RuntimeException('Não é possível aprovar sem documento gerado.');
+        }
 
         $db = Database::connect();
         $db->beginTransaction();
@@ -64,6 +68,10 @@ final class HumanReviewQueueService
         $entry = $this->queue->findById($queueId);
         if ($entry === null) {
             throw new RuntimeException('Item de fila de revisão humana não encontrado.');
+        }
+        $latestDocument = $this->documents->findLatestByOrderId((int) $entry['order_id']);
+        if ($latestDocument === null) {
+            throw new RuntimeException('Não é possível rejeitar sem documento gerado.');
         }
 
         $db = Database::connect();

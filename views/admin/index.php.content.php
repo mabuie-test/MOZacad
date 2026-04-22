@@ -16,14 +16,75 @@
       <?php endforeach; ?>
     </select>
   </div>
+  <div class="col-md-3">
+    <select name="order_status" class="form-select form-select-sm">
+      <option value="">Todos status pedido</option>
+      <?php foreach (['pending_payment','queued','under_human_review','ready','revision_requested','failed','cancelled','expired'] as $status): ?>
+        <option value="<?= $status ?>" <?= (($orderStatusFilter ?? '') === $status) ? 'selected' : '' ?>><?= htmlspecialchars($status) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <div class="col-md-3">
+    <select name="payment_status" class="form-select form-select-sm">
+      <option value="">Todos status pagamento</option>
+      <?php foreach (['pending','processing','pending_confirmation','paid','failed','cancelled','expired'] as $status): ?>
+        <option value="<?= $status ?>" <?= (($paymentStatusFilter ?? '') === $status) ? 'selected' : '' ?>><?= htmlspecialchars($status) ?></option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <div class="col-md-1"><input name="per_page" value="<?= (int) ($perPage ?? 20) ?>" class="form-control form-control-sm"></div>
   <div class="col-md-2"><button class="btn btn-sm btn-outline-secondary">Filtrar</button></div>
 </form>
+<p class="small text-muted">Página <?= (int) ($page ?? 1) ?> · itens por bloco <?= (int) ($perPage ?? 20) ?></p>
 
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted d-block">Utilizadores</small><strong><?= count($users ?? []) ?></strong></div></div></div>
   <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted d-block">Pedidos</small><strong><?= count($orders ?? []) ?></strong></div></div></div>
   <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted d-block">Pagamentos</small><strong><?= count($payments ?? []) ?></strong></div></div></div>
   <div class="col-md-3"><div class="card"><div class="card-body"><small class="text-muted d-block">Fila revisão humana</small><strong><?= count($humanReviewQueue ?? []) ?></strong></div></div></div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header fw-semibold">Pedidos (contexto operacional)</div>
+  <div class="card-body table-responsive">
+    <table class="table table-sm table-striped">
+      <thead><tr><th>ID</th><th>Utilizador</th><th>Tema</th><th>Status</th><th>Preço</th><th>Atualizado</th></tr></thead>
+      <tbody>
+      <?php foreach (($orders ?? []) as $order): ?>
+        <tr>
+          <td>#<?= (int) $order['id'] ?></td>
+          <td><?= htmlspecialchars((string) ($order['user_email'] ?? '-')) ?></td>
+          <td><?= htmlspecialchars((string) ($order['title_or_theme'] ?? '-')) ?></td>
+          <td><span class="badge text-bg-secondary"><?= htmlspecialchars((string) ($order['status'] ?? '-')) ?></span></td>
+          <td><?= htmlspecialchars((string) ($order['final_price'] ?? '-')) ?></td>
+          <td><?= htmlspecialchars((string) ($order['updated_at'] ?? '-')) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header fw-semibold">Pagamentos (contexto operacional)</div>
+  <div class="card-body table-responsive">
+    <table class="table table-sm table-striped">
+      <thead><tr><th>ID</th><th>Order</th><th>Utilizador</th><th>Status</th><th>Provider</th><th>Ref externa</th><th>Updated</th></tr></thead>
+      <tbody>
+      <?php foreach (($payments ?? []) as $payment): ?>
+        <tr>
+          <td>#<?= (int) $payment['id'] ?></td>
+          <td>#<?= (int) $payment['order_id'] ?></td>
+          <td><?= htmlspecialchars((string) ($payment['user_email'] ?? '-')) ?></td>
+          <td><span class="badge text-bg-secondary"><?= htmlspecialchars((string) ($payment['status'] ?? '-')) ?></span></td>
+          <td><?= htmlspecialchars((string) ($payment['provider_status'] ?? '-')) ?></td>
+          <td><code><?= htmlspecialchars((string) ($payment['external_reference'] ?? '-')) ?></code></td>
+          <td><?= htmlspecialchars((string) ($payment['updated_at'] ?? '-')) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <div class="card mb-3">

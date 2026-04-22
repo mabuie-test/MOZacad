@@ -59,6 +59,7 @@ final class OrderApplicationService
                 'extras' => $extras,
                 'requires_human_review' => (bool) ($workType['requires_human_review'] ?? false),
                 'coupon_code' => trim((string) ($rawPost['coupon_code'] ?? '')),
+                'consume_coupon' => true,
             ]);
 
             $this->orders->updateFinalPrice($orderId, $pricing->finalTotal);

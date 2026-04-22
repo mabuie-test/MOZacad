@@ -20,7 +20,7 @@ final class BibliographicSignalParserService
                 $signals[] = ['type' => 'author_year', 'author' => trim($m[1]), 'year' => trim($m[2])];
             }
 
-            preg_match_all('/\b(?:doi:\s*|10\.\d{4,9}\/[\w.()\-;\/:]+)\b/iu', $text, $dois);
+            preg_match_all('/\b(?:doi:\s*)?(10\.\d{4,9}\/[\w.()\-;\/:]+)\b/iu', $text, $dois);
             foreach (($dois[0] ?? []) as $doi) {
                 $signals[] = ['type' => 'doi', 'value' => preg_replace('/^doi:\s*/i', '', trim($doi)) ?: trim($doi)];
             }
@@ -28,6 +28,11 @@ final class BibliographicSignalParserService
             preg_match_all('/\bhttps?:\/\/[^\s)]+/iu', $text, $urls);
             foreach (($urls[0] ?? []) as $url) {
                 $signals[] = ['type' => 'url', 'value' => trim($url)];
+            }
+
+            preg_match_all('/\bISBN(?:-1[03])?:?\s*([0-9\-Xx]{10,17})\b/u', $text, $isbns, PREG_SET_ORDER);
+            foreach ($isbns as $isbn) {
+                $signals[] = ['type' => 'isbn', 'value' => strtoupper(str_replace('-', '', trim((string) ($isbn[1] ?? ''))))];
             }
         }
 

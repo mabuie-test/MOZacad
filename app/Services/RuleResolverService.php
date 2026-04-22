@@ -37,17 +37,29 @@ final class RuleResolverService
         $frontPageInstitution = $this->decodeJson($institutionRules['front_page_rules_json'] ?? null);
         $frontPageMetadata = is_array($metadata['front_page_overrides'] ?? null) ? $metadata['front_page_overrides'] : [];
 
-        $visual = array_merge($defaultsVisual, $institutionVisual, $workVisual, (array) ($metadata['visual_overrides'] ?? []));
-        $visual['front_page'] = array_merge($frontPageInstitution, $frontPageMetadata);
+        $visualOverrides = is_array($normDocumentContext['visual_overrides'] ?? null)
+            ? $normDocumentContext['visual_overrides']
+            : (array) ($metadata['visual_overrides'] ?? []);
+        $frontPageNorm = is_array($normDocumentContext['front_page_overrides'] ?? null)
+            ? $normDocumentContext['front_page_overrides']
+            : $frontPageMetadata;
+        $visual = array_merge($defaultsVisual, $institutionVisual, $workVisual, $visualOverrides);
+        $visual['front_page'] = array_merge($frontPageInstitution, $frontPageNorm);
 
         $reference = array_merge($defaultsReference, array_filter([
             'style' => $institutionRules['references_style'] ?? null,
             'citation_profile_id' => $institutionRules['citation_profile_id'] ?? null,
         ], static fn (mixed $v): bool => $v !== null), $workReference);
-        if (is_string($metadata['reference_style'] ?? null) && trim((string) $metadata['reference_style']) !== '') {
-            $reference['style'] = strtoupper(trim((string) $metadata['reference_style']));
+        $referenceStyle = is_string($normDocumentContext['reference_style'] ?? null)
+            ? trim((string) $normDocumentContext['reference_style'])
+            : trim((string) ($metadata['reference_style'] ?? ''));
+        if ($referenceStyle !== '') {
+            $reference['style'] = strtoupper($referenceStyle);
         }
 
+        $structureOverrides = is_array($normDocumentContext['structure_overrides'] ?? null)
+            ? $normDocumentContext['structure_overrides']
+            : (array) ($metadata['structure_overrides'] ?? []);
         $structure = array_merge($defaultsStructure, [
             'work_type_id' => (int) ($workTypeRules['work_type_id'] ?? 0),
             'institution_id' => (int) ($workTypeRules['institution_id'] ?? 0),
@@ -55,12 +67,14 @@ final class RuleResolverService
             'level_multiplier' => (float) ($academicLevelRules['multiplier'] ?? 1),
             'level_slug' => (string) ($academicLevelRules['slug'] ?? ''),
             'custom_structure' => $workStructure,
-        ], (array) ($metadata['structure_overrides'] ?? []));
+        ], $structureOverrides);
 
         return new ResolvedRuleSetDTO($visual, $reference, $structure, [
             'resolved_at' => date('c'),
             'resolution_precedence' => ['metadata.json', 'institution_work_type_rules', 'institution_rules', 'system_defaults'],
-            'notes' => is_array($metadata['notes'] ?? null) ? $metadata['notes'] : (is_string($metadata['notes'] ?? null) ? [$metadata['notes']] : []),
+            'notes' => is_array($normDocumentContext['notes'] ?? null)
+                ? $normDocumentContext['notes']
+                : (is_array($metadata['notes'] ?? null) ? $metadata['notes'] : (is_string($metadata['notes'] ?? null) ? [$metadata['notes']] : [])),
             'institution_norm' => [
                 'slug' => $normDocumentContext['slug'] ?? null,
                 'source' => $normDocumentContext['source'] ?? 'none',

@@ -8,15 +8,34 @@ final class DebitoStatusMapper
 {
     public function map(string $providerStatus): string
     {
-        return match (strtolower(trim($providerStatus))) {
+        $normalized = strtolower(trim($providerStatus));
+
+        return match ($normalized) {
             'pending', 'created', 'queued' => 'pending',
             'processing', 'in_progress', 'authorizing' => 'processing',
             'waiting_confirmation', 'awaiting_confirmation' => 'pending_confirmation',
             'paid', 'success', 'successful', 'completed' => 'paid',
-            'failed', 'error', 'declined' => 'failed',
+            'failed', 'error', 'declined', 'denied', 'rejected' => 'failed',
             'cancelled', 'canceled' => 'cancelled',
-            'expired', 'timeout' => 'expired',
-            default => 'pending_confirmation',
+            'expired', 'timeout', 'timed_out' => 'expired',
+            default => $this->fallbackStateForUnknown($normalized),
         };
+    }
+
+    private function fallbackStateForUnknown(string $providerStatus): string
+    {
+        if (str_contains($providerStatus, 'fail') || str_contains($providerStatus, 'error')) {
+            return 'failed';
+        }
+
+        if (str_contains($providerStatus, 'cancel')) {
+            return 'cancelled';
+        }
+
+        if (str_contains($providerStatus, 'expir')) {
+            return 'expired';
+        }
+
+        return 'pending_confirmation';
     }
 }

@@ -8,7 +8,7 @@ namespace App\Services;
 final class InstitutionNormDocumentService
 {
     /**
-     * @return array{slug:string,base_path:string,txt_path:?string,pdf_path:?string,metadata_path:?string,content:string,source:string,metadata:array<string,mixed>}
+     * @return array{slug:string,base_path:string,txt_path:?string,pdf_path:?string,metadata_path:?string,content:string,source:string,metadata:array<string,mixed>,notes:array<int,string>,reference_style:?string,visual_overrides:array<string,mixed>,front_page_overrides:array<string,mixed>,structure_overrides:array<string,mixed>}
      */
     public function resolveForInstitution(array $institution): array
     {
@@ -29,6 +29,14 @@ final class InstitutionNormDocumentService
         } elseif (!empty($metadata['normalized_text']) && is_string($metadata['normalized_text'])) {
             $content = $this->cleanText($metadata['normalized_text']);
             $source = 'metadata';
+        } elseif ($pdfPath !== null) {
+            $extracted = $this->extractTextFromPdf($pdfPath);
+            if ($extracted !== '') {
+                $content = $extracted;
+                $source = 'pdf_extracted';
+            } else {
+                $source = 'pdf_unparsed';
+            }
         }
 
         return [
@@ -40,6 +48,11 @@ final class InstitutionNormDocumentService
             'content' => $content,
             'source' => $source,
             'metadata' => $metadata,
+            'notes' => $this->normalizeNotes($metadata['notes'] ?? []),
+            'reference_style' => is_string($metadata['reference_style'] ?? null) ? trim((string) $metadata['reference_style']) : null,
+            'visual_overrides' => is_array($metadata['visual_overrides'] ?? null) ? $metadata['visual_overrides'] : [],
+            'front_page_overrides' => is_array($metadata['front_page_overrides'] ?? null) ? $metadata['front_page_overrides'] : [],
+            'structure_overrides' => is_array($metadata['structure_overrides'] ?? null) ? $metadata['structure_overrides'] : [],
         ];
     }
 
@@ -93,5 +106,57 @@ final class InstitutionNormDocumentService
         $normalized = preg_replace('/\n{3,}/', "\n\n", $normalized) ?? $normalized;
 
         return trim($normalized);
+    }
+
+    private function extractTextFromPdf(string $pdfPath): string
+    {
+        $binary = trim((string) shell_exec('command -v pdftotext 2>/dev/null'));
+        if ($binary === '') {
+            return '';
+        }
+
+        $outputPath = tempnam(sys_get_temp_dir(), 'norm_txt_');
+        if (!is_string($outputPath) || $outputPath === '') {
+            return '';
+        }
+
+        $command = sprintf(
+            '%s -layout %s %s 2>/dev/null',
+            escapeshellarg($binary),
+            escapeshellarg($pdfPath),
+            escapeshellarg($outputPath)
+        );
+        exec($command, $unusedOutput, $statusCode);
+        if ($statusCode !== 0 || !is_file($outputPath)) {
+            @unlink($outputPath);
+            return '';
+        }
+
+        $raw = (string) file_get_contents($outputPath);
+        @unlink($outputPath);
+        return $this->cleanText($raw);
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    private function normalizeNotes(mixed $notes): array
+    {
+        if (is_string($notes) && trim($notes) !== '') {
+            return [trim($notes)];
+        }
+        if (!is_array($notes)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($notes as $note) {
+            $value = trim((string) $note);
+            if ($value !== '') {
+                $normalized[] = $value;
+            }
+        }
+
+        return $normalized;
     }
 }

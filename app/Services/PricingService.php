@@ -36,7 +36,11 @@ final class PricingService
 
         $subtotal = (($base + $extraPagesAmount) * $levelMultiplier * $complexityMultiplier * $urgencyMultiplier) + $extrasAmount + $humanReviewFee;
 
-        $couponResult = $this->couponService->apply((string) ($context['coupon_code'] ?? ''), $subtotal);
+        $couponResult = $this->couponService->apply(
+            (string) ($context['coupon_code'] ?? ''),
+            $subtotal,
+            (bool) ($context['consume_coupon'] ?? false)
+        );
         $couponDiscount = (float) $couponResult['amount'];
 
         $discountResult = $this->discountService->apply(

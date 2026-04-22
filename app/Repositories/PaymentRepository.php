@@ -35,6 +35,13 @@ final class PaymentRepository extends BaseRepository
         return $stmt->fetch() ?: null;
     }
 
+    public function lockByIdForUpdate(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM payments WHERE id = :id LIMIT 1 FOR UPDATE');
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetch() ?: null;
+    }
+
     public function findByExternalReference(string $reference): ?array
     {
         $stmt = $this->db->prepare('SELECT * FROM payments WHERE external_reference = :reference LIMIT 1');
@@ -72,7 +79,12 @@ final class PaymentRepository extends BaseRepository
 
     public function findPendingForPolling(int $limit = 50): array
     {
-        $stmt = $this->db->prepare("SELECT * FROM payments WHERE status IN ('pending','processing','pending_confirmation') AND external_reference IS NOT NULL LIMIT :limit");
+        $stmt = $this->db->prepare("SELECT * FROM payments
+            WHERE status IN ('pending','processing','pending_confirmation')
+              AND external_reference IS NOT NULL
+              AND external_reference <> ''
+            ORDER BY updated_at ASC, id ASC
+            LIMIT :limit");
         $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
         $stmt->execute();
 

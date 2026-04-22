@@ -31,10 +31,17 @@ final class UserDiscountRepository extends BaseRepository
         return $stmt->fetchAll();
     }
 
-    public function incrementUsage(int $discountId): void
+    public function incrementUsage(int $discountId): bool
     {
-        $stmt = $this->db->prepare('UPDATE user_discounts SET used_count = used_count + 1, updated_at = NOW() WHERE id = :id');
+        $stmt = $this->db->prepare('UPDATE user_discounts
+            SET used_count = used_count + 1, updated_at = NOW()
+            WHERE id = :id
+              AND is_active = 1
+              AND (starts_at IS NULL OR starts_at <= NOW())
+              AND (ends_at IS NULL OR ends_at >= NOW())
+              AND (usage_limit IS NULL OR used_count < usage_limit)');
         $stmt->execute(['id' => $discountId]);
+        return $stmt->rowCount() > 0;
     }
 
     public function create(array $data): int
