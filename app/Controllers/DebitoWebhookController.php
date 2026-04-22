@@ -4,15 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Helpers\Database;
 use App\Helpers\Env;
-use App\Repositories\DebitoTransactionRepository;
-use App\Repositories\InvoiceRepository;
-use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
-use App\Repositories\PaymentStatusLogRepository;
 use App\Services\DebitoLoggerService;
 use App\Services\DebitoStatusMapper;
+use App\Services\PaymentStateTransitionService;
 use Throwable;
 
 final class DebitoWebhookController extends BaseController
@@ -21,14 +17,20 @@ final class DebitoWebhookController extends BaseController
     {
         $rawBody = file_get_contents('php://input') ?: '';
         $payload = json_decode($rawBody, true);
+        $logger = new DebitoLoggerService();
+
+        $logger->info('Webhook Débito recebido', [
+            'payload' => is_array($payload) ? $payload : ['raw' => $rawBody],
+            'headers' => [
+                'content_type' => (string) ($_SERVER['CONTENT_TYPE'] ?? ''),
+                'user_agent' => (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''),
+            ],
+        ]);
 
         if (!is_array($payload)) {
             $this->json(['received' => false, 'processed' => false, 'reason' => 'invalid_json'], 400);
             return;
         }
-
-        $logger = new DebitoLoggerService();
-        $logger->info('Webhook Débito recebido', $payload);
 
         $enabled = filter_var((string) Env::get('DEBITO_ENABLE_WEBHOOK', false), FILTER_VALIDATE_BOOL);
         if (!$enabled) {
@@ -36,13 +38,13 @@ final class DebitoWebhookController extends BaseController
             return;
         }
 
-        $reference = trim((string) ($payload['reference'] ?? $payload['debito_reference'] ?? ''));
+        $reference = $this->extractReference($payload);
         if ($reference === '') {
             $this->json(['received' => true, 'processed' => false, 'reason' => 'missing_reference'], 422);
             return;
         }
 
-        $providerStatus = (string) ($payload['status'] ?? $payload['state'] ?? 'PENDING');
+        $providerStatus = $this->extractProviderStatus($payload);
         $internalStatus = (new DebitoStatusMapper())->map($providerStatus);
 
         $payments = new PaymentRepository();
@@ -53,32 +55,16 @@ final class DebitoWebhookController extends BaseController
             return;
         }
 
-        $db = Database::connect();
-
         try {
-            $db->beginTransaction();
-
-            $payments->updateStatus(
-                (int) $payment['id'],
+            $updated = (new PaymentStateTransitionService())->apply(
+                $payment,
+                $reference,
                 $internalStatus,
                 $providerStatus,
-                (string) ($payload['message'] ?? null)
+                $payload,
+                'webhook'
             );
-            (new DebitoTransactionRepository())->updateStatusByReference($reference, $internalStatus, $payload);
-            (new PaymentStatusLogRepository())->create((int) $payment['id'], $internalStatus, $providerStatus, $payload, 'webhook');
-
-            if ($internalStatus === 'paid') {
-                $payments->markPaid((int) $payment['id'], $providerStatus);
-                (new InvoiceRepository())->markPaidById((int) $payment['invoice_id']);
-                (new OrderRepository())->updateStatus((int) $payment['order_id'], 'queued');
-            }
-
-            $db->commit();
         } catch (Throwable $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
-
             $logger->error('Webhook Débito falhou', [
                 'reference' => $reference,
                 'error' => $e->getMessage(),
@@ -90,8 +76,31 @@ final class DebitoWebhookController extends BaseController
         $this->json([
             'received' => true,
             'processed' => true,
+            'updated' => $updated,
             'payment_id' => (int) $payment['id'],
             'status' => $internalStatus,
         ]);
+    }
+
+    private function extractReference(array $payload): string
+    {
+        return trim((string) (
+            $payload['reference']
+            ?? $payload['debito_reference']
+            ?? $payload['transaction_reference']
+            ?? $payload['data']['reference']
+            ?? ''
+        ));
+    }
+
+    private function extractProviderStatus(array $payload): string
+    {
+        return (string) (
+            $payload['status']
+            ?? $payload['state']
+            ?? $payload['transaction_status']
+            ?? $payload['data']['status']
+            ?? 'PENDING'
+        );
     }
 }

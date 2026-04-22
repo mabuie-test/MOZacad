@@ -24,11 +24,11 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
 
         return [
             'raw' => $response,
-            'debito_reference' => (string) ($response['reference'] ?? $response['debito_reference'] ?? $response['data']['reference'] ?? ''),
-            'provider_status' => (string) ($response['status'] ?? $response['state'] ?? 'PENDING'),
-            'provider_message' => (string) ($response['message'] ?? ''),
-            'provider_transaction_id' => (string) ($response['transaction_id'] ?? $response['id'] ?? ''),
-            'provider_code' => (string) ($response['code'] ?? ''),
+            'debito_reference' => $this->extractReference($response),
+            'provider_status' => $this->extractProviderStatus($response),
+            'provider_message' => $this->extractProviderMessage($response),
+            'provider_transaction_id' => $this->extractProviderTransactionId($response),
+            'provider_code' => (string) ($response['code'] ?? $response['error']['code'] ?? ''),
         ];
     }
 
@@ -45,10 +45,54 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
 
         return [
             'raw' => $response,
-            'provider_status' => (string) ($response['status'] ?? $response['state'] ?? 'PENDING'),
-            'provider_message' => (string) ($response['message'] ?? ''),
-            'provider_code' => (string) ($response['code'] ?? ''),
+            'provider_status' => $this->extractProviderStatus($response),
+            'provider_message' => $this->extractProviderMessage($response),
+            'provider_code' => (string) ($response['code'] ?? $response['error']['code'] ?? ''),
         ];
+    }
+
+    private function extractReference(array $response): string
+    {
+        return trim((string) (
+            $response['reference']
+            ?? $response['debito_reference']
+            ?? $response['transaction_reference']
+            ?? $response['data']['reference']
+            ?? ''
+        ));
+    }
+
+    private function extractProviderStatus(array $response): string
+    {
+        return (string) (
+            $response['status']
+            ?? $response['state']
+            ?? $response['transaction_status']
+            ?? $response['data']['status']
+            ?? 'PENDING'
+        );
+    }
+
+    private function extractProviderMessage(array $response): string
+    {
+        return (string) (
+            $response['message']
+            ?? $response['description']
+            ?? $response['error']['message']
+            ?? $response['data']['message']
+            ?? ''
+        );
+    }
+
+    private function extractProviderTransactionId(array $response): string
+    {
+        return trim((string) (
+            $response['transaction_id']
+            ?? $response['id']
+            ?? $response['data']['transaction_id']
+            ?? $response['data']['id']
+            ?? ''
+        ));
     }
 
     private function assertMpesaEnabled(): void
