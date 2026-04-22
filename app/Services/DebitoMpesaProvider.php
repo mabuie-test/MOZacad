@@ -13,8 +13,6 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
 
     public function initiate(array $payload): array
     {
-        $this->assertMpesaEnabled();
-
         $wallet = trim((string) Env::get('DEBITO_WALLET_ID', ''));
         if ($wallet === '') {
             throw new RuntimeException('DEBITO_WALLET_ID não configurado.');
@@ -34,8 +32,6 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
 
     public function checkStatus(string $reference): array
     {
-        $this->assertMpesaEnabled();
-
         $debitoReference = trim($reference);
         if ($debitoReference === '') {
             throw new RuntimeException('Referência Débito inválida para consulta de status.');
@@ -95,11 +91,4 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
         ));
     }
 
-    private function assertMpesaEnabled(): void
-    {
-        $enabled = filter_var((string) Env::get('DEBITO_MPESA_ENABLED', true), FILTER_VALIDATE_BOOL);
-        if (!$enabled) {
-            throw new RuntimeException('Pagamento M-Pesa está desativado por configuração (DEBITO_MPESA_ENABLED=false).');
-        }
-    }
 }

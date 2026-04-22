@@ -28,9 +28,8 @@ final class DebitoMpesaPayloadBuilder
             'reference_description' => trim($referenceDescription),
         ];
 
-        $webhookEnabled = filter_var((string) Env::get('DEBITO_ENABLE_WEBHOOK', false), FILTER_VALIDATE_BOOL);
-        $effectiveCallbackUrl = trim((string) ($callbackUrl ?? Env::get('DEBITO_CALLBACK_URL', '')));
-        if ($webhookEnabled && $effectiveCallbackUrl !== '') {
+        $effectiveCallbackUrl = $this->resolveCallbackUrl($callbackUrl);
+        if ($effectiveCallbackUrl !== '') {
             $payload['callback_url'] = $effectiveCallbackUrl;
         }
 
@@ -39,5 +38,25 @@ final class DebitoMpesaPayloadBuilder
         }
 
         return $payload;
+    }
+
+    private function resolveCallbackUrl(?string $callbackUrl): string
+    {
+        $direct = trim((string) ($callbackUrl ?? ''));
+        if ($direct !== '') {
+            return $direct;
+        }
+
+        $envCallback = trim((string) Env::get('DEBITO_CALLBACK_URL', ''));
+        if ($envCallback !== '') {
+            return $envCallback;
+        }
+
+        $appUrl = rtrim((string) Env::get('APP_URL', ''), '/');
+        if ($appUrl === '') {
+            return '';
+        }
+
+        return $appUrl . '/webhooks/debito';
     }
 }
