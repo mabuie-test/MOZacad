@@ -18,7 +18,13 @@ final class BillingController extends BaseController
             return;
         }
 
-        $this->json(['invoices' => (new InvoiceRepository())->listByUser($userId)]);
+        $invoices = (new InvoiceRepository())->listByUser($userId);
+        if ($this->isHtmlRequest()) {
+            $this->view('billing/invoices', ['invoices' => $invoices]);
+            return;
+        }
+
+        $this->json(['invoices' => $invoices]);
     }
 
     public function downloads(): void
@@ -28,7 +34,13 @@ final class BillingController extends BaseController
             return;
         }
 
-        $this->json(['documents' => (new GeneratedDocumentRepository())->listDeliverableByUser($userId)]);
+        $documents = (new GeneratedDocumentRepository())->listDeliverableByUser($userId);
+        if ($this->isHtmlRequest()) {
+            $this->view('billing/downloads', ['documents' => $documents]);
+            return;
+        }
+
+        $this->json(['documents' => $documents]);
     }
 
     public function downloadDocument(int $documentId): void
