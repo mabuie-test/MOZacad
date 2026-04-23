@@ -81,6 +81,9 @@ final class HumanReviewQueueService
             if ((int) ($entry['generated_document_id'] ?? 0) !== (int) ($latestDocument['id'] ?? 0)) {
                 throw new RuntimeException('Revisão humana não corresponde à versão documental mais recente.');
             }
+            if ((int) ($entry['generated_document_version'] ?? 0) !== (int) ($latestDocument['version'] ?? 0)) {
+                throw new RuntimeException('Revisão humana não corresponde à versão documental mais recente.');
+            }
             if ((string) ($latestDocument['status'] ?? '') !== 'pending_human_review') {
                 throw new RuntimeException('Documento não está pendente de revisão humana.');
             }
@@ -115,6 +118,9 @@ final class HumanReviewQueueService
                 throw new RuntimeException('Não é possível rejeitar sem documento gerado.');
             }
             if ((int) ($entry['generated_document_id'] ?? 0) !== (int) ($latestDocument['id'] ?? 0)) {
+                throw new RuntimeException('Revisão humana não corresponde à versão documental mais recente.');
+            }
+            if ((int) ($entry['generated_document_version'] ?? 0) !== (int) ($latestDocument['version'] ?? 0)) {
                 throw new RuntimeException('Revisão humana não corresponde à versão documental mais recente.');
             }
             if ((string) ($latestDocument['status'] ?? '') !== 'pending_human_review') {

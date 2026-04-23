@@ -37,6 +37,9 @@ final class SchemaConvergenceService
             "ALTER TABLE human_review_queue ADD INDEX IF NOT EXISTS idx_hrq_order_document (order_id, generated_document_id)",
             "ALTER TABLE revisions ADD COLUMN IF NOT EXISTS generated_document_id BIGINT UNSIGNED NULL AFTER user_id",
             "ALTER TABLE revisions ADD COLUMN IF NOT EXISTS generated_document_version INT NULL AFTER generated_document_id",
+            "ALTER TABLE revisions ADD INDEX IF NOT EXISTS idx_revisions_order_id (order_id)",
+            "ALTER TABLE revisions ADD INDEX IF NOT EXISTS idx_revisions_user_id (user_id)",
+            "ALTER TABLE revisions ADD INDEX IF NOT EXISTS idx_revisions_order_document (order_id, generated_document_id)",
             "CREATE TABLE IF NOT EXISTS coupon_usage_logs (
               id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
               order_id BIGINT UNSIGNED NOT NULL,
@@ -60,6 +63,8 @@ final class SchemaConvergenceService
             }
 
             $this->ensureForeignKey($db, 'human_review_queue', 'fk_hrq_generated_document', 'generated_document_id', 'generated_documents', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'revisions', 'fk_revisions_order', 'order_id', 'orders', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'revisions', 'fk_revisions_user', 'user_id', 'users', 'id', 'CASCADE');
             $this->ensureForeignKey($db, 'revisions', 'fk_revisions_generated_document', 'generated_document_id', 'generated_documents', 'id', 'SET NULL');
         }
 
@@ -83,6 +88,7 @@ final class SchemaConvergenceService
             ['table' => 'human_review_queue', 'index' => 'idx_hrq_order_document'],
             ['table' => 'generated_documents', 'index' => 'uq_generated_documents_order_version'],
             ['table' => 'ai_jobs', 'index' => 'idx_ai_jobs_status_created'],
+            ['table' => 'revisions', 'index' => 'idx_revisions_order_document'],
         ];
         foreach ($indexChecks as $check) {
             if (!$this->indexExists($db, $check['table'], $check['index'])) {
