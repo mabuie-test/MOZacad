@@ -409,7 +409,13 @@ CREATE TABLE revisions (
   status VARCHAR(30) NOT NULL,
   reviewer_comment TEXT NULL,
   created_at TIMESTAMP NULL,
-  updated_at TIMESTAMP NULL
+  updated_at TIMESTAMP NULL,
+  INDEX idx_revisions_order_id (order_id),
+  INDEX idx_revisions_user_id (user_id),
+  INDEX idx_revisions_order_document (order_id, generated_document_id),
+  CONSTRAINT fk_revisions_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_revisions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_revisions_generated_document FOREIGN KEY (generated_document_id) REFERENCES generated_documents(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE human_review_queue (
