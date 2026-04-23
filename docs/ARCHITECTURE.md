@@ -30,6 +30,7 @@
 ├── config
 ├── database
 │   ├── migrations
+│   ├── schema
 │   └── seeders
 ├── docs
 ├── public

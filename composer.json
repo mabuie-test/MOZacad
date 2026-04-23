@@ -16,6 +16,9 @@
   "scripts": {
     "post-install-cmd": [
       "@php -r \"if (!file_exists('.env')) copy('.env.example', '.env');\""
-    ]
+    ],
+    "db:install": "@php scripts/install_database.php",
+    "db:install-seed": "@php scripts/install_database.php --seed",
+    "db:upgrade-legacy": "@php scripts/upgrade_legacy_database.php"
   }
 }

@@ -2,16 +2,32 @@
 
 Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento Débito M-Pesa C2B, geração DOCX, revisão humana e entrega segura, com autorização centralizada e observabilidade operacional.
 
-## Setup rápido
+## Setup rápido (instalação nova)
 1. `composer install`
 2. `cp .env.example .env`
 3. Criar base `moz_acad`
-4. Executar migrations SQL por ordem:
-   - `database/migrations/001_schema.sql`
-   - `database/migrations/002_hardening.sql`
-5. Executar seed base:
+4. Aplicar schema canónico actual (sem cadeia histórica de migrations):
+   - `php scripts/install_database.php`
+   - ou `php scripts/install_database.php --seed` para aplicar também seed base
+5. Se necessário, executar seed separadamente:
    - `php database/seeders/SeederRunner.php`
 6. Servir `public/` como document root (`public_html` compatível).
+
+## Upgrade de instalação antiga
+Para bases legadas que ficaram em `001_schema.sql + 002_hardening.sql`, aplicar upgrades incrementais:
+
+```bash
+php scripts/upgrade_legacy_database.php
+```
+
+Este passo aplica:
+- `database/migrations/003_job_coupon_hardening.sql`
+- `database/migrations/004_final_hardening_closure.sql`
+
+## Filosofia de persistência (estado actual)
+- **Instalação nova:** usar `database/schema/base.sql` (schema canónico consolidado e alinhado ao runtime).
+- **Upgrade:** usar migrations incrementais para levar bases antigas ao mesmo estado.
+- **Sem dupla verdade:** o runtime actual (incluindo `ai_jobs` com reserva/processing) está reflectido no schema base.
 
 ## Fluxo real ponta-a-ponta
 1. Utilizador cria pedido (`orders`).
@@ -61,7 +77,6 @@ Campos relevantes em `metadata.json`:
 2. `institution_work_type_rules`.
 3. `institution_rules`.
 4. Defaults do sistema.
-
 
 ## Hardening e consistência adicionais
 - Controllers críticos afinados com serviços de aplicação (`OrderApplicationService`, `PaymentApplicationService`, `AdminPricingService`, `AdminHumanReviewService`).
