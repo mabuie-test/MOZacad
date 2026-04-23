@@ -25,6 +25,9 @@
     ],
     "db:upgrade": [
       "@php database/setup.php --upgrade"
+    ],
+    "ops:validate": [
+      "@php scripts/validate_runtime.php"
     ]
   }
 }

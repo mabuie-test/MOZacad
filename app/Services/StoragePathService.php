@@ -29,6 +29,11 @@ final class StoragePathService
         return $this->resolveConfiguredBase('STORAGE_NORMS_PATH', 'storage/norms');
     }
 
+    public function templatesBase(): string
+    {
+        return $this->resolveConfiguredBase('STORAGE_TEMPLATES_PATH', 'storage/templates');
+    }
+
     public function ensureDirectory(string $path): void
     {
         if (!is_dir($path) && !mkdir($path, 0775, true) && !is_dir($path)) {

@@ -16,6 +16,14 @@ final class DocxAssemblyService
         $rules = $formatted['rules'] ?? [];
 
         $phpWord->setDefaultFontName((string) ($rules['font_family'] ?? 'Times New Roman'));
+
+        $docInfo = $phpWord->getDocInfo();
+        $institutionNorm = is_array($rules['institution_norm'] ?? null) ? $rules['institution_norm'] : [];
+        $docInfo->setTitle($title);
+        $docInfo->setDescription('Documento académico gerado com perfil institucional MOZacad.');
+        $docInfo->setCategory((string) ($rules['references_style'] ?? 'APA'));
+        $docInfo->setCompany((string) (($rules['front_page']['institution_name'] ?? 'Instituição Académica')));
+        $docInfo->setCustomProperty('institution_norm_source', (string) ($institutionNorm['source'] ?? 'none'));
         $phpWord->setDefaultFontSize((int) ($rules['font_size'] ?? 12));
         $phpWord->addParagraphStyle('body_text', ['alignment' => Jc::BOTH, 'spaceAfter' => 160, 'lineHeight' => (float) ($rules['line_spacing'] ?? 1.5), 'indentation' => ['firstLine' => 600]]);
         $phpWord->addParagraphStyle('quote_long', ['alignment' => Jc::BOTH, 'spaceAfter' => 120, 'lineHeight' => 1.0, 'indentation' => ['left' => 720, 'right' => 720]]);
@@ -35,7 +43,7 @@ final class DocxAssemblyService
 
         $this->addHeaderFooter($section, $frontPage);
         $this->addCoverPage($section, $title, $frontPage);
-        $this->addTitlePage($section, $title, $frontPage, $rules['norm_notes'] ?? []);
+        $this->addTitlePage($section, $title, $frontPage, $rules['norm_notes'] ?? [], $rules['template_resolution'] ?? []);
         $this->addPreTextSections($section, $sections, ['resumo', 'abstract']);
         $this->addTableOfContents($section);
         $this->addMainChapters($section, $sections);
@@ -57,14 +65,23 @@ final class DocxAssemblyService
         if (!empty($frontPage['faculty'])) {
             $section->addText((string) $frontPage['faculty'], ['size' => 12], ['alignment' => Jc::CENTER]);
         }
+        if (!empty($frontPage['department'])) {
+            $section->addText((string) $frontPage['department'], ['size' => 12], ['alignment' => Jc::CENTER]);
+        }
         $section->addTextBreak(4);
         $section->addText($title, ['bold' => true, 'size' => 16], ['alignment' => Jc::CENTER]);
+        if (!empty($frontPage['student_name'])) {
+            $section->addText('Discente: ' . (string) $frontPage['student_name'], ['size' => 12], ['alignment' => Jc::CENTER]);
+        }
+        if (!empty($frontPage['supervisor_name'])) {
+            $section->addText('Orientador(a): ' . (string) $frontPage['supervisor_name'], ['size' => 12], ['alignment' => Jc::CENTER]);
+        }
         $section->addTextBreak(6);
         $section->addText(((string) ($frontPage['city'] ?? 'Maputo')) . ', ' . ((string) ($frontPage['year'] ?? date('Y'))), ['size' => 12], ['alignment' => Jc::CENTER]);
         $section->addPageBreak();
     }
 
-    private function addTitlePage(Section $section, string $title, array $frontPage, array $notes): void
+    private function addTitlePage(Section $section, string $title, array $frontPage, array $notes, array $templateResolution): void
     {
         $section->addTitle('Folha de rosto', 1);
         $section->addText($title, ['bold' => true, 'size' => 14], ['alignment' => Jc::CENTER]);
@@ -73,6 +90,7 @@ final class DocxAssemblyService
         if ($notes !== []) {
             $section->addText('Notas institucionais aplicadas: ' . implode(' | ', array_map('strval', $notes)), ['italic' => true], 'body_text');
         }
+        $section->addText('Montagem documental: ' . (string) ($templateResolution['mode'] ?? 'programmatic_assembly'), ['italic' => true], 'body_text');
         $section->addPageBreak();
     }
 

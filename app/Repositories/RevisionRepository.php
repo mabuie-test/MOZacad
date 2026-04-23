@@ -6,13 +6,15 @@ namespace App\Repositories;
 
 final class RevisionRepository extends BaseRepository
 {
-    public function create(int $orderId, int $userId, string $reason, string $status = 'requested'): int
+    public function create(int $orderId, int $userId, string $reason, string $status = 'requested', ?int $generatedDocumentId = null, ?int $generatedDocumentVersion = null): int
     {
-        $stmt = $this->db->prepare('INSERT INTO revisions (order_id, user_id, reason, status, created_at, updated_at)
-            VALUES (:order_id, :user_id, :reason, :status, NOW(), NOW())');
+        $stmt = $this->db->prepare('INSERT INTO revisions (order_id, user_id, generated_document_id, generated_document_version, reason, status, created_at, updated_at)
+            VALUES (:order_id, :user_id, :generated_document_id, :generated_document_version, :reason, :status, NOW(), NOW())');
         $stmt->execute([
             'order_id' => $orderId,
             'user_id' => $userId,
+            'generated_document_id' => $generatedDocumentId,
+            'generated_document_version' => $generatedDocumentVersion,
             'reason' => $reason,
             'status' => $status,
         ]);
@@ -38,17 +40,21 @@ final class RevisionRepository extends BaseRepository
         return $stmt->fetch() ?: null;
     }
 
-    public function updateStatus(int $id, string $status, ?string $reviewerComment = null): void
+    public function updateStatus(int $id, string $status, ?string $reviewerComment = null, ?int $generatedDocumentId = null, ?int $generatedDocumentVersion = null): void
     {
         $stmt = $this->db->prepare('UPDATE revisions
             SET status = :status,
                 reviewer_comment = :reviewer_comment,
+                generated_document_id = COALESCE(:generated_document_id, generated_document_id),
+                generated_document_version = COALESCE(:generated_document_version, generated_document_version),
                 updated_at = NOW()
             WHERE id = :id');
         $stmt->execute([
             'id' => $id,
             'status' => $status,
             'reviewer_comment' => $reviewerComment,
+            'generated_document_id' => $generatedDocumentId,
+            'generated_document_version' => $generatedDocumentVersion,
         ]);
     }
 }

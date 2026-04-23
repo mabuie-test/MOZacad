@@ -53,6 +53,11 @@ final class InstitutionNormDocumentService
             'visual_overrides' => is_array($metadata['visual_overrides'] ?? null) ? $metadata['visual_overrides'] : [],
             'front_page_overrides' => is_array($metadata['front_page_overrides'] ?? null) ? $metadata['front_page_overrides'] : [],
             'structure_overrides' => is_array($metadata['structure_overrides'] ?? null) ? $metadata['structure_overrides'] : [],
+            'institution_profile' => [
+                'name' => (string) ($metadata['institution_name'] ?? ($institution['name'] ?? '')),
+                'faculty' => (string) ($metadata['faculty'] ?? ''),
+                'department' => (string) ($metadata['department'] ?? ''),
+            ],
         ];
     }
 

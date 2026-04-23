@@ -6,10 +6,10 @@ namespace App\Repositories;
 
 final class HumanReviewQueueRepository extends BaseRepository
 {
-    public function enqueue(int $orderId, ?int $reviewerId = null): int
+    public function enqueue(int $orderId, int $documentId, int $documentVersion, ?int $reviewerId = null): int
     {
-        $stmt = $this->db->prepare("INSERT INTO human_review_queue (order_id, reviewer_id, status, created_at, updated_at) VALUES (:order_id, :reviewer_id, 'pending', NOW(), NOW())");
-        $stmt->execute(['order_id' => $orderId, 'reviewer_id' => $reviewerId]);
+        $stmt = $this->db->prepare("INSERT INTO human_review_queue (order_id, generated_document_id, generated_document_version, reviewer_id, status, created_at, updated_at) VALUES (:order_id, :generated_document_id, :generated_document_version, :reviewer_id, 'pending', NOW(), NOW())");
+        $stmt->execute(['order_id' => $orderId, 'generated_document_id' => $documentId, 'generated_document_version' => $documentVersion, 'reviewer_id' => $reviewerId]);
 
         return (int) $this->db->lastInsertId();
     }

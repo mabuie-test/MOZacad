@@ -21,6 +21,8 @@ Para ambientes já existentes, manter caminho incremental:
    - `php database/setup.php --upgrade`
    - ou `composer db:upgrade`
 3. A migration `006_runtime_schema_alignment.sql` fecha lacunas de runtime (incluindo `ai_jobs` e integridade mínima de pagamentos/cupões) em bases que não tenham aplicado toda a cadeia histórica.
+4. A migration `007_human_review_cycle_convergence.sql` alinha o ciclo de revisão/regeneração (vínculo explícito a versão documental).
+5. `database/setup.php` executa verificação/repair de convergência de schema no final (desactivar apenas com `--no-verify`).
 
 ## Filosofia de persistência
 - **Instalação nova:** usa `database/schema/base_schema.sql` como fonte canónica do estado actual.
@@ -50,6 +52,14 @@ Para ambientes já existentes, manter caminho incremental:
 ### Endpoint webhook
 A rota é configurável por `.env`:
 - `DEBITO_WEBHOOK_PATH=/webhooks/debito`
+
+## Validação operacional rápida
+- `composer ops:validate`
+- verifica convergência de schema + consistência mínima de pagamentos, jobs, revisão humana, regeneração e cupões.
+
+## Templates institucionais (estado explícito)
+- A montagem DOCX oficial é **programática** (`DocxAssemblyService`).
+- `InstitutionTemplateService` apenas resolve e audita candidato em `STORAGE_TEMPLATES_PATH` sem alterar o pipeline nesta versão.
 
 ## Cron jobs
 ```bash

@@ -403,6 +403,8 @@ CREATE TABLE revisions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   order_id BIGINT UNSIGNED NOT NULL,
   user_id BIGINT UNSIGNED NOT NULL,
+  generated_document_id BIGINT UNSIGNED NULL,
+  generated_document_version INT NULL,
   reason TEXT NOT NULL,
   status VARCHAR(30) NOT NULL,
   reviewer_comment TEXT NULL,
@@ -413,6 +415,8 @@ CREATE TABLE revisions (
 CREATE TABLE human_review_queue (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   order_id BIGINT UNSIGNED NOT NULL,
+  generated_document_id BIGINT UNSIGNED NULL,
+  generated_document_version INT NULL,
   reviewer_id BIGINT UNSIGNED NULL,
   status VARCHAR(30) NOT NULL,
   decision VARCHAR(30) NULL,
@@ -422,7 +426,9 @@ CREATE TABLE human_review_queue (
   INDEX idx_human_review_queue_order_id (order_id),
   INDEX idx_hrq_order_status (order_id, status),
   INDEX idx_hrq_order_status_updated (order_id, status, updated_at),
+  INDEX idx_hrq_order_document (order_id, generated_document_id),
   CONSTRAINT fk_hrq_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_hrq_generated_document FOREIGN KEY (generated_document_id) REFERENCES generated_documents(id) ON DELETE CASCADE,
   CONSTRAINT fk_hrq_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

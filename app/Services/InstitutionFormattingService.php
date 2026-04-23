@@ -26,6 +26,8 @@ final class InstitutionFormattingService
                 'front_page' => $frontPage,
                 'institution_norm' => $rules['meta']['institution_norm'] ?? [],
                 'norm_notes' => $rules['meta']['notes'] ?? [],
+                'norm_profile' => $rules['meta']['institution_norm']['profile'] ?? [],
+                'template_resolution' => $rules['meta']['template_resolution'] ?? ['mode' => 'programmatic_assembly'],
             ],
             'sections' => array_map(static function (array $section): array {
                 $content = trim((string) ($section['content'] ?? ''));
