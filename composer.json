@@ -16,6 +16,15 @@
   "scripts": {
     "post-install-cmd": [
       "@php -r \"if (!file_exists('.env')) copy('.env.example', '.env');\""
+    ],
+    "db:schema": [
+      "@php database/setup.php --fresh"
+    ],
+    "db:setup": [
+      "@php database/setup.php --fresh --seed"
+    ],
+    "db:upgrade": [
+      "@php database/setup.php --upgrade"
     ]
   }
 }
