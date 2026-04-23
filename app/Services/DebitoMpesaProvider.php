@@ -49,46 +49,76 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
 
     private function extractReference(array $response): string
     {
-        return trim((string) (
-            $response['reference']
-            ?? $response['debito_reference']
-            ?? $response['transaction_reference']
-            ?? $response['data']['reference']
-            ?? ''
-        ));
+        return trim((string) ($this->findFirstScalar($response, [
+            'reference',
+            'debito_reference',
+            'transaction_reference',
+            'checkout_reference',
+            'request_id',
+            'operation_id',
+        ]) ?? ''));
     }
 
     private function extractProviderStatus(array $response): string
     {
-        return (string) (
-            $response['status']
-            ?? $response['state']
-            ?? $response['transaction_status']
-            ?? $response['data']['status']
-            ?? 'PENDING'
-        );
+        return (string) ($this->findFirstScalar($response, [
+            'status',
+            'state',
+            'transaction_status',
+            'payment_status',
+        ]) ?? 'PENDING');
     }
 
     private function extractProviderMessage(array $response): string
     {
-        return (string) (
-            $response['message']
-            ?? $response['description']
-            ?? $response['error']['message']
-            ?? $response['data']['message']
-            ?? ''
-        );
+        return (string) ($this->findFirstScalar($response, [
+            'message',
+            'description',
+            'details',
+            'reason',
+        ]) ?? '');
     }
 
     private function extractProviderTransactionId(array $response): string
     {
-        return trim((string) (
-            $response['transaction_id']
-            ?? $response['id']
-            ?? $response['data']['transaction_id']
-            ?? $response['data']['id']
-            ?? ''
-        ));
+        return trim((string) ($this->findFirstScalar($response, [
+            'transaction_id',
+            'id',
+            'provider_transaction_id',
+            'checkout_id',
+        ]) ?? ''));
+    }
+
+    private function findFirstScalar(array $payload, array $preferredKeys): string|int|float|bool|null
+    {
+        foreach ($preferredKeys as $key) {
+            $found = $this->findScalarByKeyRecursive($payload, $key);
+            if ($found !== null) {
+                return $found;
+            }
+        }
+
+        return null;
+    }
+
+    private function findScalarByKeyRecursive(array $payload, string $key): string|int|float|bool|null
+    {
+        if (array_key_exists($key, $payload) && is_scalar($payload[$key])) {
+            return $payload[$key];
+        }
+
+        foreach ($payload as $value) {
+            if (!is_array($value)) {
+                continue;
+            }
+
+            $found = $this->findScalarByKeyRecursive($value, $key);
+            if ($found !== null) {
+                return $found;
+            }
+        }
+
+        return null;
     }
 
 }
