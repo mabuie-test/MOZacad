@@ -2,19 +2,30 @@
 
 Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento Débito M-Pesa C2B, geração DOCX, revisão humana e entrega segura, com autorização centralizada e observabilidade operacional.
 
-## Setup rápido
+## Setup rápido (instalação nova)
 1. `composer install`
 2. `cp .env.example .env`
 3. Criar base `moz_acad`
-4. Executar migrations SQL por ordem:
-   - `database/migrations/001_schema.sql`
-   - `database/migrations/002_hardening.sql`
-   - `database/migrations/003_job_coupon_hardening.sql`
-   - `database/migrations/004_final_hardening_closure.sql`
-   - `database/migrations/005_integrity_idempotency_hardening.sql`
-5. Executar seed base:
-   - `php database/seeders/SeederRunner.php`
+4. Aplicar schema canónico actual (sem cadeia histórica de migrations):
+   - `php database/setup.php --fresh`
+   - ou `composer db:schema`
+5. (Opcional) carregar dados base:
+   - `php database/setup.php --fresh --seed`
+   - ou `composer db:setup`
 6. Servir `public/` como document root (`public_html` compatível).
+
+## Upgrade de instalações antigas
+Para ambientes já existentes, manter caminho incremental:
+1. Fazer backup da base.
+2. Executar migrations incrementais:
+   - `php database/setup.php --upgrade`
+   - ou `composer db:upgrade`
+3. A migration `006_runtime_schema_alignment.sql` fecha lacunas de runtime (incluindo `ai_jobs` e integridade mínima de pagamentos/cupões) em bases que não tenham aplicado toda a cadeia histórica.
+
+## Filosofia de persistência
+- **Instalação nova:** usa `database/schema/base_schema.sql` como fonte canónica do estado actual.
+- **Upgrade:** usa `database/migrations/*.sql` para evolução incremental de bases já em produção.
+- **Sem dupla verdade:** schema base e runtime são mantidos alinhados; migrations passam a servir upgrade/evolução.
 
 ## Fluxo real ponta-a-ponta
 1. Utilizador cria pedido (`orders`).

@@ -4,10 +4,10 @@ INSERT INTO roles (name, description, created_at, updated_at) VALUES
 ('human_reviewer','Revisor humano',NOW(),NOW()),
 ('superadmin','Administrador global',NOW(),NOW());
 
-INSERT INTO institutions (name, short_name, city, country, is_active, created_at, updated_at) VALUES
-('Universidade Eduardo Mondlane','UEM','Maputo','Moçambique',1,NOW(),NOW()),
-('Universidade Pedagógica de Maputo','UP Maputo','Maputo','Moçambique',1,NOW(),NOW()),
-('Instituto Superior de Ciências e Tecnologia de Moçambique','ISCTEM','Maputo','Moçambique',1,NOW(),NOW());
+INSERT INTO institutions (name, short_name, slug, city, country, is_active, created_at, updated_at) VALUES
+('Universidade Eduardo Mondlane','UEM','uem','Maputo','Moçambique',1,NOW(),NOW()),
+('Universidade Pedagógica de Maputo','UP Maputo','up-maputo','Maputo','Moçambique',1,NOW(),NOW()),
+('Instituto Superior de Ciências e Tecnologia de Moçambique','ISCTEM','isctem','Maputo','Moçambique',1,NOW(),NOW());
 
 INSERT INTO academic_levels (name, slug, multiplier, description, is_active) VALUES
 ('Técnico','tecnico',1.0,'Nível técnico',1),
