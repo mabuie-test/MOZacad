@@ -38,6 +38,9 @@ final class GenerateOrderDocumentJob
         if ($order === null) {
             throw new RuntimeException('Pedido não encontrado para geração documental.');
         }
+        if (!in_array((string) ($order['status'] ?? ''), ['queued', 'revision_requested', 'under_human_review', 'ready'], true)) {
+            throw new RuntimeException('Pedido ainda não está elegível para geração documental.');
+        }
 
         $latestExisting = (new GeneratedDocumentRepository())->findLatestByOrderId($orderId);
         if (
@@ -112,6 +115,9 @@ final class GenerateOrderDocumentJob
         $nextVersion = ((int) ($latest['version'] ?? 0)) + 1;
         $filename = sprintf('order-%d-v%d-%s.docx', $orderId, $nextVersion, date('YmdHis'));
         $path = (new ExportService())->saveDocx($doc, $filename);
+        if (!$this->documentFileExists($path)) {
+            throw new RuntimeException('Falha ao persistir documento DOCX no storage.');
+        }
 
         $requiresReview = (bool) ($order['work_type_id'] && ((new WorkTypeRepository())->findById((int) $order['work_type_id'])['requires_human_review'] ?? false));
         $documentStatus = $requiresReview ? 'pending_human_review' : 'generated';
@@ -133,6 +139,7 @@ final class GenerateOrderDocumentJob
                 && $this->documentFileExists((string) ($lockedLatest['file_path'] ?? ''))
             ) {
                 $db->commit();
+                $this->cleanupGeneratedFile($path);
 
                 return [
                     'order_id' => $orderId,
@@ -158,6 +165,7 @@ final class GenerateOrderDocumentJob
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
+            $this->cleanupGeneratedFile($path);
             throw $e;
         }
 
@@ -187,5 +195,23 @@ final class GenerateOrderDocumentJob
         }
 
         return is_file($fullPath) && filesize($fullPath) > 0;
+    }
+
+    private function cleanupGeneratedFile(string $candidatePath): void
+    {
+        if (trim($candidatePath) === '') {
+            return;
+        }
+
+        $paths = new StoragePathService();
+        try {
+            $fullPath = $paths->ensurePathInside($candidatePath, $paths->generatedBase());
+        } catch (RuntimeException) {
+            return;
+        }
+
+        if (is_file($fullPath)) {
+            @unlink($fullPath);
+        }
     }
 }

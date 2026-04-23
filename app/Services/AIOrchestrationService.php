@@ -58,13 +58,27 @@ final class AIOrchestrationService
                 'error' => $firstError->getMessage(),
             ]);
 
-            $fallbackPrompt = $prompt . "\n\nReescreve em formato mais objetivo e sem bullets.";
-            $fallback = trim($this->provider->generate($fallbackPrompt, $context));
-            if ($fallback === '') {
-                throw new \RuntimeException('Resposta vazia do provider IA no fallback.');
+            try {
+                $fallbackPrompt = $prompt . "\n\nReescreve em formato mais objetivo e sem bullets.";
+                $fallback = trim($this->provider->generate($fallbackPrompt, $context));
+                if ($fallback === '') {
+                    throw new \RuntimeException('Resposta vazia do provider IA no fallback.');
+                }
+                return $fallback;
+            } catch (Throwable $fallbackError) {
+                $this->logger->error('ai.section.generate.fallback_failed', [
+                    'section_code' => (string) ($context['section_code'] ?? ''),
+                    'error' => $fallbackError->getMessage(),
+                ]);
+                throw new \RuntimeException(
+                    sprintf(
+                        'Falha na geração IA da secção "%s" após fallback.',
+                        (string) ($context['section_title'] ?? $context['section_code'] ?? 'desconhecida')
+                    ),
+                    0,
+                    $fallbackError
+                );
             }
-
-            return $fallback;
         }
     }
 }

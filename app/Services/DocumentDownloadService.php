@@ -32,7 +32,9 @@ final class DocumentDownloadService
         }
 
         $path = $this->paths->ensurePathInside((string) $doc['file_path'], $this->paths->generatedBase());
-        if (!is_file($path)) throw new RuntimeException('Ficheiro físico não encontrado no storage.');
+        if (!is_file($path) || filesize($path) <= 0) {
+            throw new RuntimeException('Ficheiro físico não encontrado no storage.');
+        }
 
         $this->auditLogs->log($actorUserId, 'document.download', 'generated_document', $documentId, ['order_id' => (int) $doc['order_id'], 'file_path' => $path]);
 

@@ -21,12 +21,29 @@ final class HumanReviewQueueService
 
     public function enqueue(int $orderId, ?int $reviewerId = null): int
     {
-        $existingOpen = $this->queue->findOpenByOrderId($orderId);
-        if ($existingOpen !== null) {
-            return (int) $existingOpen['id'];
-        }
+        $db = Database::connect();
+        $db->beginTransaction();
+        try {
+            $order = $this->orders->lockByIdForUpdate($orderId);
+            if (!is_array($order)) {
+                throw new RuntimeException('Pedido não encontrado para fila de revisão.');
+            }
 
-        return $this->queue->enqueue($orderId, $reviewerId);
+            $existingOpen = $this->queue->findOpenByOrderIdForUpdate($orderId);
+            if ($existingOpen !== null) {
+                $db->commit();
+                return (int) $existingOpen['id'];
+            }
+
+            $id = $this->queue->enqueue($orderId, $reviewerId);
+            $db->commit();
+            return $id;
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            throw $e;
+        }
     }
 
     public function assignReviewer(int $queueId, int $reviewerId): void

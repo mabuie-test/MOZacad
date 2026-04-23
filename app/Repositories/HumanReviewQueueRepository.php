@@ -48,6 +48,19 @@ final class HumanReviewQueueRepository extends BaseRepository
         return $stmt->fetch() ?: null;
     }
 
+    public function findOpenByOrderIdForUpdate(int $orderId): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM human_review_queue
+            WHERE order_id = :order_id
+              AND status IN ('pending','assigned')
+            ORDER BY id DESC
+            LIMIT 1
+            FOR UPDATE");
+        $stmt->execute(['order_id' => $orderId]);
+
+        return $stmt->fetch() ?: null;
+    }
+
     public function updateDecision(int $queueId, string $status, ?string $notes = null): void
     {
         $stmt = $this->db->prepare("UPDATE human_review_queue
