@@ -16,10 +16,11 @@ final class HumanReviewQueueService
         private readonly HumanReviewQueueRepository $queue = new HumanReviewQueueRepository(),
         private readonly OrderRepository $orders = new OrderRepository(),
         private readonly GeneratedDocumentRepository $documents = new GeneratedDocumentRepository(),
-        private readonly RevisionService $revisions = new RevisionService()
+        private readonly RevisionService $revisions = new RevisionService(),
+        private readonly ApplicationLoggerService $logger = new ApplicationLoggerService()
     ) {}
 
-    public function enqueue(int $orderId, ?int $reviewerId = null): int
+    public function enqueue(int $orderId, int $documentId, int $documentVersion, ?int $reviewerId = null): int
     {
         $db = Database::connect();
         $db->beginTransaction();
@@ -35,7 +36,7 @@ final class HumanReviewQueueService
                 return (int) $existingOpen['id'];
             }
 
-            $id = $this->queue->enqueue($orderId, $reviewerId);
+            $id = $this->queue->enqueue($orderId, $documentId, $documentVersion, $reviewerId);
             $db->commit();
             return $id;
         } catch (\Throwable $e) {
@@ -77,6 +78,9 @@ final class HumanReviewQueueService
             if ($latestDocument === null) {
                 throw new RuntimeException('Não é possível aprovar sem documento gerado.');
             }
+            if ((int) ($entry['generated_document_id'] ?? 0) !== (int) ($latestDocument['id'] ?? 0)) {
+                throw new RuntimeException('Revisão humana não corresponde à versão documental mais recente.');
+            }
             if ((string) ($latestDocument['status'] ?? '') !== 'pending_human_review') {
                 throw new RuntimeException('Documento não está pendente de revisão humana.');
             }
@@ -84,7 +88,8 @@ final class HumanReviewQueueService
             $this->queue->updateDecision($queueId, 'approved', $notes);
             $this->documents->updateLatestStatusByOrderId((int) $entry['order_id'], 'approved');
             $this->orders->updateStatus((int) $entry['order_id'], 'ready');
-            $this->revisions->markApproved((int) $entry['order_id'], $notes);
+            $this->revisions->markApproved((int) $entry['order_id'], (int) ($latestDocument['id'] ?? 0), (int) ($latestDocument['version'] ?? 0), $notes);
+            $this->logger->info('human_review.cycle.approved', ['order_id' => (int) $entry['order_id'], 'queue_id' => $queueId, 'generated_document_id' => (int) ($latestDocument['id'] ?? 0), 'generated_document_version' => (int) ($latestDocument['version'] ?? 0)]);
             $db->commit();
         } catch (\Throwable $e) {
             $db->rollBack();
@@ -109,6 +114,9 @@ final class HumanReviewQueueService
             if ($latestDocument === null) {
                 throw new RuntimeException('Não é possível rejeitar sem documento gerado.');
             }
+            if ((int) ($entry['generated_document_id'] ?? 0) !== (int) ($latestDocument['id'] ?? 0)) {
+                throw new RuntimeException('Revisão humana não corresponde à versão documental mais recente.');
+            }
             if ((string) ($latestDocument['status'] ?? '') !== 'pending_human_review') {
                 throw new RuntimeException('Documento não está pendente de revisão humana.');
             }
@@ -116,7 +124,8 @@ final class HumanReviewQueueService
             $this->queue->updateDecision($queueId, 'rejected', $notes);
             $this->documents->updateLatestStatusByOrderId((int) $entry['order_id'], 'returned_for_revision');
             $this->orders->updateStatus((int) $entry['order_id'], 'revision_requested');
-            $this->revisions->markReturnedForRevision((int) $entry['order_id'], $notes);
+            $this->revisions->markReturnedForRevision((int) $entry['order_id'], (int) ($latestDocument['id'] ?? 0), (int) ($latestDocument['version'] ?? 0), $notes);
+            $this->logger->info('human_review.cycle.rejected', ['order_id' => (int) $entry['order_id'], 'queue_id' => $queueId, 'generated_document_id' => (int) ($latestDocument['id'] ?? 0), 'generated_document_version' => (int) ($latestDocument['version'] ?? 0)]);
             $db->commit();
         } catch (\Throwable $e) {
             $db->rollBack();

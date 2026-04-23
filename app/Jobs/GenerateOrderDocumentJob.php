@@ -19,6 +19,7 @@ use App\Services\DocxAssemblyService;
 use App\Services\ExportService;
 use App\Services\HumanReviewQueueService;
 use App\Services\InstitutionFormattingService;
+use App\Services\InstitutionTemplateService;
 use App\Services\InstitutionNormDocumentService;
 use App\Services\MozPortugueseHumanizerService;
 use App\Services\PromptComposerService;
@@ -59,6 +60,7 @@ final class GenerateOrderDocumentJob
                 'queued_for_human_review' => (string) ($latestExisting['status'] ?? '') === 'pending_human_review',
                 'human_review_queue_id' => null,
                 'reused_existing_document' => true,
+                'regeneration_cycle' => false,
             ];
         }
 
@@ -84,7 +86,8 @@ final class GenerateOrderDocumentJob
         $academicLevel = $academicRepo->findById((int) $order['academic_level_id']) ?? [];
         $normContext = (new InstitutionNormDocumentService())->resolveForInstitution($institution);
 
-        $resolvedRulesDto = (new RuleResolverService())->resolve($institutionRules, $institutionWorkTypeRules, $academicLevel, $normContext);
+        $templateResolution = (new InstitutionTemplateService())->resolve($institution, (int) $order['work_type_id']);
+        $resolvedRulesDto = (new RuleResolverService())->resolve($institutionRules, $institutionWorkTypeRules, $academicLevel, $normContext, $templateResolution);
         $resolvedRules = [
             'visualRules' => $resolvedRulesDto->visualRules,
             'referenceRules' => $resolvedRulesDto->referenceRules,
@@ -149,6 +152,7 @@ final class GenerateOrderDocumentJob
                     'queued_for_human_review' => (string) ($lockedLatest['status'] ?? '') === 'pending_human_review',
                     'human_review_queue_id' => null,
                     'reused_existing_document' => true,
+                    'regeneration_cycle' => false,
                 ];
             }
 
@@ -157,7 +161,7 @@ final class GenerateOrderDocumentJob
 
             $documentId = $documents->create($orderId, $path, $documentStatus, $effectiveVersion);
             if ($requiresReview) {
-                $queueId = (new HumanReviewQueueService())->enqueue($orderId);
+                $queueId = (new HumanReviewQueueService())->enqueue($orderId, $documentId, $effectiveVersion);
             }
             $db->commit();
             $nextVersion = $effectiveVersion;
@@ -169,7 +173,8 @@ final class GenerateOrderDocumentJob
             throw $e;
         }
 
-        $logger->info('ai_job.document_generation.completed', ['order_id' => $orderId, 'document_id' => $documentId, 'version' => $nextVersion, 'requires_review' => $requiresReview]);
+        $isRegeneration = (string) ($order['status'] ?? '') === 'revision_requested';
+        $logger->info('ai_job.document_generation.completed', ['order_id' => $orderId, 'document_id' => $documentId, 'version' => $nextVersion, 'requires_review' => $requiresReview, 'regeneration_cycle' => $isRegeneration, 'template_resolution' => $templateResolution]);
 
         return [
             'order_id' => $orderId,
@@ -178,6 +183,7 @@ final class GenerateOrderDocumentJob
             'file_path' => $path,
             'queued_for_human_review' => $requiresReview,
             'human_review_queue_id' => $queueId,
+            'regeneration_cycle' => (string) ($order['status'] ?? '') === 'revision_requested',
         ];
     }
 

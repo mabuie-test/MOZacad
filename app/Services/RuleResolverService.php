@@ -8,7 +8,7 @@ use App\DTOs\ResolvedRuleSetDTO;
 
 final class RuleResolverService
 {
-    public function resolve(array $institutionRules, array $workTypeRules, array $academicLevelRules, array $normDocumentContext = []): ResolvedRuleSetDTO
+    public function resolve(array $institutionRules, array $workTypeRules, array $academicLevelRules, array $normDocumentContext = [], array $templateResolution = []): ResolvedRuleSetDTO
     {
         $metadata = is_array($normDocumentContext['metadata'] ?? null) ? $normDocumentContext['metadata'] : [];
 
@@ -82,7 +82,14 @@ final class RuleResolverService
                 'has_pdf' => !empty($normDocumentContext['pdf_path']),
                 'metadata' => $metadata,
                 'excerpt' => mb_substr(trim((string) ($normDocumentContext['content'] ?? '')), 0, 3000),
+                'profile' => [
+                    'visual_overrides' => $visualOverrides,
+                    'front_page_overrides' => $frontPageNorm,
+                    'structure_overrides' => $structureOverrides,
+                    'reference_style' => $reference['style'] ?? 'APA',
+                ],
             ],
+            'template_resolution' => $templateResolution,
         ]);
     }
 
