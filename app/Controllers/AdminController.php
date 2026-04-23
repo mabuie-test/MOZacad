@@ -73,25 +73,61 @@ final class AdminController extends BaseController
 
     public function users(): void
     {
-        if ($this->requireAdminAccess()) $this->json(['users' => (new UserRepository())->all(200)]);
+        if (!$this->requireAdminAccess()) return;
+        $users = (new UserRepository())->all(200);
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData([
+                'users' => array_slice($users, 0, 20),
+                'activeSection' => 'users',
+            ]));
+            return;
+        }
+        $this->json(['users' => $users]);
     }
     public function orders(): void
     {
         if (!$this->requireAdminAccess()) return;
         $userId = (int) ($_GET['user_id'] ?? 0);
-        $this->json(['orders' => $userId > 0 ? (new OrderRepository())->listByUser($userId) : (new OrderRepository())->listAll(200)]);
+        $orders = $userId > 0 ? (new OrderRepository())->listByUser($userId) : (new OrderRepository())->listAll(200);
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData([
+                'orders' => array_slice($orders, 0, 30),
+                'activeSection' => 'orders',
+            ]));
+            return;
+        }
+        $this->json(['orders' => $orders]);
     }
     public function payments(): void
     {
-        if ($this->requireAdminAccess()) $this->json(['payments' => (new PaymentRepository())->listAll(200)]);
+        if (!$this->requireAdminAccess()) return;
+        $payments = (new PaymentRepository())->listAll(200);
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData([
+                'payments' => array_slice($payments, 0, 30),
+                'activeSection' => 'payments',
+            ]));
+            return;
+        }
+        $this->json(['payments' => $payments]);
     }
 
     public function humanReviewQueue(): void
     {
         if (!$this->requireAdminAccess()) return;
+        $queue = (new HumanReviewQueueRepository())->listQueue(200);
+        $reviewers = (new UserRepository())->listByRole('human_reviewer', 200);
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData([
+                'humanReviewQueue' => array_slice($queue, 0, 30),
+                'reviewers' => $reviewers,
+                'activeSection' => 'human-review',
+            ]));
+            return;
+        }
         $this->json([
-            'human_review_queue' => (new HumanReviewQueueRepository())->listQueue(200),
-            'reviewers' => (new UserRepository())->listByRole('human_reviewer', 200),
+            'human_review_queue' => $queue,
+            'reviewers' => $reviewers,
         ]);
     }
 
@@ -146,7 +182,15 @@ final class AdminController extends BaseController
 
         $userId = (int) ($_GET['user_id'] ?? 0);
         $repo = new UserDiscountRepository();
-        $this->json(['discounts' => $userId > 0 ? $repo->findEligible($userId, !empty($_GET['work_type_id']) ? (int) $_GET['work_type_id'] : null) : $repo->listAll(200)]);
+        $discounts = $userId > 0 ? $repo->findEligible($userId, !empty($_GET['work_type_id']) ? (int) $_GET['work_type_id'] : null) : $repo->listAll(200);
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData([
+                'discounts' => array_slice($discounts, 0, 50),
+                'activeSection' => 'discounts',
+            ]));
+            return;
+        }
+        $this->json(['discounts' => $discounts]);
     }
 
     public function createDiscount(): void
@@ -207,17 +251,49 @@ final class AdminController extends BaseController
         $this->json(['message' => 'Desconto atualizado.', 'discount_id' => $id]);
     }
 
-    public function institutions(): void { if ($this->requireAdminAccess()) $this->json(['institutions' => (new InstitutionRepository())->all()]); }
-    public function courses(): void { if ($this->requireAdminAccess()) $this->json(['courses' => (new CourseRepository())->all(200)]); }
-    public function disciplines(): void { if ($this->requireAdminAccess()) $this->json(['disciplines' => (new DisciplineRepository())->all(200)]); }
-    public function workTypes(): void { if ($this->requireAdminAccess()) $this->json(['work_types' => (new WorkTypeRepository())->all(200)]); }
+    public function institutions(): void {
+        if (!$this->requireAdminAccess()) return;
+        $institutions = (new InstitutionRepository())->all();
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData(['institutions' => $institutions, 'activeSection' => 'institutions']));
+            return;
+        }
+        $this->json(['institutions' => $institutions]);
+    }
+    public function courses(): void {
+        if (!$this->requireAdminAccess()) return;
+        $courses = (new CourseRepository())->all(200);
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData(['courses' => $courses, 'activeSection' => 'courses']));
+            return;
+        }
+        $this->json(['courses' => $courses]);
+    }
+    public function disciplines(): void {
+        if (!$this->requireAdminAccess()) return;
+        $disciplines = (new DisciplineRepository())->all(200);
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData(['disciplines' => $disciplines, 'activeSection' => 'disciplines']));
+            return;
+        }
+        $this->json(['disciplines' => $disciplines]);
+    }
+    public function workTypes(): void {
+        if (!$this->requireAdminAccess()) return;
+        $workTypes = (new WorkTypeRepository())->all(200);
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData(['workTypes' => $workTypes, 'activeSection' => 'work-types']));
+            return;
+        }
+        $this->json(['work_types' => $workTypes]);
+    }
 
     public function pricing(): void
     {
         if (!$this->requireAdminAccess()) return;
 
         $config = new PricingConfig();
-        $this->json([
+        $payload = [
             'pricing' => [
                 'currency' => $config->get('PRICING_CURRENCY', 'MZN'),
                 'per_page_default' => $config->get('PRICING_PER_PAGE_DEFAULT', 40),
@@ -226,7 +302,17 @@ final class AdminController extends BaseController
             ],
             'rules' => (new PricingRuleRepository())->all(300),
             'extras' => (new PricingExtraRepository())->all(300),
-        ]);
+        ];
+        if ($this->isHtmlRequest()) {
+            $this->view('admin/index', $this->buildAdminViewData([
+                'pricingConfig' => $payload['pricing'],
+                'pricingRules' => $payload['rules'],
+                'pricingExtras' => $payload['extras'],
+                'activeSection' => 'pricing',
+            ]));
+            return;
+        }
+        $this->json($payload);
     }
 
     public function upsertPricingRule(): void
@@ -270,13 +356,39 @@ final class AdminController extends BaseController
         $this->json(['message' => 'Extra de pricing guardado com sucesso.', 'extra_code' => $extraCode]);
     }
 
-    private function isHtmlRequest(): bool
-    {
-        return str_contains(strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? '')), 'text/html');
-    }
-
     private function redirectToAdminWithMessage(string $message): void
     {
         header('Location: /admin?message=' . rawurlencode($message));
+    }
+
+    private function buildAdminViewData(array $overrides = []): array
+    {
+        return array_merge([
+            'flashMessage' => isset($_GET['message']) ? (string) $_GET['message'] : null,
+            'users' => (new UserRepository())->all(20),
+            'orders' => (new OrderRepository())->listAll(20),
+            'payments' => (new PaymentRepository())->listAll(20),
+            'humanReviewQueue' => (new HumanReviewQueueRepository())->listQueue(20),
+            'reviewers' => (new UserRepository())->listByRole('human_reviewer', 50),
+            'discounts' => (new UserDiscountRepository())->listAll(20),
+            'institutions' => (new InstitutionRepository())->all(),
+            'courses' => (new CourseRepository())->all(20),
+            'disciplines' => (new DisciplineRepository())->all(20),
+            'workTypes' => (new WorkTypeRepository())->all(20),
+            'pricingRules' => (new PricingRuleRepository())->all(100),
+            'pricingExtras' => (new PricingExtraRepository())->all(100),
+            'pricingConfig' => [
+                'currency' => (new PricingConfig())->get('PRICING_CURRENCY', 'MZN'),
+                'per_page_default' => (new PricingConfig())->get('PRICING_PER_PAGE_DEFAULT', 40),
+                'included_pages' => (new PricingConfig())->get('PRICING_INCLUDED_PAGES_DEFAULT', 10),
+                'min_order' => (new PricingConfig())->get('PRICING_MIN_ORDER_AMOUNT', 500),
+            ],
+            'reviewStatusFilter' => '',
+            'orderStatusFilter' => '',
+            'paymentStatusFilter' => '',
+            'page' => 1,
+            'perPage' => 20,
+            'activeSection' => 'overview',
+        ], $overrides);
     }
 }

@@ -14,6 +14,9 @@ abstract class BaseController
     protected function view(string $template, array $data = []): void
     {
         $data['csrfToken'] = Csrf::token();
+        $data['isAuthenticated'] = $this->authenticatedUserId() > 0;
+        $data['isAdmin'] = (new AdminAccessService())->currentAdminId() > 0;
+        $data['currentPath'] = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
         View::render($template, $data);
     }
 
@@ -38,8 +41,13 @@ abstract class BaseController
 
     protected function requireAuthUserId(): int
     {
-        $userId = (new AuthContextService())->authenticatedUserId();
+        $userId = $this->authenticatedUserId();
         if ($userId <= 0) {
+            if ($this->isHtmlRequest()) {
+                header('Location: /login');
+                return 0;
+            }
+
             $this->json(['message' => 'Autenticação obrigatória.'], 401);
             return 0;
         }
@@ -51,6 +59,10 @@ abstract class BaseController
     {
         $adminId = (new AdminAccessService())->currentAdminId();
         if ($adminId === 0) {
+            if ($this->isHtmlRequest()) {
+                header('Location: /login');
+                return false;
+            }
             $this->json(['message' => 'Autenticação obrigatória.'], 401);
             return false;
         }
@@ -61,5 +73,15 @@ abstract class BaseController
         }
 
         return true;
+    }
+
+    protected function isHtmlRequest(): bool
+    {
+        return str_contains(strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? '')), 'text/html');
+    }
+
+    private function authenticatedUserId(): int
+    {
+        return (new AuthContextService())->authenticatedUserId();
     }
 }

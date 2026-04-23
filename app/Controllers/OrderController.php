@@ -7,9 +7,13 @@ namespace App\Controllers;
 use App\Repositories\AcademicLevelRepository;
 use App\Repositories\CourseRepository;
 use App\Repositories\DisciplineRepository;
+use App\Repositories\GeneratedDocumentRepository;
 use App\Repositories\InstitutionRepository;
+use App\Repositories\InvoiceRepository;
 use App\Repositories\OrderAttachmentRepository;
 use App\Repositories\OrderRepository;
+use App\Repositories\PaymentRepository;
+use App\Repositories\RevisionRepository;
 use App\Repositories\WorkTypeRepository;
 use App\Services\OrderApplicationService;
 use App\Services\PaymentApplicationService;
@@ -25,7 +29,13 @@ final class OrderController extends BaseController
             return;
         }
 
-        $this->json(['orders' => (new OrderRepository())->listByUser($userId)]);
+        $orders = (new OrderRepository())->listByUser($userId);
+        if ($this->isHtmlRequest()) {
+            $this->view('orders/index', ['orders' => $orders]);
+            return;
+        }
+
+        $this->json(['orders' => $orders]);
     }
 
     public function create(): void
@@ -35,13 +45,20 @@ final class OrderController extends BaseController
             return;
         }
 
-        $this->json([
+        $payload = [
             'institutions' => (new InstitutionRepository())->all(),
             'courses' => (new CourseRepository())->all(),
             'disciplines' => (new DisciplineRepository())->all(),
             'academic_levels' => (new AcademicLevelRepository())->all(),
             'work_types' => (new WorkTypeRepository())->all(),
-        ]);
+        ];
+
+        if ($this->isHtmlRequest()) {
+            $this->view('orders/create', $payload);
+            return;
+        }
+
+        $this->json($payload);
     }
 
     public function store(): void
@@ -113,7 +130,23 @@ final class OrderController extends BaseController
             return;
         }
 
-        $this->json(['order' => $order, 'attachments' => (new OrderAttachmentRepository())->listByOrderId($id)]);
+        $attachments = (new OrderAttachmentRepository())->listByOrderId($id);
+        $invoice = (new InvoiceRepository())->findOpenByOrderId($id);
+        $payment = (new PaymentRepository())->findOpenByOrderId($id);
+        $paymentHistory = array_values(array_filter(
+            (new PaymentRepository())->listRecentByUser($userId, 50),
+            static fn (array $row): bool => (int) ($row['order_id'] ?? 0) === $id
+        ));
+        $documents = (new GeneratedDocumentRepository())->listByUser($userId, 50);
+        $documents = array_values(array_filter($documents, static fn(array $doc): bool => (int) $doc['order_id'] === $id));
+        $revision = (new RevisionRepository())->findLatestByOrderId($id);
+
+        if ($this->isHtmlRequest()) {
+            $this->view('orders/show', compact('order', 'attachments', 'invoice', 'payment', 'paymentHistory', 'documents', 'revision'));
+            return;
+        }
+
+        $this->json(['order' => $order, 'attachments' => $attachments, 'invoice' => $invoice, 'payment' => $payment, 'payment_history' => $paymentHistory, 'documents' => $documents, 'revision' => $revision]);
     }
 
     public function pay(int $id): void
@@ -136,7 +169,19 @@ final class OrderController extends BaseController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-            $this->json(['order_id' => $id, 'status' => $order['status'], 'amount' => (float) $order['final_price']]);
+            $openPayment = (new PaymentRepository())->findOpenByOrderId($id);
+            $invoice = (new InvoiceRepository())->findOpenByOrderId($id);
+
+            if ($this->isHtmlRequest()) {
+                $this->view('orders/pay', [
+                    'order' => $order,
+                    'openPayment' => $openPayment,
+                    'invoice' => $invoice,
+                ]);
+                return;
+            }
+
+            $this->json(['order_id' => $id, 'status' => $order['status'], 'amount' => (float) $order['final_price'], 'payment' => $openPayment]);
             return;
         }
 
