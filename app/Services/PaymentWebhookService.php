@@ -23,7 +23,7 @@ final class PaymentWebhookService
     public function processDebitoWebhook(string $rawBody, array $headers = []): array
     {
         $normalizedHeaders = $this->normalizeHeaders($headers);
-        $this->logger->info('Webhook Débito recebido', ['headers' => $normalizedHeaders]);
+        $this->logger->info('Webhook Débito recebido', ['headers' => $this->sanitizeHeadersForLog($normalizedHeaders)]);
 
         $enabled = filter_var((string) Env::get('DEBITO_ENABLE_WEBHOOK', true), FILTER_VALIDATE_BOOL);
         if (!$enabled) {
@@ -139,5 +139,16 @@ final class PaymentWebhookService
         }
 
         return $normalized;
+    }
+
+    private function sanitizeHeadersForLog(array $headers): array
+    {
+        foreach (['x_debito_signature', 'x_webhook_signature', 'authorization'] as $sensitiveKey) {
+            if (isset($headers[$sensitiveKey]) && $headers[$sensitiveKey] !== '') {
+                $headers[$sensitiveKey] = '[redacted]';
+            }
+        }
+
+        return $headers;
     }
 }

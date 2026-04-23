@@ -9,6 +9,9 @@ Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento Débito M-Pesa C2
 4. Executar migrations SQL por ordem:
    - `database/migrations/001_schema.sql`
    - `database/migrations/002_hardening.sql`
+   - `database/migrations/003_job_coupon_hardening.sql`
+   - `database/migrations/004_final_hardening_closure.sql`
+   - `database/migrations/005_integrity_idempotency_hardening.sql`
 5. Executar seed base:
    - `php database/seeders/SeederRunner.php`
 6. Servir `public/` como document root (`public_html` compatível).
@@ -29,6 +32,7 @@ Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento Débito M-Pesa C2
 - Polling continua como fonte primária.
 - Webhook com validação defensiva opcional por HMAC (`DEBITO_WEBHOOK_SECRET`).
 - Cliente HTTP com timeout, retry e backoff simples (`DEBITO_HTTP_RETRIES`, `DEBITO_HTTP_BACKOFF_MS`).
+- Batch de polling configurável (`DEBITO_POLLING_BATCH_LIMIT`).
 - Tratamento de respostas não-JSON e erros transitórios.
 - `paid` é terminal na máquina de estados.
 
@@ -41,6 +45,10 @@ A rota é configurável por `.env`:
 * * * * * php /path/to/MOZacad/scripts/poll_payments.php
 */2 * * * * php /path/to/MOZacad/scripts/process_ai_jobs.php
 ```
+
+Variáveis operacionais úteis:
+- `AI_JOB_BATCH_LIMIT` (default: 5)
+- `AI_JOB_STALE_PROCESSING_TIMEOUT` (default: 1800s)
 
 ## Normas institucionais por directório
 Estrutura suportada:
