@@ -19,8 +19,9 @@ final class DebitoClient
         private readonly DebitoLoggerService $logger = new DebitoLoggerService(),
     ) {
         $timeout = (int) Env::get('DEBITO_TIMEOUT', 30);
+        $baseUrl = $this->normalizeBaseUrl((string) Env::get('DEBITO_BASE_URL', 'http://localhost:9000'));
         $this->http = new Client([
-            'base_uri' => rtrim((string) Env::get('DEBITO_BASE_URL', 'http://localhost:9000'), '/') . '/',
+            'base_uri' => $baseUrl,
             'timeout' => max(3, $timeout),
             'connect_timeout' => min(10, max(2, (int) floor($timeout / 2))),
         ]);
@@ -141,5 +142,20 @@ final class DebitoClient
             || str_contains($message, 'connection')
             || str_contains($message, 'temporar')
             || str_contains($message, 'reset');
+    }
+
+    private function normalizeBaseUrl(string $baseUrl): string
+    {
+        $normalized = rtrim(trim($baseUrl), '/');
+        if ($normalized === '') {
+            $normalized = 'http://localhost:9000';
+        }
+
+        if (preg_match('#/api/v1$#i', $normalized) === 1) {
+            $normalized = substr($normalized, 0, -7);
+            $normalized = rtrim($normalized, '/');
+        }
+
+        return $normalized . '/';
     }
 }
