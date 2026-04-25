@@ -48,6 +48,7 @@ Para ambientes já existentes, manter caminho incremental:
 - Batch de polling configurável (`DEBITO_POLLING_BATCH_LIMIT`).
 - Tratamento de respostas não-JSON e erros transitórios.
 - `paid` é terminal na máquina de estados.
+- `DEBITO_BASE_URL` aceita tanto host raiz (`https://my.debito.co.mz`) como URL com `/api/v1` no fim (normalizada automaticamente).
 
 ### Endpoint webhook
 A rota é configurável por `.env`:
