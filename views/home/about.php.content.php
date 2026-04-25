@@ -1,5 +1,8 @@
-<div class="page-header"><div><h1 class="section-title h3">Sobre a MOZacad</h1><p>Produto académico-fintech construído para execução séria.</p></div></div>
-<div class="row g-3">
-  <div class="col-lg-8"><div class="card p-4"><p>A MOZacad nasceu para reduzir fricção entre estudantes, exigências institucionais e qualidade de entrega. A plataforma unifica os blocos mais sensíveis do processo: briefing, custeio, pagamento, produção documental, revisão e download versionado.</p><p class="mb-0">O resultado é uma experiência com governança de estados e clareza operacional, com estética premium e foco em confiança.</p></div></div>
-  <div class="col-lg-4"><div class="card p-4 h-100"><h2 class="h6">Princípios</h2><ul class="mb-0 text-secondary"><li>Rigor metodológico</li><li>Transparência financeira</li><li>Responsividade e usabilidade</li><li>Controlo operacional</li></ul></div></div>
+<div class="page-header"><div class="page-intro"><h1 class="section-title h3">Sobre a MOZacad</h1><p>Plataforma SaaS académica que combina clareza operacional, qualidade editorial e governança de fluxo.</p></div></div>
+<div class="row g-3 public-grid">
+  <div class="col-lg-8"><div class="card p-4"><h2 class="h5">Porque existimos</h2><p>Projetos académicos falham muitas vezes por processos dispersos: briefing incompleto, comunicação fragmentada, estados financeiros opacos e pouca previsibilidade de entrega. A MOZacad nasceu para resolver esta dor com uma operação única e auditável.</p><p class="mb-0">A nossa visão é oferecer uma experiência premium onde o utilizador saiba sempre o que já aconteceu, o que falta e qual a próxima acção recomendada.</p></div></div>
+  <div class="col-lg-4"><div class="card p-4"><h2 class="h6">Princípios de produto</h2><ul class="text-secondary mb-0"><li>Rigor metodológico</li><li>Transparência de estados</li><li>Feedback accionável</li><li>Experiência premium orientada a resultado</li></ul></div></div>
+  <div class="col-md-4"><div class="card p-4"><h3 class="h6">Confiabilidade</h3><p class="small text-secondary mb-0">Fluxo estável para pedidos, pagamento, revisão e entrega.</p></div></div>
+  <div class="col-md-4"><div class="card p-4"><h3 class="h6">Escalabilidade</h3><p class="small text-secondary mb-0">Preparado para múltiplas instituições e regras de trabalho.</p></div></div>
+  <div class="col-md-4"><div class="card p-4"><h3 class="h6">Foco no utilizador</h3><p class="small text-secondary mb-0">Decisões de interface feitas para reduzir esforço cognitivo.</p></div></div>
 </div>

@@ -37,6 +37,7 @@ final class HumanReviewQueueService
             }
 
             $id = $this->queue->enqueue($orderId, $documentId, $documentVersion, $reviewerId);
+            $this->logger->info('human_review.queue.enqueued', ['order_id' => $orderId, 'queue_id' => $id, 'document_id' => $documentId, 'version' => $documentVersion]);
             $db->commit();
             return $id;
         } catch (\Throwable $e) {
@@ -59,6 +60,7 @@ final class HumanReviewQueueService
         }
 
         $this->queue->assignReviewer($queueId, $reviewerId);
+        $this->logger->info('human_review.queue.assigned', ['queue_id' => $queueId, 'reviewer_id' => $reviewerId]);
     }
 
     public function approve(int $queueId, ?string $notes = null): void
@@ -129,7 +131,7 @@ final class HumanReviewQueueService
 
             $this->queue->updateDecision($queueId, 'rejected', $notes);
             $this->documents->updateLatestStatusByOrderId((int) $entry['order_id'], 'returned_for_revision');
-            $this->orders->updateStatus((int) $entry['order_id'], 'revision_requested');
+            $this->orders->updateStatus((int) $entry['order_id'], 'returned_for_revision');
             $this->revisions->markReturnedForRevision((int) $entry['order_id'], (int) ($latestDocument['id'] ?? 0), (int) ($latestDocument['version'] ?? 0), $notes);
             $this->logger->info('human_review.cycle.rejected', ['order_id' => (int) $entry['order_id'], 'queue_id' => $queueId, 'generated_document_id' => (int) ($latestDocument['id'] ?? 0), 'generated_document_version' => (int) ($latestDocument['version'] ?? 0)]);
             $db->commit();

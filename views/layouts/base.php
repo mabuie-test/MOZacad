@@ -22,6 +22,9 @@ $pathLabel = match ($currentPath ?? '/') {
     '/invoices' => 'Facturas',
     '/downloads' => 'Downloads',
     '/admin' => 'Admin',
+    '/about' => 'Sobre',
+    '/how-it-works' => 'Como funciona',
+    '/pricing' => 'Preços',
     default => 'MOZacad',
 };
 ?>
@@ -60,13 +63,22 @@ $pathLabel = match ($currentPath ?? '/') {
 <div class="border-bottom bg-white py-2">
   <div class="container-xl small text-secondary d-flex justify-content-between">
     <span><?= htmlspecialchars($pathLabel) ?></span>
-    <span>Suporte premium • 08:00–19:00</span>
+    <span>Suporte premium • Segunda a Sábado • 08:00–19:00</span>
   </div>
 </div>
 
+
 <main class="<?= $isAdminArea ? 'py-4' : 'py-5' ?>">
-  <div class="container-xl"><?php include $contentView; ?></div>
+  <div class="container-xl">
+    <?php if (!empty($flash['message'])): ?>
+      <div class="alert alert-<?= htmlspecialchars((string) (($flash['type'] ?? 'info') === 'error' ? 'danger' : (($flash['type'] ?? 'info') === 'warning' ? 'warning' : 'success'))) ?>">
+        <?= htmlspecialchars((string) $flash['message']) ?>
+      </div>
+    <?php endif; ?>
+    <?php include $contentView; ?>
+  </div>
 </main>
+
 
 <footer class="app-footer border-top">
   <div class="container-xl d-flex flex-column flex-md-row justify-content-between py-4 small text-secondary">

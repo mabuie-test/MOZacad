@@ -30,6 +30,43 @@ final class WorkTypeRepository extends BaseRepository
         return $stmt->fetch() ?: null;
     }
 
+    public function create(array $data): int
+    {
+        $stmt = $this->db->prepare('INSERT INTO work_types (name, slug, description, is_active, base_price, default_complexity, requires_human_review, is_premium_type, display_order)
+            VALUES (:name, :slug, :description, :is_active, :base_price, :default_complexity, :requires_human_review, :is_premium_type, :display_order)');
+        $stmt->execute([
+            'name' => $data['name'],
+            'slug' => $data['slug'],
+            'description' => $data['description'] ?? null,
+            'is_active' => !empty($data['is_active']) ? 1 : 0,
+            'base_price' => $data['base_price'] ?? 0,
+            'default_complexity' => $data['default_complexity'] ?? 'medium',
+            'requires_human_review' => !empty($data['requires_human_review']) ? 1 : 0,
+            'is_premium_type' => !empty($data['is_premium_type']) ? 1 : 0,
+            'display_order' => $data['display_order'] ?? 0,
+        ]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function update(int $id, array $data): void
+    {
+        $stmt = $this->db->prepare('UPDATE work_types SET name=:name, slug=:slug, description=:description, is_active=:is_active, base_price=:base_price,
+            default_complexity=:default_complexity, requires_human_review=:requires_human_review, is_premium_type=:is_premium_type, display_order=:display_order WHERE id=:id');
+        $stmt->execute([
+            'id' => $id,
+            'name' => $data['name'],
+            'slug' => $data['slug'],
+            'description' => $data['description'] ?? null,
+            'is_active' => !empty($data['is_active']) ? 1 : 0,
+            'base_price' => $data['base_price'] ?? 0,
+            'default_complexity' => $data['default_complexity'] ?? 'medium',
+            'requires_human_review' => !empty($data['requires_human_review']) ? 1 : 0,
+            'is_premium_type' => !empty($data['is_premium_type']) ? 1 : 0,
+            'display_order' => $data['display_order'] ?? 0,
+        ]);
+    }
+
     public function getStructureByWorkType(int $workTypeId): array
     {
         $stmt = $this->db->prepare('SELECT * FROM work_type_structures WHERE work_type_id = :work_type_id ORDER BY section_order ASC');

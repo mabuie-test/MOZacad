@@ -24,18 +24,18 @@ final class AuthController extends BaseController
         $password = (string) ($_POST['password'] ?? '');
 
         if ($email === '' || $password === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->json(['message' => 'Email válido e senha são obrigatórios.'], 422);
+            $this->errorResponse('Email válido e senha são obrigatórios.', 422, '/login');
             return;
         }
 
         $user = (new UserRepository())->findByEmail($email);
         if ($user === null || !password_verify($password, (string) $user['password_hash'])) {
-            $this->json(['message' => 'Credenciais inválidas.'], 401);
+            $this->errorResponse('Credenciais inválidas.', 401, '/login');
             return;
         }
 
         if (!(bool) $user['is_active']) {
-            $this->json(['message' => 'Utilizador inativo.'], 403);
+            $this->errorResponse('Utilizador inativo. Contacte o suporte.', 403, '/login');
             return;
         }
 
@@ -48,8 +48,7 @@ final class AuthController extends BaseController
         $_SESSION['auth_user_email'] = (string) $user['email'];
 
         (new AuditLogRepository())->log((int) $user['id'], 'auth.login', 'user', (int) $user['id'], ['ip' => $_SERVER['REMOTE_ADDR'] ?? null]);
-
-        $this->json(['message' => 'Login efectuado.', 'user_id' => (int) $user['id']]);
+        $this->successResponse('Login efectuado.', '/dashboard', ['user_id' => (int) $user['id']]);
     }
 
     public function showRegister(): void
@@ -68,13 +67,13 @@ final class AuthController extends BaseController
         $password = (string) ($_POST['password'] ?? '');
 
         if ($name === '' || $email === '' || strlen($password) < 8 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->json(['message' => 'Dados inválidos. Nome, email válido e senha (mínimo 8) são obrigatórios.'], 422);
+            $this->errorResponse('Dados inválidos. Nome, email válido e senha (mínimo 8) são obrigatórios.', 422, '/register');
             return;
         }
 
         $users = new UserRepository();
         if ($users->findByEmail($email) !== null) {
-            $this->json(['message' => 'Este email já está registado.'], 409);
+            $this->errorResponse('Este email já está registado.', 409, '/register');
             return;
         }
 
@@ -98,7 +97,7 @@ final class AuthController extends BaseController
         $_SESSION['auth_user_id'] = $userId;
         $_SESSION['auth_user_email'] = $email;
 
-        $this->json(['message' => 'Conta criada com sucesso.', 'user_id' => $userId], 201);
+        $this->successResponse('Conta criada com sucesso.', '/dashboard', ['user_id' => $userId], 201);
     }
 
     public function logout(): void
@@ -112,8 +111,8 @@ final class AuthController extends BaseController
         }
 
         $userId = (int) ($_SESSION['auth_user_id'] ?? 0);
-
         $_SESSION = [];
+
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
             setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
@@ -124,6 +123,6 @@ final class AuthController extends BaseController
             (new AuditLogRepository())->log($userId, 'auth.logout', 'user', $userId);
         }
 
-        $this->json(['message' => 'Sessão terminada.']);
+        $this->successResponse('Sessão terminada.', '/login');
     }
 }

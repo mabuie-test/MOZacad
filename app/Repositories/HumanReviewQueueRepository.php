@@ -77,7 +77,12 @@ final class HumanReviewQueueRepository extends BaseRepository
 
     public function listQueue(int $limit = 100): array
     {
-        $stmt = $this->db->prepare('SELECT * FROM human_review_queue ORDER BY created_at DESC LIMIT :limit');
+        $stmt = $this->db->prepare('SELECT q.*, o.title_or_theme, o.status AS order_status, u.email AS user_email
+            FROM human_review_queue q
+            INNER JOIN orders o ON o.id = q.order_id
+            INNER JOIN users u ON u.id = o.user_id
+            ORDER BY q.created_at DESC
+            LIMIT :limit');
         $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
         $stmt->execute();
 

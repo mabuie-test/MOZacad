@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Repositories\AcademicLevelRepository;
+use App\Repositories\AuditLogRepository;
 use App\Repositories\CourseRepository;
 use App\Repositories\DisciplineRepository;
 use App\Repositories\GeneratedDocumentRepository;
@@ -18,6 +19,7 @@ use App\Repositories\WorkTypeRepository;
 use App\Services\OrderApplicationService;
 use App\Services\PaymentApplicationService;
 use App\Services\RevisionService;
+use RuntimeException;
 use Throwable;
 
 final class OrderController extends BaseController
@@ -25,9 +27,7 @@ final class OrderController extends BaseController
     public function index(): void
     {
         $userId = $this->requireAuthUserId();
-        if ($userId <= 0) {
-            return;
-        }
+        if ($userId <= 0) return;
 
         $orders = (new OrderRepository())->listByUser($userId);
         if ($this->isHtmlRequest()) {
@@ -41,9 +41,7 @@ final class OrderController extends BaseController
     public function create(): void
     {
         $userId = $this->requireAuthUserId();
-        if ($userId <= 0) {
-            return;
-        }
+        if ($userId <= 0) return;
 
         $payload = [
             'institutions' => (new InstitutionRepository())->all(),
@@ -61,12 +59,38 @@ final class OrderController extends BaseController
         $this->json($payload);
     }
 
+    public function metaCourses(): void
+    {
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) return;
+
+        $institutionId = (int) ($_GET['institution_id'] ?? 0);
+        if ($institutionId <= 0) {
+            $this->json(['courses' => []]);
+            return;
+        }
+
+        $this->json(['courses' => (new CourseRepository())->byInstitution($institutionId)]);
+    }
+
+    public function metaDisciplines(): void
+    {
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) return;
+
+        $courseId = (int) ($_GET['course_id'] ?? 0);
+        if ($courseId <= 0) {
+            $this->json(['disciplines' => []]);
+            return;
+        }
+
+        $this->json(['disciplines' => (new DisciplineRepository())->byCourse($courseId)]);
+    }
+
     public function store(): void
     {
         $userId = $this->requireAuthUserId();
-        if ($userId <= 0 || !$this->requireCsrfToken()) {
-            return;
-        }
+        if ($userId <= 0 || !$this->requireCsrfToken()) return;
 
         $data = [
             'user_id' => $userId,
@@ -91,12 +115,11 @@ final class OrderController extends BaseController
         ];
 
         if ($data['institution_id'] <= 0 || $data['course_id'] <= 0 || $data['discipline_id'] <= 0 || $data['academic_level_id'] <= 0 || $data['work_type_id'] <= 0 || $data['target_pages'] <= 0 || $data['title_or_theme'] === '') {
-            $this->json(['message' => 'Campos obrigatórios inválidos para criação do pedido.'], 422);
+            $this->errorResponse('Preencha instituição, curso, disciplina, nível, tipo, páginas e tema.', 422, '/orders/create');
             return;
         }
-
         if (strtotime($data['deadline_date']) === false) {
-            $this->json(['message' => 'deadline_date inválida.'], 422);
+            $this->errorResponse('Prazo inválido.', 422, '/orders/create');
             return;
         }
 
@@ -111,22 +134,21 @@ final class OrderController extends BaseController
 
         try {
             $result = (new OrderApplicationService())->createOrder($userId, $data, $extras, $_FILES['attachments'] ?? [], $_POST);
-            $this->json($result, 201);
+            (new AuditLogRepository())->log($userId, 'order.created', 'order', (int) ($result['order_id'] ?? 0), ['extras' => $extras]);
+            $this->successResponse('Pedido criado com sucesso.', '/orders/' . (int) ($result['order_id'] ?? 0), $result, 201);
         } catch (Throwable $e) {
-            $this->json(['message' => 'Falha ao criar pedido.', 'error' => $e->getMessage()], 500);
+            $this->errorResponse('Falha ao criar pedido.', 500, '/orders/create', ['error' => $e->getMessage()]);
         }
     }
 
     public function show(int $id): void
     {
         $userId = $this->requireAuthUserId();
-        if ($userId <= 0) {
-            return;
-        }
+        if ($userId <= 0) return;
 
         $order = (new OrderRepository())->findDetailedById($id);
         if ($order === null || (int) $order['user_id'] !== $userId) {
-            $this->json(['message' => 'Pedido não encontrado.'], 404);
+            $this->errorResponse('Pedido não encontrado.', 404, '/orders');
             return;
         }
 
@@ -135,12 +157,8 @@ final class OrderController extends BaseController
         $paymentRepo = new PaymentRepository();
         $invoice = $invoiceRepo->findOpenByOrderId($id) ?? $invoiceRepo->findLatestByOrderId($id);
         $payment = $paymentRepo->findOpenByOrderId($id) ?? $paymentRepo->findLatestByOrderId($id);
-        $paymentHistory = array_values(array_filter(
-            $paymentRepo->listRecentByUser($userId, 50),
-            static fn (array $row): bool => (int) ($row['order_id'] ?? 0) === $id
-        ));
-        $documents = (new GeneratedDocumentRepository())->listByUser($userId, 50);
-        $documents = array_values(array_filter($documents, static fn(array $doc): bool => (int) $doc['order_id'] === $id));
+        $paymentHistory = array_values(array_filter($paymentRepo->listRecentByUser($userId, 50), static fn (array $row): bool => (int) ($row['order_id'] ?? 0) === $id));
+        $documents = array_values(array_filter((new GeneratedDocumentRepository())->listByUser($userId, 50), static fn(array $doc): bool => (int) $doc['order_id'] === $id));
         $revision = (new RevisionRepository())->findLatestByOrderId($id);
 
         if ($this->isHtmlRequest()) {
@@ -154,19 +172,16 @@ final class OrderController extends BaseController
     public function pay(int $id): void
     {
         $userId = $this->requireAuthUserId();
-        if ($userId <= 0) {
-            return;
-        }
+        if ($userId <= 0) return;
 
         $payments = new PaymentApplicationService();
         $order = $payments->userOrderById($id, $userId);
         if ($order === null) {
-            $this->json(['message' => 'Pedido não encontrado.'], 404);
+            $this->errorResponse('Pedido não encontrado.', 404, '/orders');
             return;
         }
-
         if ((float) $order['final_price'] <= 0) {
-            $this->json(['message' => 'Pedido sem valor final.'], 422);
+            $this->errorResponse('Pedido sem valor final. Aguarde cotação.', 422, '/orders/' . $id);
             return;
         }
 
@@ -175,11 +190,7 @@ final class OrderController extends BaseController
             $invoice = (new InvoiceRepository())->findOpenByOrderId($id);
 
             if ($this->isHtmlRequest()) {
-                $this->view('orders/pay', [
-                    'order' => $order,
-                    'openPayment' => $openPayment,
-                    'invoice' => $invoice,
-                ]);
+                $this->view('orders/pay', ['order' => $order, 'openPayment' => $openPayment, 'invoice' => $invoice]);
                 return;
             }
 
@@ -187,45 +198,49 @@ final class OrderController extends BaseController
             return;
         }
 
-        if (!$this->requireCsrfToken()) {
-            return;
-        }
+        if (!$this->requireCsrfToken()) return;
 
         $msisdn = trim((string) ($_POST['msisdn'] ?? ''));
         if ($msisdn === '') {
-            $this->json(['message' => 'msisdn é obrigatório para iniciar o pagamento.'], 422);
+            $this->errorResponse('Número M-Pesa é obrigatório para iniciar pagamento.', 422, '/orders/' . $id . '/pay');
             return;
         }
 
         try {
             $flow = $payments->initiateOrderMpesa($id, $userId, $msisdn, !empty($_POST['callback_url']) ? (string) $_POST['callback_url'] : null, !empty($_POST['internal_notes']) ? (string) $_POST['internal_notes'] : null);
-            $this->json(['message' => 'Pagamento iniciado com sucesso.', 'order_id' => $id, 'invoice_id' => (int) $flow['invoice_id'], 'payment' => $flow['payment']], 201);
+            (new AuditLogRepository())->log($userId, 'order.payment_initiated', 'order', $id, ['invoice_id' => (int) $flow['invoice_id']]);
+            $this->successResponse('Pagamento iniciado com sucesso.', '/orders/' . $id, ['order_id' => $id, 'invoice_id' => (int) $flow['invoice_id'], 'payment' => $flow['payment']], 201);
+        } catch (RuntimeException $e) {
+            $this->errorResponse($e->getMessage(), 422, '/orders/' . $id . '/pay');
         } catch (Throwable $e) {
-            $this->json(['message' => 'Falha ao iniciar pagamento.', 'error' => $e->getMessage()], 502);
+            $this->errorResponse('Falha ao iniciar pagamento.', 502, '/orders/' . $id . '/pay', ['error' => $e->getMessage()]);
         }
     }
 
     public function requestRevision(int $id): void
     {
         $userId = $this->requireAuthUserId();
-        if ($userId <= 0 || !$this->requireCsrfToken()) {
-            return;
-        }
+        if ($userId <= 0 || !$this->requireCsrfToken()) return;
 
         $order = (new OrderRepository())->findById($id);
         if ($order === null || (int) $order['user_id'] !== $userId) {
-            $this->json(['message' => 'Pedido não encontrado.'], 404);
+            $this->errorResponse('Pedido não encontrado.', 404, '/orders');
             return;
         }
 
         $reason = trim((string) ($_POST['reason'] ?? ''));
         if ($reason === '') {
-            $this->json(['message' => 'reason é obrigatório.'], 422);
+            $this->errorResponse('Descreva o motivo da revisão.', 422, '/orders/' . $id);
             return;
         }
 
-        $revisionId = (new RevisionService())->request($id, $userId, $reason);
-        $this->json(['message' => 'Pedido de revisão registado', 'revision_id' => $revisionId]);
+        try {
+            $revisionId = (new RevisionService())->request($id, $userId, $reason);
+            (new AuditLogRepository())->log($userId, 'order.revision_requested', 'order', $id, ['revision_id' => $revisionId]);
+            $this->successResponse('Pedido de revisão registado.', '/orders/' . $id, ['revision_id' => $revisionId]);
+        } catch (RuntimeException $e) {
+            $this->errorResponse($e->getMessage(), 422, '/orders/' . $id);
+        }
     }
 
     private function normalizeListInput(mixed $input): array
@@ -235,9 +250,7 @@ final class OrderController extends BaseController
         $normalized = [];
         foreach ($parts as $value) {
             $item = trim((string) $value);
-            if ($item !== '') {
-                $normalized[] = $item;
-            }
+            if ($item !== '') $normalized[] = $item;
         }
 
         return array_values(array_unique($normalized));
