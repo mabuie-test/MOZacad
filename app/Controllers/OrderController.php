@@ -131,10 +131,12 @@ final class OrderController extends BaseController
         }
 
         $attachments = (new OrderAttachmentRepository())->listByOrderId($id);
-        $invoice = (new InvoiceRepository())->findOpenByOrderId($id);
-        $payment = (new PaymentRepository())->findOpenByOrderId($id);
+        $invoiceRepo = new InvoiceRepository();
+        $paymentRepo = new PaymentRepository();
+        $invoice = $invoiceRepo->findOpenByOrderId($id) ?? $invoiceRepo->findLatestByOrderId($id);
+        $payment = $paymentRepo->findOpenByOrderId($id) ?? $paymentRepo->findLatestByOrderId($id);
         $paymentHistory = array_values(array_filter(
-            (new PaymentRepository())->listRecentByUser($userId, 50),
+            $paymentRepo->listRecentByUser($userId, 50),
             static fn (array $row): bool => (int) ($row['order_id'] ?? 0) === $id
         ));
         $documents = (new GeneratedDocumentRepository())->listByUser($userId, 50);
