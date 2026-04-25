@@ -12,21 +12,22 @@ final class DebitoMpesaPayloadBuilder
     public function __construct(private readonly MpesaMsisdnValidator $validator = new MpesaMsisdnValidator()) {}
 
     public function build(
-        float $amount,
+        float|int|string $amount,
         string $msisdn,
         string $referenceDescription,
         ?string $callbackUrl = null,
         ?string $internalNotes = null
     ): array {
-        if ($amount <= 0) {
+        $normalizedAmount = $this->normalizeAmount($amount);
+        if ($normalizedAmount <= 0) {
             throw new InvalidArgumentException('Montante de pagamento inválido para M-Pesa C2B.');
         }
 
-        $normalizedAmount = number_format(round($amount, 2), 2, '.', '');
+        $formattedAmount = number_format(round($normalizedAmount, 2), 2, '.', '');
 
         $payload = [
             'msisdn' => $this->validator->validate($msisdn),
-            'amount' => $normalizedAmount,
+            'amount' => $formattedAmount,
             'reference_description' => trim($referenceDescription),
         ];
 
@@ -40,6 +41,32 @@ final class DebitoMpesaPayloadBuilder
         }
 
         return $payload;
+    }
+
+    private function normalizeAmount(float|int|string $amount): float
+    {
+        if (is_int($amount) || is_float($amount)) {
+            return (float) $amount;
+        }
+
+        $raw = trim($amount);
+        if ($raw === '') {
+            throw new InvalidArgumentException('Montante de pagamento inválido para M-Pesa C2B.');
+        }
+
+        $raw = str_replace(' ', '', $raw);
+        if (str_contains($raw, ',') && str_contains($raw, '.')) {
+            $raw = str_replace('.', '', $raw);
+            $raw = str_replace(',', '.', $raw);
+        } elseif (str_contains($raw, ',')) {
+            $raw = str_replace(',', '.', $raw);
+        }
+
+        if (!is_numeric($raw)) {
+            throw new InvalidArgumentException('Montante de pagamento inválido para M-Pesa C2B.');
+        }
+
+        return (float) $raw;
     }
 
     private function resolveCallbackUrl(?string $callbackUrl): string

@@ -26,6 +26,10 @@
         <div class="form-hint mb-3">Após submissão, acompanhe os estados em Pedidos e Facturas.</div>
         <button type="submit" class="btn btn-primary w-100">Iniciar pagamento</button>
         <p class="small mt-3 mb-0" data-feedback></p>
+        <details class="mt-3">
+          <summary class="small text-secondary">Debug do pagamento</summary>
+          <pre class="small bg-light border rounded p-2 mt-2 d-none" data-debug></pre>
+        </details>
       </form>
     </div>
   </div>
