@@ -5,7 +5,9 @@
     <p><?= htmlspecialchars((string) $order['title_or_theme']) ?></p>
   </div>
   <div class="quick-actions">
-    <a href="/orders/<?= (int) $order['id'] ?>/pay" class="btn btn-primary">Pagar pedido</a>
+    <?php if (($order['status'] ?? '') === 'pending_payment'): ?>
+      <a href="/orders/<?= (int) $order['id'] ?>/pay" class="btn btn-primary">Pagar pedido</a>
+    <?php endif; ?>
     <a href="/orders" class="btn btn-outline-secondary">Voltar à lista</a>
   </div>
 </div>
