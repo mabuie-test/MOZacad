@@ -22,9 +22,11 @@ final class DebitoMpesaPayloadBuilder
             throw new InvalidArgumentException('Montante de pagamento inválido para M-Pesa C2B.');
         }
 
+        $normalizedAmount = number_format(round($amount, 2), 2, '.', '');
+
         $payload = [
             'msisdn' => $this->validator->validate($msisdn),
-            'amount' => round($amount, 2),
+            'amount' => $normalizedAmount,
             'reference_description' => trim($referenceDescription),
         ];
 
