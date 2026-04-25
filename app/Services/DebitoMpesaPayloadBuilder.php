@@ -23,7 +23,7 @@ final class DebitoMpesaPayloadBuilder
             throw new InvalidArgumentException('Montante de pagamento inválido para M-Pesa C2B.');
         }
 
-        $formattedAmount = number_format(round($normalizedAmount, 2), 2, '.', '');
+        $formattedAmount = round($normalizedAmount, 2);
 
         $payload = [
             'msisdn' => $this->validator->validate($msisdn),
@@ -73,11 +73,11 @@ final class DebitoMpesaPayloadBuilder
     {
         $direct = trim((string) ($callbackUrl ?? ''));
         if ($direct !== '') {
-            return $direct;
+            return filter_var($direct, FILTER_VALIDATE_URL) !== false ? $direct : '';
         }
 
         $envCallback = trim((string) Env::get('DEBITO_CALLBACK_URL', ''));
-        if ($envCallback !== '') {
+        if ($envCallback !== '' && filter_var($envCallback, FILTER_VALIDATE_URL) !== false) {
             return $envCallback;
         }
 

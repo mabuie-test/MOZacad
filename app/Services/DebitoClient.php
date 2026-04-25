@@ -109,7 +109,7 @@ final class DebitoClient
         }
 
         if ($status < 200 || $status >= 300) {
-            $providerMessage = (string) ($decoded['message'] ?? $decoded['error']['message'] ?? $decoded['raw_body'] ?? 'erro desconhecido');
+            $providerMessage = $this->extractProviderErrorMessage($decoded);
 
             $this->logger->error('Débito retornou erro HTTP', [
                 'request_id' => $requestId,
@@ -141,5 +141,36 @@ final class DebitoClient
             || str_contains($message, 'connection')
             || str_contains($message, 'temporar')
             || str_contains($message, 'reset');
+    }
+
+    private function extractProviderErrorMessage(array $decoded): string
+    {
+        $baseMessage = trim((string) ($decoded['message'] ?? $decoded['error']['message'] ?? $decoded['raw_body'] ?? ''));
+
+        if (!isset($decoded['errors']) || !is_array($decoded['errors'])) {
+            return $baseMessage !== '' ? $baseMessage : 'erro desconhecido';
+        }
+
+        $details = [];
+        foreach ($decoded['errors'] as $field => $messages) {
+            if (is_array($messages)) {
+                foreach ($messages as $item) {
+                    if (is_scalar($item) && trim((string) $item) !== '') {
+                        $details[] = sprintf('%s: %s', (string) $field, trim((string) $item));
+                    }
+                }
+                continue;
+            }
+
+            if (is_scalar($messages) && trim((string) $messages) !== '') {
+                $details[] = sprintf('%s: %s', (string) $field, trim((string) $messages));
+            }
+        }
+
+        if ($details === []) {
+            return $baseMessage !== '' ? $baseMessage : 'erro desconhecido';
+        }
+
+        return trim($baseMessage . ' (' . implode('; ', $details) . ')');
     }
 }
