@@ -60,7 +60,7 @@ final class BillingController extends BaseController
             header('Pragma: no-cache');
             readfile($file['path']);
         } catch (RuntimeException $e) {
-            $this->json(['message' => $e->getMessage()], 403);
+            $this->errorResponse($e->getMessage(), 403, '/downloads');
         }
     }
 }
