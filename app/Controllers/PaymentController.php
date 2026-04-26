@@ -32,7 +32,13 @@ final class PaymentController extends BaseController
                 !empty($_POST['internal_notes']) ? (string) $_POST['internal_notes'] : null,
             );
             (new AuditLogRepository())->log($userId, 'payment.initiate_mpesa', 'order', $orderId, ['invoice_id' => (int) $flow['invoice_id']]);
-            $this->successResponse('Pagamento iniciado com sucesso.', '/orders/' . $orderId, ['invoice_id' => (int) $flow['invoice_id'], 'payment' => $flow['payment']], 201);
+
+            $payload = [
+                'order_id' => $orderId,
+                'invoice_id' => (int) $flow['invoice_id'],
+                'payment' => $flow['payment'],
+            ];
+            $this->successResponse('Pagamento iniciado com sucesso.', '/orders/' . $orderId, $payload, 201);
         } catch (RuntimeException $e) {
             $this->errorResponse($e->getMessage(), 422, $this->refererPath('/orders/' . $orderId . '/pay'));
         } catch (Throwable $e) {
@@ -47,12 +53,21 @@ final class PaymentController extends BaseController
 
         $payment = (new PaymentApplicationService())->userPaymentStatus($id, $userId);
         if ($payment === null) {
-            $this->json(['message' => 'Pagamento não encontrado.'], 404);
+            $this->errorResponse('Pagamento não encontrado.', 404, '/orders');
+            return;
+        }
+
+        if ($this->isHtmlRequest()) {
+            $status = (string) ($payment['status'] ?? 'pending');
+            $orderId = (int) ($payment['order_id'] ?? 0);
+            $redirect = $orderId > 0 ? '/orders/' . $orderId : '/orders';
+            $this->successResponse('Estado do pagamento: ' . $status . '.', $redirect);
             return;
         }
 
         $this->json([
             'id' => $payment['id'],
+            'order_id' => $payment['order_id'] ?? null,
             'status' => $payment['status'],
             'provider_status' => $payment['provider_status'],
             'external_reference' => $payment['external_reference'],

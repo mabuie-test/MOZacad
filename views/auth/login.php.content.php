@@ -16,6 +16,7 @@
 
       <form method="post" action="/login" data-auth-form novalidate>
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+        <?php if (!empty($returnTo)): ?><input type="hidden" name="return_to" value="<?= htmlspecialchars((string) $returnTo) ?>"><?php endif; ?>
         <div class="mb-3">
           <label class="form-label" for="login_email">Email</label>
           <input id="login_email" name="email" type="email" class="form-control" placeholder="nome@dominio.com" required>
@@ -30,7 +31,7 @@
       </form>
 
       <hr>
-      <p class="small mb-0">Ainda não tem conta? <a href="/register">Criar conta agora</a>.</p>
+      <p class="small mb-0">Ainda não tem conta? <a href="/register<?= !empty($returnTo) ? ('?return_to=' . urlencode((string) $returnTo)) : '' ?>">Criar conta agora</a>.</p>
     </div>
   </div>
 </section>

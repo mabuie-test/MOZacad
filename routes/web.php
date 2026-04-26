@@ -9,6 +9,7 @@ use App\Controllers\DashboardController;
 use App\Controllers\DebitoWebhookController;
 use App\Controllers\HomeController;
 use App\Controllers\OrderController;
+use App\Controllers\PaymentController;
 use App\Helpers\Env;
 use App\Helpers\Router;
 
@@ -37,6 +38,8 @@ return static function (Router $router): void {
     $router->get('/orders/{id}/pay', [OrderController::class, 'pay']);
     $router->post('/orders/{id}/pay', [OrderController::class, 'pay']);
     $router->post('/orders/{id}/revision-request', [OrderController::class, 'requestRevision']);
+    $router->post('/payments/mpesa/initiate', [PaymentController::class, 'initiateMpesa']);
+    $router->get('/payments/{id}/status', [PaymentController::class, 'status']);
     $router->get('/invoices', [BillingController::class, 'invoices']);
     $router->get('/downloads', [BillingController::class, 'downloads']);
     $router->get('/downloads/{documentId}', [BillingController::class, 'downloadDocument']);
@@ -69,6 +72,9 @@ return static function (Router $router): void {
     $router->post('/admin/institution-work-type-rules', [AdminController::class, 'saveInstitutionWorkTypeRule']);
     $router->post('/admin/discounts', [AdminController::class, 'createDiscount']);
     $router->post('/admin/discounts/{id}', [AdminController::class, 'updateDiscount']);
+    $router->post('/admin/coupons', [AdminController::class, 'createCoupon']);
+    $router->post('/admin/coupons/{id}', [AdminController::class, 'updateCoupon']);
+    $router->post('/admin/coupons/{id}/toggle', [AdminController::class, 'toggleCoupon']);
     $router->get('/admin/human-review', [AdminController::class, 'humanReviewQueue']);
     $router->post('/admin/human-review/{queueId}/assign', [AdminController::class, 'assignHumanReview']);
     $router->post('/admin/human-review/{queueId}/decision', [AdminController::class, 'decideHumanReview']);

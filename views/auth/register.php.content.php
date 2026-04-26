@@ -18,6 +18,7 @@
 
       <form method="post" action="/register" data-auth-form novalidate>
         <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+        <?php if (!empty($returnTo)): ?><input type="hidden" name="return_to" value="<?= htmlspecialchars((string) $returnTo) ?>"><?php endif; ?>
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label" for="reg_name">Nome completo</label>
