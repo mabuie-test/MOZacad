@@ -6,12 +6,18 @@ namespace App\Controllers;
 
 use App\Repositories\AuditLogRepository;
 use App\Repositories\UserRepository;
+use App\Services\AuthContextService;
 
 final class AuthController extends BaseController
 {
     public function showLogin(): void
     {
-        $this->view('auth/login');
+        if ($this->currentUserId() > 0) {
+            $this->redirect('/dashboard');
+            return;
+        }
+
+        $this->view('auth/login', ['returnTo' => $this->normalizeReturnTo($_GET['return_to'] ?? null)]);
     }
 
     public function login(): void
@@ -22,6 +28,7 @@ final class AuthController extends BaseController
 
         $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
+        $redirectAfterLogin = $this->normalizeReturnTo($_POST['return_to'] ?? null) ?? '/dashboard';
 
         if ($email === '' || $password === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->errorResponse('Email válido e senha são obrigatórios.', 422, '/login');
@@ -48,12 +55,17 @@ final class AuthController extends BaseController
         $_SESSION['auth_user_email'] = (string) $user['email'];
 
         (new AuditLogRepository())->log((int) $user['id'], 'auth.login', 'user', (int) $user['id'], ['ip' => $_SERVER['REMOTE_ADDR'] ?? null]);
-        $this->successResponse('Login efectuado.', '/dashboard', ['user_id' => (int) $user['id']]);
+        $this->successResponse('Login efectuado.', $redirectAfterLogin, ['user_id' => (int) $user['id']]);
     }
 
     public function showRegister(): void
     {
-        $this->view('auth/register');
+        if ($this->currentUserId() > 0) {
+            $this->redirect('/dashboard');
+            return;
+        }
+
+        $this->view('auth/register', ['returnTo' => $this->normalizeReturnTo($_GET['return_to'] ?? null)]);
     }
 
     public function register(): void
@@ -65,6 +77,7 @@ final class AuthController extends BaseController
         $name = trim((string) ($_POST['name'] ?? ''));
         $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
+        $redirectAfterRegister = $this->normalizeReturnTo($_POST['return_to'] ?? null) ?? '/dashboard';
 
         if ($name === '' || $email === '' || strlen($password) < 8 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->errorResponse('Dados inválidos. Nome, email válido e senha (mínimo 8) são obrigatórios.', 422, '/register');
@@ -97,7 +110,7 @@ final class AuthController extends BaseController
         $_SESSION['auth_user_id'] = $userId;
         $_SESSION['auth_user_email'] = $email;
 
-        $this->successResponse('Conta criada com sucesso.', '/dashboard', ['user_id' => $userId], 201);
+        $this->successResponse('Conta criada com sucesso.', $redirectAfterRegister, ['user_id' => $userId], 201);
     }
 
     public function logout(): void
@@ -123,6 +136,26 @@ final class AuthController extends BaseController
             (new AuditLogRepository())->log($userId, 'auth.logout', 'user', $userId);
         }
 
-        $this->successResponse('Sessão terminada.', '/login');
+        $redirect = $this->normalizeReturnTo($_POST['return_to'] ?? null) ?? '/login';
+        $this->successResponse('Sessão terminada.', $redirect);
+    }
+
+    private function normalizeReturnTo(mixed $value): ?string
+    {
+        $path = trim((string) $value);
+        if ($path === '' || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return null;
+        }
+
+        if (!str_starts_with($path, '/')) {
+            return null;
+        }
+
+        return $path;
+    }
+
+    private function currentUserId(): int
+    {
+        return (new AuthContextService())->authenticatedUserId();
     }
 }

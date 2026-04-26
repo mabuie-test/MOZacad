@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Helpers\Database;
 use App\Repositories\AuditLogRepository;
+use App\Repositories\CouponRepository;
 use App\Repositories\CourseRepository;
 use App\Repositories\DisciplineRepository;
 use App\Repositories\HumanReviewQueueRepository;
@@ -66,8 +66,9 @@ final class AdminController extends BaseController
             'references_style' => strtoupper(trim((string) ($_POST['references_style'] ?? 'APA'))),
             'notes' => trim((string) ($_POST['notes'] ?? '')) ?: null,
             'front_page_rules_json' => json_encode([
-                'front_page_overrides' => trim((string) ($_POST['front_page_overrides'] ?? '')),
-                'visual_overrides' => trim((string) ($_POST['visual_overrides'] ?? '')),
+                'front_page_overrides' => $this->splitMultiline($_POST['front_page_overrides'] ?? ''),
+                'visual_overrides' => $this->splitMultiline($_POST['visual_overrides'] ?? ''),
+                'structure_overrides' => $this->splitMultiline($_POST['structure_overrides'] ?? ''),
             ], JSON_UNESCAPED_UNICODE),
         ]);
         $this->audit('admin.institution_rule.saved', 'institution', $institutionId);
@@ -85,14 +86,87 @@ final class AdminController extends BaseController
             return;
         }
 
+        $customStructure = [
+            'sections' => $this->splitMultiline($_POST['structure_sections'] ?? ''),
+            'required_elements' => $this->splitMultiline($_POST['structure_required_elements'] ?? ''),
+        ];
+        $customVisual = [
+            'font_family' => trim((string) ($_POST['visual_font_family'] ?? '')),
+            'font_size' => trim((string) ($_POST['visual_font_size'] ?? '')),
+            'line_spacing' => trim((string) ($_POST['visual_line_spacing'] ?? '')),
+            'extra_rules' => $this->splitMultiline($_POST['visual_rules'] ?? ''),
+        ];
+        $customReference = [
+            'style' => strtoupper(trim((string) ($_POST['reference_style'] ?? ''))),
+            'sources_min' => trim((string) ($_POST['reference_sources_min'] ?? '')),
+            'rules' => $this->splitMultiline($_POST['reference_rules'] ?? ''),
+        ];
+
         (new InstitutionWorkTypeRuleRepository())->upsert($institutionId, $workTypeId, [
-            'custom_structure_json' => trim((string) ($_POST['custom_structure_json'] ?? '')) ?: null,
-            'custom_visual_rules_json' => trim((string) ($_POST['custom_visual_rules_json'] ?? '')) ?: null,
-            'custom_reference_rules_json' => trim((string) ($_POST['custom_reference_rules_json'] ?? '')) ?: null,
+            'custom_structure_json' => $this->toJsonOrNull($customStructure),
+            'custom_visual_rules_json' => $this->toJsonOrNull($customVisual),
+            'custom_reference_rules_json' => $this->toJsonOrNull($customReference),
             'notes' => trim((string) ($_POST['notes'] ?? '')) ?: null,
         ]);
         $this->audit('admin.institution_work_type_rule.saved', 'work_type', $workTypeId, ['institution_id' => $institutionId]);
         $this->adminSuccess('Regra por tipo de trabalho guardada.', '/admin/institution-rules');
+    }
+
+    public function createCoupon(): void
+    {
+        if (!$this->requireAdminAccess() || !$this->requireCsrfToken()) return;
+
+        $payload = $this->couponPayloadFromRequest();
+        if ($payload === null) {
+            $this->adminError('Dados inválidos para criar cupão.', 422, '/admin/coupons');
+            return;
+        }
+
+        $repo = new CouponRepository();
+        if ($repo->findActiveByCode($payload['code']) !== null) {
+            $this->adminError('Já existe um cupão activo com esse código.', 409, '/admin/coupons');
+            return;
+        }
+
+        $id = $repo->create($payload);
+        $this->audit('admin.coupon.created', 'coupon', $id, ['code' => $payload['code']]);
+        $this->adminSuccess('Cupão criado com sucesso.', '/admin/coupons', ['coupon_id' => $id]);
+    }
+
+    public function updateCoupon(int $id): void
+    {
+        if (!$this->requireAdminAccess() || !$this->requireCsrfToken()) return;
+
+        $repo = new CouponRepository();
+        if ($repo->findById($id) === null) {
+            $this->adminError('Cupão não encontrado.', 404, '/admin/coupons');
+            return;
+        }
+
+        $payload = $this->couponPayloadFromRequest();
+        if ($payload === null) {
+            $this->adminError('Dados inválidos para actualizar cupão.', 422, '/admin/coupons');
+            return;
+        }
+
+        $repo->update($id, $payload);
+        $this->audit('admin.coupon.updated', 'coupon', $id, ['code' => $payload['code']]);
+        $this->adminSuccess('Cupão actualizado.', '/admin/coupons', ['coupon_id' => $id]);
+    }
+
+    public function toggleCoupon(int $id): void
+    {
+        if (!$this->requireAdminAccess() || !$this->requireCsrfToken()) return;
+
+        $active = !empty($_POST['is_active']);
+        $updated = (new CouponRepository())->setActive($id, $active);
+        if (!$updated) {
+            $this->adminError('Cupão não encontrado para alteração de estado.', 404, '/admin/coupons');
+            return;
+        }
+
+        $this->audit('admin.coupon.toggled', 'coupon', $id, ['is_active' => $active]);
+        $this->adminSuccess($active ? 'Cupão activado.' : 'Cupão inactivado.', '/admin/coupons', ['coupon_id' => $id, 'is_active' => $active]);
     }
 
     public function assignHumanReview(int $queueId): void
@@ -343,7 +417,7 @@ final class AdminController extends BaseController
             'workTypes' => $workTypes,
             'pricingRules' => (new PricingRuleRepository())->all(300),
             'pricingExtras' => (new PricingExtraRepository())->all(300),
-            'coupons' => $this->loadCoupons(),
+            'coupons' => (new CouponRepository())->allWithUsage(200),
             'institutionRules' => (new InstitutionRuleRepository())->all(300),
             'institutionWorkTypeRules' => (new InstitutionWorkTypeRuleRepository())->all(300),
             'templates' => (new TemplateRepository())->all(300),
@@ -357,9 +431,84 @@ final class AdminController extends BaseController
         ];
     }
 
-    private function loadCoupons(): array
+    private function couponPayloadFromRequest(): ?array
     {
-        return Database::connect()->query('SELECT * FROM coupons ORDER BY id DESC LIMIT 200')->fetchAll();
+        $code = strtoupper(trim((string) ($_POST['code'] ?? '')));
+        $discountType = trim((string) ($_POST['discount_type'] ?? ''));
+        $discountValue = (float) ($_POST['discount_value'] ?? -1);
+        $usageLimitRaw = trim((string) ($_POST['usage_limit'] ?? ''));
+        $startsAt = $this->normalizeDateTime($_POST['starts_at'] ?? null);
+        $endsAt = $this->normalizeDateTime($_POST['ends_at'] ?? null);
+
+        if ($code === '' || !preg_match('/^[A-Z0-9_-]{3,50}$/', $code)) {
+            return null;
+        }
+        if (!in_array($discountType, ['percent', 'fixed'], true) || $discountValue < 0) {
+            return null;
+        }
+        if ($discountType === 'percent' && $discountValue > 100) {
+            return null;
+        }
+
+        $usageLimit = $usageLimitRaw === '' ? null : (int) $usageLimitRaw;
+        if ($usageLimit !== null && $usageLimit <= 0) {
+            return null;
+        }
+        if ($startsAt !== null && $endsAt !== null && strtotime($startsAt) > strtotime($endsAt)) {
+            return null;
+        }
+
+        return [
+            'code' => $code,
+            'discount_type' => $discountType,
+            'discount_value' => $discountValue,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'usage_limit' => $usageLimit,
+            'is_active' => !empty($_POST['is_active']) ? 1 : 0,
+        ];
+    }
+
+    private function normalizeDateTime(mixed $value): ?string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        $timestamp = strtotime($raw);
+        if ($timestamp === false) {
+            return null;
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function splitMultiline(mixed $value): array
+    {
+        $parts = preg_split('/[\r\n]+/', (string) $value) ?: [];
+        $normalized = [];
+        foreach ($parts as $item) {
+            $trimmed = trim((string) $item);
+            if ($trimmed !== '') {
+                $normalized[] = $trimmed;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function toJsonOrNull(array $payload): ?string
+    {
+        $filtered = array_filter($payload, static function (mixed $value): bool {
+            if (is_array($value)) {
+                return $value !== [];
+            }
+
+            return trim((string) $value) !== '';
+        });
+
+        return $filtered === [] ? null : json_encode($filtered, JSON_UNESCAPED_UNICODE);
     }
 
     private function adminSuccess(string $message, string $redirectPath, array $payload = []): void
