@@ -52,7 +52,15 @@
         try {
           const data = new FormData(form);
           if (!data.get('_csrf')) data.set('_csrf', csrf);
-          const res = await fetch(form.action, { method: form.method || 'POST', body: data, headers: { Accept: 'application/json, text/html' } });
+          const res = await fetch(form.action, {
+            method: form.method || 'POST',
+            body: data,
+            headers: {
+              Accept: 'application/json, text/html',
+              'X-CSRF-Token': csrf,
+              'X-MOZACAD-CLIENT': 'first-party-web'
+            }
+          });
           const type = res.headers.get('content-type') || '';
 
           if (type.includes('application/json')) {
@@ -130,7 +138,12 @@
     fillSelect(disciplineSelect, [], 'Selecione o curso');
     if (!institutionId) return;
 
-    const res = await fetch(`/orders/meta/courses?institution_id=${encodeURIComponent(institutionId)}`, { headers: { Accept: 'application/json' } });
+    const res = await fetch(`/orders/meta/courses?institution_id=${encodeURIComponent(institutionId)}`, {
+      headers: {
+        Accept: 'application/json',
+        'X-MOZACAD-CLIENT': 'first-party-web'
+      }
+    });
     const payload = await res.json().catch(() => ({ courses: [] }));
     fillSelect(courseSelect, payload.courses || [], 'Selecione...');
   });
@@ -142,7 +155,12 @@
     fillSelect(disciplineSelect, [], 'A carregar disciplinas...');
     if (!courseId) return;
 
-    const res = await fetch(`/orders/meta/disciplines?course_id=${encodeURIComponent(courseId)}`, { headers: { Accept: 'application/json' } });
+    const res = await fetch(`/orders/meta/disciplines?course_id=${encodeURIComponent(courseId)}`, {
+      headers: {
+        Accept: 'application/json',
+        'X-MOZACAD-CLIENT': 'first-party-web'
+      }
+    });
     const payload = await res.json().catch(() => ({ disciplines: [] }));
     fillSelect(disciplineSelect, payload.disciplines || [], 'Selecione...');
   });

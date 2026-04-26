@@ -1,11 +1,60 @@
 <div class="card p-3 mb-3">
   <h2 class="h5">Normas e templates institucionais</h2>
-  <p class="text-secondary mb-2">Escopo actual: <strong>inspecção operacional + diagnóstico de prontidão</strong>. Esta secção não altera ficheiros fonte (<code>norma.txt</code>, <code>norma.pdf</code>, <code>metadata.json</code>) nem cria templates novos.</p>
-  <p class="small text-secondary mb-2">Modo do módulo: <code><?= htmlspecialchars((string) ($templatesOperationalMode ?? 'read_only_diagnostic')) ?></code>.</p>
+  <p class="text-secondary mb-2">Escopo actual: <strong>inspecção operacional + publicação auditável</strong> de normas e templates institucionais.</p>
+  <p class="small text-secondary mb-2">Modo do módulo: <code><?= htmlspecialchars((string) ($templatesOperationalMode ?? 'publishable')) ?></code>.</p>
   <ul class="small mb-0 text-secondary">
-    <li><strong>Gestão disponível aqui:</strong> validação de disponibilidade, origem efectiva e modo de resolução por instituição/tipo.</li>
-    <li><strong>Gestão fora desta secção:</strong> publicação física de normas/templates no storage/repositório documental.</li>
+    <li><strong>Gestão disponível aqui:</strong> validação de disponibilidade, origem efectiva, upload e publicação auditável.</li>
+    <li><strong>Validações:</strong> MIME, tamanho e naming seguro para artefactos institucionais.</li>
   </ul>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="card p-3 h-100">
+      <h3 class="h6">Publicar normas institucionais</h3>
+      <form method="post" action="/admin/templates/norms" enctype="multipart/form-data" class="row g-2">
+        <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+        <div class="col-12">
+          <select class="form-select" name="institution_id" required>
+            <option value="">Instituição</option>
+            <?php foreach (($institutions ?? []) as $i): ?>
+              <option value="<?= (int) $i['id'] ?>"><?= htmlspecialchars((string) $i['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-12"><label class="form-label small mb-1">norma.txt</label><input type="file" class="form-control" name="norm_txt" accept=".txt,text/plain"></div>
+        <div class="col-12"><label class="form-label small mb-1">norma.pdf</label><input type="file" class="form-control" name="norm_pdf" accept=".pdf,application/pdf"></div>
+        <div class="col-12"><label class="form-label small mb-1">metadata.json</label><input type="file" class="form-control" name="norm_metadata" accept=".json,application/json,text/plain"></div>
+        <div class="col-12"><button class="btn btn-primary">Publicar normas</button></div>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card p-3 h-100">
+      <h3 class="h6">Publicar template por tipo</h3>
+      <form method="post" action="/admin/templates/work-type" enctype="multipart/form-data" class="row g-2">
+        <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+        <div class="col-md-6">
+          <select class="form-select" name="institution_id" required>
+            <option value="">Instituição</option>
+            <?php foreach (($institutions ?? []) as $i): ?>
+              <option value="<?= (int) $i['id'] ?>"><?= htmlspecialchars((string) $i['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <select class="form-select" name="work_type_id" required>
+            <option value="">Tipo de trabalho</option>
+            <?php foreach (($workTypes ?? []) as $w): ?>
+              <option value="<?= (int) $w['id'] ?>"><?= htmlspecialchars((string) $w['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-12"><label class="form-label small mb-1">Template DOCX</label><input type="file" class="form-control" name="template_docx" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required></div>
+        <div class="col-12"><button class="btn btn-outline-primary">Publicar template</button></div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <?php foreach (($normMatrix ?? []) as $row): $inst = $row['institution']; $norm = $row['norm']; $metadata = $norm['metadata'] ?? []; ?>

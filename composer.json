@@ -24,10 +24,13 @@
       "@php database/setup.php --fresh --seed"
     ],
     "db:upgrade": [
-      "@php database/setup.php --upgrade"
+      "@php scripts/deploy_release.php"
     ],
     "ops:validate": [
       "@php scripts/validate_runtime.php"
+    ],
+    "deploy:release": [
+      "@php scripts/deploy_release.php"
     ]
   }
 }

@@ -16,7 +16,11 @@ final class PaymentController extends BaseController
         $userId = $this->requireAuthUserId();
         if ($userId <= 0) return;
 
-        if (!$this->isApiRequest() && !$this->requireCsrfToken()) return;
+        if ($this->isApiRequest()) {
+            if (!$this->requireFirstPartyApiAccess()) return;
+        } elseif (!$this->requireCsrfToken()) {
+            return;
+        }
 
         $orderId = (int) ($_POST['order_id'] ?? 0);
         $msisdn = trim((string) ($_POST['msisdn'] ?? ''));
@@ -44,7 +48,7 @@ final class PaymentController extends BaseController
         } catch (RuntimeException $e) {
             $this->errorResponse($e->getMessage(), 422, $this->refererPath('/orders/' . $orderId . '/pay'));
         } catch (Throwable $e) {
-            $this->errorResponse('Erro ao iniciar pagamento.', 502, $this->refererPath('/orders/' . $orderId . '/pay'), ['error' => $e->getMessage()]);
+            $this->errorResponse('Erro ao iniciar pagamento.', 502, $this->refererPath('/orders/' . $orderId . '/pay'));
         }
     }
 
@@ -59,6 +63,7 @@ final class PaymentController extends BaseController
     {
         $userId = $this->requireAuthUserId();
         if ($userId <= 0) return;
+        if ($this->isApiRequest() && !$this->requireFirstPartyApiAccess()) return;
 
         $payment = (new PaymentApplicationService())->userPaymentStatus($id, $userId);
         if ($payment === null) {
