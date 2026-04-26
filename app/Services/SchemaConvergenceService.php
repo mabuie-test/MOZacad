@@ -54,6 +54,18 @@ final class SchemaConvergenceService
               CONSTRAINT fk_coupon_usage_coupon FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
               CONSTRAINT fk_coupon_usage_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
             )",
+            "CREATE TABLE IF NOT EXISTS auth_login_attempts (
+              id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              email VARCHAR(190) NOT NULL,
+              ip_address VARCHAR(64) NOT NULL,
+              failed_attempts INT NOT NULL DEFAULT 0,
+              last_failed_at DATETIME NULL,
+              locked_until DATETIME NULL,
+              created_at TIMESTAMP NULL,
+              updated_at TIMESTAMP NULL,
+              UNIQUE KEY uq_auth_login_attempts_email_ip (email, ip_address),
+              INDEX idx_auth_login_attempts_locked_until (locked_until)
+            )",
         ];
 
         if ($applyRepairs) {
@@ -76,6 +88,8 @@ final class SchemaConvergenceService
             ['table' => 'human_review_queue', 'column' => 'generated_document_version'],
             ['table' => 'revisions', 'column' => 'generated_document_id'],
             ['table' => 'revisions', 'column' => 'generated_document_version'],
+            ['table' => 'auth_login_attempts', 'column' => 'email'],
+            ['table' => 'auth_login_attempts', 'column' => 'locked_until'],
         ];
         foreach ($checks as $check) {
             if (!$this->columnExists($db, $check['table'], $check['column'])) {
@@ -89,6 +103,7 @@ final class SchemaConvergenceService
             ['table' => 'generated_documents', 'index' => 'uq_generated_documents_order_version'],
             ['table' => 'ai_jobs', 'index' => 'idx_ai_jobs_status_created'],
             ['table' => 'revisions', 'index' => 'idx_revisions_order_document'],
+            ['table' => 'auth_login_attempts', 'index' => 'uq_auth_login_attempts_email_ip'],
         ];
         foreach ($indexChecks as $check) {
             if (!$this->indexExists($db, $check['table'], $check['index'])) {

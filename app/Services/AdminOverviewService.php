@@ -87,7 +87,7 @@ final class AdminOverviewService
             'institutionWorkTypeRules' => (new InstitutionWorkTypeRuleRepository())->all(300),
             'templates' => (new TemplateRepository())->all(300),
             'normMatrix' => $normMatrix,
-            'templatesOperationalMode' => 'read_only_diagnostic',
+            'templatesOperationalMode' => 'publishable',
             'pricingConfig' => [
                 'currency' => (new PricingConfig())->get('PRICING_CURRENCY', 'MZN'),
                 'per_page_default' => (new PricingConfig())->get('PRICING_PER_PAGE_DEFAULT', 40),

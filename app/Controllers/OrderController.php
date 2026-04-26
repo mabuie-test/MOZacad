@@ -137,7 +137,7 @@ final class OrderController extends BaseController
             (new AuditLogRepository())->log($userId, 'order.created', 'order', (int) ($result['order_id'] ?? 0), ['extras' => $extras]);
             $this->successResponse('Pedido criado com sucesso.', '/orders/' . (int) ($result['order_id'] ?? 0), $result, 201);
         } catch (Throwable $e) {
-            $this->errorResponse('Falha ao criar pedido.', 500, '/orders/create', ['error' => $e->getMessage()]);
+            $this->errorResponse('Falha ao criar pedido.', 500, '/orders/create');
         }
     }
 
@@ -213,7 +213,7 @@ final class OrderController extends BaseController
         } catch (RuntimeException $e) {
             $this->errorResponse($e->getMessage(), 422, '/orders/' . $id . '/pay');
         } catch (Throwable $e) {
-            $this->errorResponse('Falha ao iniciar pagamento.', 502, '/orders/' . $id . '/pay', ['error' => $e->getMessage()]);
+            $this->errorResponse('Falha ao iniciar pagamento.', 502, '/orders/' . $id . '/pay');
         }
     }
 

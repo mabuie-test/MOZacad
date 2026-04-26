@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Helpers\Csrf;
 use App\Helpers\View;
 use App\Services\AdminAccessService;
+use App\Services\ApiAccessPolicyService;
 use App\Services\AuthContextService;
 
 abstract class BaseController
@@ -76,6 +77,11 @@ abstract class BaseController
         $this->json(array_merge(['message' => $message], $payload), $status);
     }
 
+    protected function internalErrorResponse(string $message = 'Erro interno. Tente novamente em instantes.', string $redirectPath = '/'): void
+    {
+        $this->errorResponse($message, 500, $redirectPath);
+    }
+
     protected function requireCsrfToken(): bool
     {
         $token = (string) ($_POST['_csrf'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
@@ -97,6 +103,24 @@ abstract class BaseController
         }
 
         return $userId;
+    }
+
+    protected function requireFirstPartyApiAccess(): bool
+    {
+        $path = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+        if (!str_starts_with($path, '/api/')) {
+            return true;
+        }
+
+        $result = (new ApiAccessPolicyService())->evaluate($_SERVER, $_POST);
+        if (($result['allowed'] ?? false) === true) {
+            return true;
+        }
+
+        $status = (int) ($result['status'] ?? 403);
+        $message = (string) ($result['message'] ?? 'Acesso API negado.');
+        $this->errorResponse($message, $status, '/dashboard');
+        return false;
     }
 
     protected function requireAdminAccess(): bool

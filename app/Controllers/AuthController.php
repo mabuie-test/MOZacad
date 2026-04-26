@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\UserRepository;
 use App\Services\AuthContextService;
+use App\Services\LoginRateLimiterService;
 
 final class AuthController extends BaseController
 {
@@ -28,6 +29,7 @@ final class AuthController extends BaseController
 
         $email = mb_strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
+        $ipAddress = (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
         $redirectAfterLogin = $this->normalizeReturnTo($_POST['return_to'] ?? null) ?? '/dashboard';
 
         if ($email === '' || $password === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -35,8 +37,20 @@ final class AuthController extends BaseController
             return;
         }
 
+        $rateLimiter = new LoginRateLimiterService();
+        $rateLimit = $rateLimiter->check($email, $ipAddress);
+        if (!$rateLimit['allowed']) {
+            $this->errorResponse(
+                sprintf('Muitas tentativas de login. Aguarde %d segundos e tente novamente.', (int) $rateLimit['retry_after']),
+                429,
+                '/login'
+            );
+            return;
+        }
+
         $user = (new UserRepository())->findByEmail($email);
         if ($user === null || !password_verify($password, (string) $user['password_hash'])) {
+            $rateLimiter->onFailure($email, $ipAddress);
             $this->errorResponse('Credenciais inválidas.', 401, '/login');
             return;
         }
@@ -45,6 +59,8 @@ final class AuthController extends BaseController
             $this->errorResponse('Utilizador inativo. Contacte o suporte.', 403, '/login');
             return;
         }
+
+        $rateLimiter->onSuccess($email, $ipAddress);
 
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
