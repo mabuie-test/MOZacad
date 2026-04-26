@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Repositories\InstitutionRepository;
+use App\Repositories\TemplateArtifactRepository;
+use App\Repositories\TemplateRepository;
 use RuntimeException;
 
 final class AdminTemplateOperationService
@@ -12,6 +14,8 @@ final class AdminTemplateOperationService
     public function __construct(
         private readonly InstitutionRepository $institutions = new InstitutionRepository(),
         private readonly StoragePathService $paths = new StoragePathService(),
+        private readonly TemplateArtifactRepository $artifacts = new TemplateArtifactRepository(),
+        private readonly TemplateRepository $templates = new TemplateRepository(),
     ) {}
 
     /** @param array<string,mixed> $files */
@@ -37,35 +41,43 @@ final class AdminTemplateOperationService
                 'text/plain',
                 'application/octet-stream',
             ], 3 * 1024 * 1024);
+            $this->artifacts->recordPublication($institutionId, null, 'norm_txt', $published['norma.txt']['path'], $published['norma.txt']['mime'], $published['norma.txt']['size'], $published['norma.txt']['sha256'], $actorId);
         }
 
         $pdf = $this->single($files['norm_pdf'] ?? null);
         if ($pdf !== null) {
-            $published['norma.pdf'] = $this->storeFile($pdf, $normDir . '/norma.pdf', [
-                'application/pdf',
-            ], 20 * 1024 * 1024);
+            $published['norma.pdf'] = $this->storeFile($pdf, $normDir . '/norma.pdf', ['application/pdf'], 20 * 1024 * 1024);
+            $this->artifacts->recordPublication($institutionId, null, 'norm_pdf', $published['norma.pdf']['path'], $published['norma.pdf']['mime'], $published['norma.pdf']['size'], $published['norma.pdf']['sha256'], $actorId);
         }
 
         $meta = $this->single($files['norm_metadata'] ?? null);
         if ($meta !== null) {
-            $metadataPath = $this->storeFile($meta, $normDir . '/metadata.json', [
+            $stored = $this->storeFile($meta, $normDir . '/metadata.json', [
                 'application/json',
                 'text/plain',
                 'application/octet-stream',
             ], 2 * 1024 * 1024);
 
-            $raw = (string) file_get_contents($metadataPath);
+            $raw = (string) file_get_contents($stored['path']);
             $decoded = json_decode($raw, true);
             if (!is_array($decoded)) {
-                @unlink($metadataPath);
+                @unlink($stored['path']);
                 throw new RuntimeException('metadata.json inválido: conteúdo deve ser JSON object/array.');
             }
             $normalized = json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             if (!is_string($normalized)) {
                 throw new RuntimeException('Falha ao normalizar metadata.json.');
             }
-            file_put_contents($metadataPath, $normalized . PHP_EOL);
-            $published['metadata.json'] = $metadataPath;
+            file_put_contents($stored['path'], $normalized . PHP_EOL);
+
+            $normalizedSize = filesize($stored['path']);
+            $published['metadata.json'] = [
+                'path' => $stored['path'],
+                'mime' => 'application/json',
+                'size' => is_int($normalizedSize) ? $normalizedSize : $stored['size'],
+                'sha256' => hash_file('sha256', $stored['path']) ?: $stored['sha256'],
+            ];
+            $this->artifacts->recordPublication($institutionId, null, 'norm_metadata', $published['metadata.json']['path'], 'application/json', (int) $published['metadata.json']['size'], (string) $published['metadata.json']['sha256'], $actorId);
         }
 
         if ($published === []) {
@@ -107,11 +119,15 @@ final class AdminTemplateOperationService
             'application/zip',
         ], 25 * 1024 * 1024);
 
+        $this->templates->upsertPublishedTemplate($institutionId, $workTypeId, $stored['path']);
+        $this->artifacts->recordPublication($institutionId, $workTypeId, 'work_type_template', $stored['path'], $stored['mime'], $stored['size'], $stored['sha256'], $actorId);
+
         return [
             'institution_id' => $institutionId,
             'institution_slug' => $slug,
             'work_type_id' => $workTypeId,
-            'template_path' => $stored,
+            'template_path' => $stored['path'],
+            'template_sha256' => $stored['sha256'],
             'actor_id' => $actorId,
             'published_at' => date('c'),
         ];
@@ -131,8 +147,10 @@ final class AdminTemplateOperationService
         return $file;
     }
 
-    /** @param array<string,mixed> $file @param array<int,string> $allowedMime */
-    private function storeFile(array $file, string $target, array $allowedMime, int $maxSize): string
+    /** @param array<string,mixed> $file @param array<int,string> $allowedMime
+     *  @return array{path:string,mime:string,size:int,sha256:string}
+     */
+    private function storeFile(array $file, string $target, array $allowedMime, int $maxSize): array
     {
         if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             throw new RuntimeException('Falha no upload do ficheiro enviado.');
@@ -157,6 +175,7 @@ final class AdminTemplateOperationService
             throw new RuntimeException('Falha ao publicar ficheiro no storage.');
         }
 
-        return $target;
+        $sha = hash_file('sha256', $target);
+        return ['path' => $target, 'mime' => $mime, 'size' => $size, 'sha256' => is_string($sha) ? $sha : ''];
     }
 }

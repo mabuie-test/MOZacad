@@ -54,6 +54,26 @@ final class SchemaConvergenceService
               CONSTRAINT fk_coupon_usage_coupon FOREIGN KEY (coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
               CONSTRAINT fk_coupon_usage_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
             )",
+
+            "CREATE TABLE IF NOT EXISTS template_artifacts (
+              id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              institution_id BIGINT UNSIGNED NOT NULL,
+              work_type_id BIGINT UNSIGNED NULL,
+              artifact_type VARCHAR(40) NOT NULL,
+              file_path VARCHAR(255) NOT NULL,
+              mime_type VARCHAR(120) NOT NULL,
+              file_size INT UNSIGNED NOT NULL,
+              checksum_sha256 CHAR(64) NOT NULL,
+              is_active TINYINT(1) NOT NULL DEFAULT 1,
+              published_by_user_id BIGINT UNSIGNED NULL,
+              created_at TIMESTAMP NULL,
+              INDEX idx_template_artifacts_lookup (institution_id, work_type_id, artifact_type, is_active),
+              INDEX idx_template_artifacts_actor (published_by_user_id),
+              CONSTRAINT fk_template_artifacts_institution FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE CASCADE,
+              CONSTRAINT fk_template_artifacts_work_type FOREIGN KEY (work_type_id) REFERENCES work_types(id) ON DELETE CASCADE,
+              CONSTRAINT fk_template_artifacts_actor FOREIGN KEY (published_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+            )",
+
             "CREATE TABLE IF NOT EXISTS auth_login_attempts (
               id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
               email VARCHAR(190) NOT NULL,
@@ -78,6 +98,14 @@ final class SchemaConvergenceService
             $this->ensureForeignKey($db, 'revisions', 'fk_revisions_order', 'order_id', 'orders', 'id', 'CASCADE');
             $this->ensureForeignKey($db, 'revisions', 'fk_revisions_user', 'user_id', 'users', 'id', 'CASCADE');
             $this->ensureForeignKey($db, 'revisions', 'fk_revisions_generated_document', 'generated_document_id', 'generated_documents', 'id', 'SET NULL');
+            $this->ensureForeignKey($db, 'templates', 'fk_templates_institution', 'institution_id', 'institutions', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'templates', 'fk_templates_work_type', 'work_type_id', 'work_types', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'order_requirements', 'fk_order_requirements_order', 'order_id', 'orders', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'order_attachments', 'fk_order_attachments_order', 'order_id', 'orders', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'debito_transactions', 'fk_debito_transactions_payment', 'payment_id', 'payments', 'id', 'SET NULL');
+            $this->ensureForeignKey($db, 'institution_rules', 'fk_institution_rules_institution', 'institution_id', 'institutions', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'institution_work_type_rules', 'fk_iwtr_institution', 'institution_id', 'institutions', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'institution_work_type_rules', 'fk_iwtr_work_type', 'work_type_id', 'work_types', 'id', 'CASCADE');
         }
 
         $checks = [
@@ -88,6 +116,7 @@ final class SchemaConvergenceService
             ['table' => 'human_review_queue', 'column' => 'generated_document_version'],
             ['table' => 'revisions', 'column' => 'generated_document_id'],
             ['table' => 'revisions', 'column' => 'generated_document_version'],
+            ['table' => 'template_artifacts', 'column' => 'artifact_type'],
             ['table' => 'auth_login_attempts', 'column' => 'email'],
             ['table' => 'auth_login_attempts', 'column' => 'locked_until'],
         ];
@@ -103,6 +132,7 @@ final class SchemaConvergenceService
             ['table' => 'generated_documents', 'index' => 'uq_generated_documents_order_version'],
             ['table' => 'ai_jobs', 'index' => 'idx_ai_jobs_status_created'],
             ['table' => 'revisions', 'index' => 'idx_revisions_order_document'],
+            ['table' => 'template_artifacts', 'index' => 'idx_template_artifacts_lookup'],
             ['table' => 'auth_login_attempts', 'index' => 'uq_auth_login_attempts_email_ip'],
         ];
         foreach ($indexChecks as $check) {

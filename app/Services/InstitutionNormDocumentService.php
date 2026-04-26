@@ -7,6 +7,7 @@ namespace App\Services;
 
 final class InstitutionNormDocumentService
 {
+    public function __construct(private readonly \App\Repositories\TemplateArtifactRepository $artifacts = new \App\Repositories\TemplateArtifactRepository()) {}
     /**
      * @return array{slug:string,base_path:string,txt_path:?string,pdf_path:?string,metadata_path:?string,content:string,source:string,metadata:array<string,mixed>,notes:array<int,string>,reference_style:?string,visual_overrides:array<string,mixed>,front_page_overrides:array<string,mixed>,structure_overrides:array<string,mixed>}
      */
@@ -18,6 +19,11 @@ final class InstitutionNormDocumentService
         $txtPath = $this->resolveExisting($basePath . '/norma.txt');
         $pdfPath = $this->resolveExisting($basePath . '/norma.pdf');
         $metadataPath = $this->resolveExisting($basePath . '/metadata.json');
+
+        $institutionId = (int) ($institution['id'] ?? 0);
+        $sqlNormTxt = $this->artifacts->findActive($institutionId, null, 'norm_txt');
+        $sqlNormPdf = $this->artifacts->findActive($institutionId, null, 'norm_pdf');
+        $sqlNormMetadata = $this->artifacts->findActive($institutionId, null, 'norm_metadata');
 
         $metadata = $this->readMetadata($metadataPath);
         $content = '';
@@ -57,6 +63,14 @@ final class InstitutionNormDocumentService
                 'name' => (string) ($metadata['institution_name'] ?? ($institution['name'] ?? '')),
                 'faculty' => (string) ($metadata['faculty'] ?? ''),
                 'department' => (string) ($metadata['department'] ?? ''),
+            ],
+            'traceability' => [
+                'sql_norm_txt' => $sqlNormTxt,
+                'sql_norm_pdf' => $sqlNormPdf,
+                'sql_norm_metadata' => $sqlNormMetadata,
+                'filesystem_sql_converged' => ($txtPath === null || (string) ($sqlNormTxt['file_path'] ?? '') === $txtPath)
+                    && ($pdfPath === null || (string) ($sqlNormPdf['file_path'] ?? '') === $pdfPath)
+                    && ($metadataPath === null || (string) ($sqlNormMetadata['file_path'] ?? '') === $metadataPath),
             ],
         ];
     }
