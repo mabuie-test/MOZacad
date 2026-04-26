@@ -6,6 +6,7 @@ use App\Controllers\PaymentController;
 use App\Helpers\Router;
 
 return static function (Router $router): void {
-    $router->post('/payments/mpesa/initiate', [PaymentController::class, 'initiateMpesa']);
-    $router->get('/payments/{id}/status', [PaymentController::class, 'status']);
+    // Contrato API (JSON): endpoints sob /api/* para separar da interface web.
+    $router->post('/api/payments/mpesa/initiate', [PaymentController::class, 'initiateMpesa']);
+    $router->get('/api/payments/{id}/status', [PaymentController::class, 'status']);
 };

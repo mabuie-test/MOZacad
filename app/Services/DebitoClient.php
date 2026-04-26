@@ -66,7 +66,7 @@ final class DebitoClient
             'request_id' => $requestId,
             'method' => $method,
             'uri' => $uri,
-            'payload' => $method === 'POST' ? $payload : [],
+            'payload_summary' => $method === 'POST' ? $this->summarizePayload($payload) : [],
         ]);
 
         $attempt = 0;
@@ -117,7 +117,7 @@ final class DebitoClient
                 'uri' => $uri,
                 'status' => $status,
                 'attempt' => $attempt,
-                'response' => $decoded,
+                'response_summary' => $this->summarizeResponse($decoded),
             ]);
 
             throw new RuntimeException(sprintf('Débito retornou HTTP %d para %s %s: %s', $status, $method, $uri, $providerMessage));
@@ -128,10 +128,58 @@ final class DebitoClient
             'method' => $method,
             'uri' => $uri,
             'attempt' => $attempt,
-            'response' => $decoded,
+            'response_summary' => $this->summarizeResponse($decoded),
         ]);
 
         return $decoded;
+    }
+
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function summarizePayload(array $payload): array
+    {
+        return [
+            'keys' => array_keys($payload),
+            'reference' => $this->clip((string) ($payload['reference'] ?? $payload['external_reference'] ?? '')),
+            'amount' => isset($payload['amount']) ? (float) $payload['amount'] : null,
+            'currency' => (string) ($payload['currency'] ?? ''),
+            'msisdn_masked' => $this->maskMsisdn((string) ($payload['msisdn'] ?? $payload['phone'] ?? '')),
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function summarizeResponse(array $response): array
+    {
+        return [
+            'keys' => array_keys($response),
+            'status' => $response['status'] ?? $response['transaction_status'] ?? null,
+            'reference' => $this->clip((string) ($response['reference'] ?? $response['debito_reference'] ?? '')),
+            'message' => $this->clip((string) ($response['message'] ?? $response['error']['message'] ?? '')),
+        ];
+    }
+
+    private function maskMsisdn(string $msisdn): ?string
+    {
+        $digits = preg_replace('/\D+/', '', $msisdn) ?? '';
+        if ($digits === '') {
+            return null;
+        }
+
+        return mb_substr($digits, 0, 2) . '*****' . mb_substr($digits, -2);
+    }
+
+    private function clip(string $value, int $max = 120): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        return mb_strlen($trimmed) <= $max ? $trimmed : (mb_substr($trimmed, 0, $max) . '…');
     }
 
     private function isTransientException(GuzzleException $e): bool
