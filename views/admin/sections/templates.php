@@ -1,6 +1,7 @@
 <div class="card p-3 mb-3">
   <h2 class="h5">Normas e templates institucionais</h2>
   <p class="text-secondary mb-2">Escopo actual: <strong>inspecção operacional + diagnóstico de prontidão</strong>. Esta secção não altera ficheiros fonte (<code>norma.txt</code>, <code>norma.pdf</code>, <code>metadata.json</code>) nem cria templates novos.</p>
+  <p class="small text-secondary mb-2">Modo do módulo: <code><?= htmlspecialchars((string) ($templatesOperationalMode ?? 'read_only_diagnostic')) ?></code>.</p>
   <ul class="small mb-0 text-secondary">
     <li><strong>Gestão disponível aqui:</strong> validação de disponibilidade, origem efectiva e modo de resolução por instituição/tipo.</li>
     <li><strong>Gestão fora desta secção:</strong> publicação física de normas/templates no storage/repositório documental.</li>
@@ -12,7 +13,7 @@
     $templateRows = $row['templates'] ?? [];
     $total = count($templateRows);
     $resolved = count(array_filter($templateRows, static fn(array $tpl): bool => !empty($tpl['state']['selected_template'])));
-    $fallback = count(array_filter($templateRows, static fn(array $tpl): bool => (string) ($tpl['state']['mode'] ?? '') !== 'institution_specific'));
+    $fallback = count(array_filter($templateRows, static fn(array $tpl): bool => (string) ($tpl['state']['mode'] ?? '') === 'programmatic_fallback'));
     $readiness = $total > 0 ? round(($resolved / $total) * 100) : 0;
   ?>
   <div class="card p-3 mb-3">

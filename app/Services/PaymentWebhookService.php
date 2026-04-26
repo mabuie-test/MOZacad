@@ -30,6 +30,10 @@ final class PaymentWebhookService
             return ['received' => true, 'processed' => false, 'http_status' => 202, 'reason' => 'webhook_disabled'];
         }
 
+        if (!$this->validateWebhookConfiguration()) {
+            return ['received' => true, 'processed' => false, 'http_status' => 503, 'reason' => 'webhook_misconfigured_secret_required'];
+        }
+
         if (!$this->validateSignature($rawBody, $normalizedHeaders)) {
             return ['received' => true, 'processed' => false, 'http_status' => 401, 'reason' => 'invalid_signature'];
         }
@@ -83,8 +87,14 @@ final class PaymentWebhookService
     {
         $secret = trim((string) Env::get('DEBITO_WEBHOOK_SECRET', ''));
         if ($secret === '') {
-            $this->logger->info('Webhook sem segredo configurado; validação forte ignorada');
-            return true;
+            $allowUnsignedLocal = filter_var((string) Env::get('DEBITO_ALLOW_UNSIGNED_WEBHOOK_LOCAL', true), FILTER_VALIDATE_BOOL);
+            if (!$this->isProduction() && $allowUnsignedLocal) {
+                $this->logger->info('Webhook sem assinatura permitido apenas em ambiente local controlado');
+                return true;
+            }
+
+            $this->logger->error('Webhook bloqueado por ausência de segredo de assinatura');
+            return false;
         }
 
         $headerValue = trim((string) ($headers['x_debito_signature'] ?? $headers['x_webhook_signature'] ?? ''));
@@ -97,6 +107,27 @@ final class PaymentWebhookService
         $incoming = str_starts_with($headerValue, 'sha256=') ? substr($headerValue, 7) : $headerValue;
 
         return hash_equals($expected, $incoming);
+    }
+
+
+    private function validateWebhookConfiguration(): bool
+    {
+        $secret = trim((string) Env::get('DEBITO_WEBHOOK_SECRET', ''));
+        if ($secret !== '') {
+            return true;
+        }
+
+        if ($this->isProduction()) {
+            $this->logger->error('Webhook desativado por configuração insegura em produção (DEBITO_WEBHOOK_SECRET vazio)');
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isProduction(): bool
+    {
+        return strtolower(trim((string) Env::get('APP_ENV', 'production'))) === 'production';
     }
 
     private function extractReference(array $payload): string

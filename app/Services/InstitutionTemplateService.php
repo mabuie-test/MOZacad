@@ -19,17 +19,17 @@ final class InstitutionTemplateService
 
         if ($candidate !== null && is_file($candidate)) {
             return [
-                'mode' => 'programmatic_assembly',
+                'mode' => 'template_detected_read_only',
                 'selected_template' => basename($candidate),
-                'reason' => 'Template detectado, mas montagem oficial permanece programática nesta versão.',
+                'reason' => 'Template institucional válido detectado (estado operacional: leitura/diagnóstico).',
                 'candidate_path' => $candidate,
             ];
         }
 
         return [
-            'mode' => 'programmatic_assembly',
+            'mode' => 'programmatic_fallback',
             'selected_template' => null,
-            'reason' => 'Sem template institucional activo; fallback programático explícito.',
+            'reason' => 'Sem template institucional publicado para este tipo; fallback programático aplicado.',
             'candidate_path' => $candidate,
         ];
     }

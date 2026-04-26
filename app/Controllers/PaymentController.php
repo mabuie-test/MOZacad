@@ -14,7 +14,9 @@ final class PaymentController extends BaseController
     public function initiateMpesa(): void
     {
         $userId = $this->requireAuthUserId();
-        if ($userId <= 0 || !$this->requireCsrfToken()) return;
+        if ($userId <= 0) return;
+
+        if (!$this->isApiRequest() && !$this->requireCsrfToken()) return;
 
         $orderId = (int) ($_POST['order_id'] ?? 0);
         $msisdn = trim((string) ($_POST['msisdn'] ?? ''));
@@ -44,6 +46,13 @@ final class PaymentController extends BaseController
         } catch (Throwable $e) {
             $this->errorResponse('Erro ao iniciar pagamento.', 502, $this->refererPath('/orders/' . $orderId . '/pay'), ['error' => $e->getMessage()]);
         }
+    }
+
+
+    private function isApiRequest(): bool
+    {
+        $path = (string) parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+        return str_starts_with($path, '/api/');
     }
 
     public function status(int $id): void
