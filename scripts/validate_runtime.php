@@ -10,6 +10,19 @@ use App\Services\SchemaConvergenceService;
 $db = Database::connect();
 $schema = (new SchemaConvergenceService())->enforce($db, false);
 
+
+$env = strtolower(trim((string) ($_ENV['APP_ENV'] ?? 'production')));
+$debugEnabled = filter_var((string) ($_ENV['APP_DEBUG'] ?? false), FILTER_VALIDATE_BOOL);
+$allowUnsignedWebhook = filter_var((string) ($_ENV['DEBITO_ALLOW_UNSIGNED_WEBHOOK_LOCAL'] ?? false), FILTER_VALIDATE_BOOL);
+if ($env === 'production' && $debugEnabled) {
+    fwrite(STDERR, "[security] APP_DEBUG=true não permitido em produção.\n");
+    exit(1);
+}
+if ($env === 'production' && $allowUnsignedWebhook) {
+    fwrite(STDERR, "[security] DEBITO_ALLOW_UNSIGNED_WEBHOOK_LOCAL=true não permitido em produção.\n");
+    exit(1);
+}
+
 $checks = [
     'payment_without_invoice' => (int) $db->query('SELECT COUNT(*) FROM payments p LEFT JOIN invoices i ON i.id = p.invoice_id WHERE i.id IS NULL')->fetchColumn(),
     'paid_without_job_or_document' => (int) $db->query("SELECT COUNT(*) FROM orders o LEFT JOIN ai_jobs j ON j.order_id=o.id LEFT JOIN generated_documents gd ON gd.order_id=o.id WHERE o.status IN ('queued','under_human_review','ready') AND j.id IS NULL AND gd.id IS NULL")->fetchColumn(),

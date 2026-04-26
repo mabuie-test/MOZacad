@@ -87,7 +87,7 @@ final class PaymentWebhookService
     {
         $secret = trim((string) Env::get('DEBITO_WEBHOOK_SECRET', ''));
         if ($secret === '') {
-            $allowUnsignedLocal = filter_var((string) Env::get('DEBITO_ALLOW_UNSIGNED_WEBHOOK_LOCAL', true), FILTER_VALIDATE_BOOL);
+            $allowUnsignedLocal = filter_var((string) Env::get('DEBITO_ALLOW_UNSIGNED_WEBHOOK_LOCAL', false), FILTER_VALIDATE_BOOL);
             if (!$this->isProduction() && $allowUnsignedLocal) {
                 $this->logger->info('Webhook sem assinatura permitido apenas em ambiente local controlado');
                 return true;
