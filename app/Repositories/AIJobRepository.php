@@ -35,6 +35,7 @@ final class AIJobRepository extends BaseRepository
                     updated_at = NOW()
                 WHERE (
                     status IN ('queued','pending')
+                    OR (status = 'retry_wait' AND (next_retry_at IS NULL OR next_retry_at <= NOW()))
                     OR (status = 'processing' AND processing_started_at IS NOT NULL AND processing_started_at < DATE_SUB(NOW(), INTERVAL :stale_seconds SECOND))
                     OR (status = 'reserved' AND reserved_at IS NOT NULL AND reserved_at < DATE_SUB(NOW(), INTERVAL 600 SECOND))
                 )
@@ -86,9 +87,11 @@ final class AIJobRepository extends BaseRepository
         $this->db->prepare("UPDATE ai_jobs
             SET status='completed',
                 result_json=:result_json,
+                error_text = NULL,
                 reservation_token = NULL,
                 reserved_at = NULL,
                 processing_started_at = NULL,
+                next_retry_at = NULL,
                 updated_at=NOW()
             WHERE id=:id")
             ->execute(['id' => $id, 'result_json' => json_encode($result, JSON_UNESCAPED_UNICODE)]);
@@ -102,8 +105,27 @@ final class AIJobRepository extends BaseRepository
                 reservation_token = NULL,
                 reserved_at = NULL,
                 processing_started_at = NULL,
+                next_retry_at = NULL,
                 updated_at=NOW()
             WHERE id=:id")
             ->execute(['id' => $id, 'error_text' => $error]);
+    }
+
+    public function markRetryWait(int $id, string $error, int $delaySeconds): void
+    {
+        $delaySeconds = max(30, min(7200, $delaySeconds));
+        $stmt = $this->db->prepare("UPDATE ai_jobs
+            SET status = 'retry_wait',
+                error_text = :error_text,
+                reservation_token = NULL,
+                reserved_at = NULL,
+                processing_started_at = NULL,
+                next_retry_at = DATE_ADD(NOW(), INTERVAL :delay_seconds SECOND),
+                updated_at = NOW()
+            WHERE id = :id");
+        $stmt->bindValue('id', $id, \PDO::PARAM_INT);
+        $stmt->bindValue('error_text', $error);
+        $stmt->bindValue('delay_seconds', $delaySeconds, \PDO::PARAM_INT);
+        $stmt->execute();
     }
 }

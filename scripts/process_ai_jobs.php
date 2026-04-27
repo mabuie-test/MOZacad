@@ -16,6 +16,7 @@ $logger = new ApplicationLoggerService();
 
 $limit = max(1, (int) ($_ENV['AI_JOB_BATCH_LIMIT'] ?? 5));
 $staleTimeout = max(300, (int) ($_ENV['AI_JOB_STALE_PROCESSING_TIMEOUT'] ?? 1800));
+$maxAttempts = max(1, (int) ($_ENV['AI_JOB_MAX_ATTEMPTS'] ?? 4));
 $jobs = $repo->reserveQueued($limit, $staleTimeout);
 if ($jobs === []) {
     echo "Nenhum AI job pendente.\n";
@@ -47,8 +48,30 @@ foreach ($jobs as $row) {
         $logger->info('ai_job.processing.completed', ['job_id' => $jobId, 'order_id' => $orderId, 'result' => $result]);
         echo sprintf("AI job %d concluído para order %d\n", $jobId, $orderId);
     } catch (Throwable $e) {
+        $attempts = (int) ($row['attempts'] ?? 0) + 1;
+        if ($attempts < $maxAttempts) {
+            $delaySeconds = min(1800, (int) pow(2, max(1, $attempts)) * 60);
+            $repo->markRetryWait($jobId, $e->getMessage(), $delaySeconds);
+            $logger->error('ai_job.processing.retry_scheduled', [
+                'job_id' => $jobId,
+                'order_id' => $orderId,
+                'attempt' => $attempts,
+                'max_attempts' => $maxAttempts,
+                'retry_in_seconds' => $delaySeconds,
+                'error' => $e->getMessage(),
+            ]);
+            echo sprintf("AI job %d falhou (tentativa %d/%d). Reagendado em %ds.\n", $jobId, $attempts, $maxAttempts, $delaySeconds);
+            continue;
+        }
+
         $repo->markFailed($jobId, $e->getMessage());
-        $logger->error('ai_job.processing.failed', ['job_id' => $jobId, 'order_id' => $orderId, 'error' => $e->getMessage()]);
-        echo sprintf("AI job %d falhou: %s\n", $jobId, $e->getMessage());
+        $logger->error('ai_job.processing.failed_terminal', [
+            'job_id' => $jobId,
+            'order_id' => $orderId,
+            'attempt' => $attempts,
+            'max_attempts' => $maxAttempts,
+            'error' => $e->getMessage(),
+        ]);
+        echo sprintf("AI job %d falhou definitivamente após %d tentativas: %s\n", $jobId, $attempts, $e->getMessage());
     }
 }

@@ -25,7 +25,7 @@ final class PaymentWebhookService
         $normalizedHeaders = $this->normalizeHeaders($headers);
         $this->logger->info('Webhook Débito recebido', ['headers' => $this->sanitizeHeadersForLog($normalizedHeaders)]);
 
-        $enabled = filter_var((string) Env::get('DEBITO_ENABLE_WEBHOOK', true), FILTER_VALIDATE_BOOL);
+        $enabled = filter_var((string) Env::get('DEBITO_ENABLE_WEBHOOK', false), FILTER_VALIDATE_BOOL);
         if (!$enabled) {
             return ['received' => true, 'processed' => false, 'http_status' => 202, 'reason' => 'webhook_disabled'];
         }
@@ -88,7 +88,7 @@ final class PaymentWebhookService
         $secret = trim((string) Env::get('DEBITO_WEBHOOK_SECRET', ''));
         if ($secret === '') {
             $allowUnsignedLocal = filter_var((string) Env::get('DEBITO_ALLOW_UNSIGNED_WEBHOOK_LOCAL', false), FILTER_VALIDATE_BOOL);
-            if (!$this->isProduction() && $allowUnsignedLocal) {
+            if ($this->isLocalEnvironment() && $allowUnsignedLocal) {
                 $this->logger->info('Webhook sem assinatura permitido apenas em ambiente local controlado');
                 return true;
             }
@@ -122,12 +122,23 @@ final class PaymentWebhookService
             return false;
         }
 
+        if (!$this->isLocalEnvironment()) {
+            $this->logger->error('Webhook desativado fora de ambiente local por ausência de segredo (DEBITO_WEBHOOK_SECRET vazio)');
+            return false;
+        }
+
         return true;
     }
 
     private function isProduction(): bool
     {
         return strtolower(trim((string) Env::get('APP_ENV', 'production'))) === 'production';
+    }
+
+    private function isLocalEnvironment(): bool
+    {
+        $env = strtolower(trim((string) Env::get('APP_ENV', 'production')));
+        return in_array($env, ['local', 'development', 'dev'], true);
     }
 
     private function extractReference(array $payload): string

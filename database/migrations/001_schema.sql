@@ -228,7 +228,7 @@ CREATE TABLE payments (
 );
 CREATE TABLE debito_transactions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  payment_id BIGINT UNSIGNED NOT NULL,
+  payment_id BIGINT UNSIGNED NULL,
   wallet_id VARCHAR(40) NOT NULL,
   debito_reference VARCHAR(100) NULL,
   request_payload_json JSON NOT NULL,
@@ -359,6 +359,7 @@ CREATE TABLE ai_jobs (
   payload_json JSON NULL,
   result_json JSON NULL,
   error_text TEXT NULL,
+  next_retry_at DATETIME NULL,
   created_at TIMESTAMP NULL,
   updated_at TIMESTAMP NULL
 );

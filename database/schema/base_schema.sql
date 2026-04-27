@@ -273,7 +273,7 @@ CREATE TABLE payments (
 
 CREATE TABLE debito_transactions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  payment_id BIGINT UNSIGNED NOT NULL,
+  payment_id BIGINT UNSIGNED NULL,
   wallet_id VARCHAR(40) NOT NULL,
   debito_reference VARCHAR(100) NULL,
   request_payload_json JSON NOT NULL,
@@ -482,6 +482,7 @@ CREATE TABLE ai_jobs (
   reserved_at DATETIME NULL,
   processing_started_at DATETIME NULL,
   attempts INT NOT NULL DEFAULT 0,
+  next_retry_at DATETIME NULL,
   created_at TIMESTAMP NULL,
   updated_at TIMESTAMP NULL,
   INDEX idx_ai_jobs_order_id (order_id),

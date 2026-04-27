@@ -39,43 +39,25 @@ final class AdminCommercialService
 
     public function createDiscount(array $input, int $adminId): ?int
     {
-        $userId = (int) ($input['user_id'] ?? 0);
-        $type = (string) ($input['discount_type'] ?? '');
-        $value = (float) ($input['discount_value'] ?? 0);
-        if ($userId <= 0 || !in_array($type, ['percent', 'fixed', 'extra_waiver'], true) || $value < 0) {
+        $payload = $this->discountPayloadFromRequest($input, true);
+        if ($payload === null) {
             return null;
         }
 
-        return (new UserDiscountRepository())->create([
-            'user_id' => $userId,
-            'name' => trim((string) ($input['name'] ?? 'Desconto personalizado')),
-            'discount_type' => $type,
-            'discount_value' => $value,
-            'work_type_id' => !empty($input['work_type_id']) ? (int) $input['work_type_id'] : null,
-            'extra_code' => $input['extra_code'] ?? null,
-            'usage_limit' => !empty($input['usage_limit']) ? (int) $input['usage_limit'] : null,
-            'starts_at' => $input['starts_at'] ?? null,
-            'ends_at' => $input['ends_at'] ?? null,
-            'is_active' => !empty($input['is_active']) ? 1 : 0,
+        return (new UserDiscountRepository())->create($payload + [
             'created_by_admin_id' => $adminId,
-            'notes' => $input['notes'] ?? null,
         ]);
     }
 
-    public function updateDiscount(int $id, array $input): void
+    public function updateDiscount(int $id, array $input): bool
     {
-        (new UserDiscountRepository())->update($id, [
-            'name' => trim((string) ($input['name'] ?? 'Desconto personalizado')),
-            'discount_type' => (string) ($input['discount_type'] ?? 'fixed'),
-            'discount_value' => (float) ($input['discount_value'] ?? 0),
-            'work_type_id' => !empty($input['work_type_id']) ? (int) $input['work_type_id'] : null,
-            'extra_code' => $input['extra_code'] ?? null,
-            'usage_limit' => !empty($input['usage_limit']) ? (int) $input['usage_limit'] : null,
-            'starts_at' => $input['starts_at'] ?? null,
-            'ends_at' => $input['ends_at'] ?? null,
-            'is_active' => !empty($input['is_active']) ? 1 : 0,
-            'notes' => $input['notes'] ?? null,
-        ]);
+        $payload = $this->discountPayloadFromRequest($input, false);
+        if ($payload === null) {
+            return false;
+        }
+
+        (new UserDiscountRepository())->update($id, $payload);
+        return true;
     }
 
     public function createCoupon(array $payload): ?int
@@ -112,5 +94,59 @@ final class AdminCommercialService
         }
 
         return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function discountPayloadFromRequest(array $input, bool $requireUserId): ?array
+    {
+        $userId = (int) ($input['user_id'] ?? 0);
+        $type = trim((string) ($input['discount_type'] ?? ''));
+        $value = (float) ($input['discount_value'] ?? -1);
+        $workTypeId = !empty($input['work_type_id']) ? (int) $input['work_type_id'] : null;
+        $extraCodeRaw = trim((string) ($input['extra_code'] ?? ''));
+        $extraCode = $extraCodeRaw !== '' ? $extraCodeRaw : null;
+        $usageLimit = !empty($input['usage_limit']) ? (int) $input['usage_limit'] : null;
+        $startsAt = $this->normalizeDateTime($input['starts_at'] ?? null);
+        $endsAt = $this->normalizeDateTime($input['ends_at'] ?? null);
+
+        if ($requireUserId && $userId <= 0) {
+            return null;
+        }
+        if (!in_array($type, ['percent', 'fixed', 'extra_waiver'], true)) {
+            return null;
+        }
+        if ($value < 0) {
+            return null;
+        }
+        if ($type === 'percent' && $value > 100) {
+            return null;
+        }
+        if ($type === 'extra_waiver' && $extraCode === null) {
+            return null;
+        }
+        if ($usageLimit !== null && $usageLimit <= 0) {
+            return null;
+        }
+        if ($startsAt !== null && $endsAt !== null && strtotime($startsAt) > strtotime($endsAt)) {
+            return null;
+        }
+
+        $payload = [
+            'name' => trim((string) ($input['name'] ?? 'Desconto personalizado')),
+            'discount_type' => $type,
+            'discount_value' => $value,
+            'work_type_id' => $workTypeId,
+            'extra_code' => $extraCode,
+            'usage_limit' => $usageLimit,
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'is_active' => !empty($input['is_active']) ? 1 : 0,
+            'notes' => trim((string) ($input['notes'] ?? '')) ?: null,
+        ];
+
+        if ($requireUserId) {
+            $payload['user_id'] = $userId;
+        }
+
+        return $payload;
     }
 }
