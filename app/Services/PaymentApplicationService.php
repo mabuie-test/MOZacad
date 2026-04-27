@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
 use RuntimeException;
+use Throwable;
 
 final class PaymentApplicationService
 {
@@ -14,6 +15,9 @@ final class PaymentApplicationService
         private readonly OrderPaymentFlowService $flow = new OrderPaymentFlowService(),
         private readonly PaymentRepository $payments = new PaymentRepository(),
         private readonly OrderRepository $orders = new OrderRepository(),
+        private readonly PaymentProviderInterface $provider = new DebitoMpesaProvider(),
+        private readonly DebitoStatusMapper $mapper = new DebitoStatusMapper(),
+        private readonly PaymentStateTransitionService $transitions = new PaymentStateTransitionService(),
         private readonly ApplicationLoggerService $logger = new ApplicationLoggerService(),
     ) {}
 
@@ -53,6 +57,46 @@ final class PaymentApplicationService
         }
 
         return $payment;
+    }
+
+    public function refreshUserPaymentStatus(int $paymentId, int $userId): ?array
+    {
+        $payment = $this->payments->findById($paymentId);
+        if ($payment === null || (int) $payment['user_id'] !== $userId) {
+            return null;
+        }
+
+        $currentStatus = (string) ($payment['status'] ?? 'pending');
+        if (in_array($currentStatus, ['paid', 'failed', 'cancelled', 'expired'], true)) {
+            return $payment;
+        }
+
+        $externalReference = trim((string) ($payment['external_reference'] ?? ''));
+        if ($externalReference === '') {
+            return $payment;
+        }
+
+        try {
+            $statusPayload = $this->provider->checkStatus($externalReference);
+            $providerStatus = (string) ($statusPayload['provider_status'] ?? 'PENDING');
+            $internalStatus = $this->mapper->map($providerStatus);
+            $this->transitions->apply(
+                $payment,
+                $externalReference,
+                $internalStatus,
+                $providerStatus,
+                $statusPayload['raw'] ?? [],
+                'user_status_refresh'
+            );
+        } catch (Throwable $e) {
+            $this->logger->error('payment.refresh.failed', [
+                'payment_id' => $paymentId,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->payments->findById($paymentId) ?? $payment;
     }
 
     public function userOrderById(int $orderId, int $userId): ?array

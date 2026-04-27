@@ -14,6 +14,7 @@ final class DebitoStatusMapper
             'pending', 'created', 'queued' => 'pending',
             'processing', 'in_progress', 'authorizing' => 'processing',
             'waiting_confirmation', 'awaiting_confirmation' => 'pending_confirmation',
+            'confirmed', 'confirmado', 'confirmada', 'approved', 'aprovado', 'aprovada' => 'paid',
             'paid', 'success', 'successful', 'completed', 'complete', 'concluido', 'concluído' => 'paid',
             'failed', 'error', 'declined', 'denied', 'rejected' => 'failed',
             'cancelled', 'canceled' => 'cancelled',
@@ -38,7 +39,10 @@ final class DebitoStatusMapper
 
         if (str_contains($providerStatus, 'succes')
             || str_contains($providerStatus, 'complet')
-            || str_contains($providerStatus, 'conclu')) {
+            || str_contains($providerStatus, 'conclu')
+            || str_contains($providerStatus, 'confirm')
+            || str_contains($providerStatus, 'approv')
+            || str_contains($providerStatus, 'aprov')) {
             return 'paid';
         }
 

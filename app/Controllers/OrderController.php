@@ -157,6 +157,12 @@ final class OrderController extends BaseController
         $paymentRepo = new PaymentRepository();
         $invoice = $invoiceRepo->findOpenByOrderId($id) ?? $invoiceRepo->findLatestByOrderId($id);
         $payment = $paymentRepo->findOpenByOrderId($id) ?? $paymentRepo->findLatestByOrderId($id);
+        if (is_array($payment) && isset($payment['id'])) {
+            (new PaymentApplicationService())->refreshUserPaymentStatus((int) $payment['id'], $userId);
+            $order = (new OrderRepository())->findDetailedById($id) ?? $order;
+            $invoice = $invoiceRepo->findOpenByOrderId($id) ?? $invoiceRepo->findLatestByOrderId($id);
+            $payment = $paymentRepo->findOpenByOrderId($id) ?? $paymentRepo->findLatestByOrderId($id);
+        }
         $paymentHistory = array_values(array_filter($paymentRepo->listRecentByUser($userId, 50), static fn (array $row): bool => (int) ($row['order_id'] ?? 0) === $id));
         $documents = array_values(array_filter((new GeneratedDocumentRepository())->listByUser($userId, 50), static fn(array $doc): bool => (int) $doc['order_id'] === $id));
         $revision = (new RevisionRepository())->findLatestByOrderId($id);

@@ -65,7 +65,9 @@ final class PaymentController extends BaseController
         if ($userId <= 0) return;
         if ($this->isApiRequest() && !$this->requireFirstPartyApiAccess()) return;
 
-        $payment = (new PaymentApplicationService())->userPaymentStatus($id, $userId);
+        $paymentService = new PaymentApplicationService();
+        $payment = $paymentService->refreshUserPaymentStatus($id, $userId)
+            ?? $paymentService->userPaymentStatus($id, $userId);
         if ($payment === null) {
             $this->errorResponse('Pagamento não encontrado.', 404, '/orders');
             return;
