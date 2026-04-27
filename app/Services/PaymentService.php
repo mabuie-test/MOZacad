@@ -104,6 +104,31 @@ final class PaymentService
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
+
+            if ($this->isActiveTransactionConflict($e)) {
+                $reusedPayment = $this->payments->findOpenByOrderId((int) ($context['order_id'] ?? 0))
+                    ?? $this->payments->findLatestByOrderId((int) ($context['order_id'] ?? 0));
+
+                if ($reusedPayment !== null) {
+                    $this->logger->info('Débito initiation reused after active transaction conflict', [
+                        'order_id' => $context['order_id'] ?? null,
+                        'payment_id' => (int) ($reusedPayment['id'] ?? 0),
+                    ]);
+
+                    return [
+                        'payment_id' => (int) ($reusedPayment['id'] ?? 0),
+                        'internal_reference' => (string) ($reusedPayment['internal_reference'] ?? ''),
+                        'debito_reference' => (string) ($reusedPayment['external_reference'] ?? ''),
+                        'status' => (string) ($reusedPayment['status'] ?? 'pending'),
+                        'provider_status' => (string) ($reusedPayment['provider_status'] ?? 'PENDING'),
+                        'reused_pending_payment' => true,
+                        'recovered_from_provider_conflict' => true,
+                    ];
+                }
+
+                throw new RuntimeException('Já existe uma transação ativa para este número. Aguarde alguns segundos e volte a confirmar o pagamento.', 0, $e);
+            }
+
             $this->logger->error('Débito initiation failed', [
                 'payment_id' => $paymentId,
                 'order_id' => $context['order_id'] ?? null,
@@ -139,5 +164,17 @@ final class PaymentService
     private function buildInternalReference(): string
     {
         return Env::get('PAYMENT_REFERENCE_PREFIX', 'PAY') . '-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(4)));
+    }
+
+    private function isActiveTransactionConflict(Throwable $e): bool
+    {
+        $message = mb_strtolower(trim($e->getMessage()));
+        if ($message === '') {
+            return false;
+        }
+
+        return str_contains($message, 'active transaction')
+            || str_contains($message, 'already an active transaction')
+            || str_contains($message, 'transação ativa');
     }
 }
