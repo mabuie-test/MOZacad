@@ -43,6 +43,7 @@ final class PaymentService
 
             $existingOpen = $this->payments->findOpenByOrderId((int) $context['order_id']);
             if ($existingOpen !== null) {
+                $existingOpen = $this->refreshReusedPaymentStatus($existingOpen, 'initiate_reuse_existing');
                 $db->commit();
                 return [
                     'payment_id' => (int) $existingOpen['id'],
@@ -110,6 +111,7 @@ final class PaymentService
                     ?? $this->payments->findLatestByOrderId((int) ($context['order_id'] ?? 0));
 
                 if ($reusedPayment !== null) {
+                    $reusedPayment = $this->refreshReusedPaymentStatus($reusedPayment, 'initiate_reuse_conflict');
                     $this->logger->info('Débito initiation reused after active transaction conflict', [
                         'order_id' => $context['order_id'] ?? null,
                         'payment_id' => (int) ($reusedPayment['id'] ?? 0),
@@ -176,5 +178,45 @@ final class PaymentService
         return str_contains($message, 'active transaction')
             || str_contains($message, 'already an active transaction')
             || str_contains($message, 'transação ativa');
+    }
+
+    private function refreshReusedPaymentStatus(array $payment, string $source): array
+    {
+        $paymentId = (int) ($payment['id'] ?? 0);
+        if ($paymentId <= 0) {
+            return $payment;
+        }
+
+        $status = (string) ($payment['status'] ?? 'pending');
+        if (in_array($status, ['paid', 'failed', 'cancelled', 'expired'], true)) {
+            return $payment;
+        }
+
+        $reference = trim((string) ($payment['external_reference'] ?? ''));
+        if ($reference === '') {
+            return $payment;
+        }
+
+        try {
+            $statusPayload = $this->provider->checkStatus($reference);
+            $providerStatus = (string) ($statusPayload['provider_status'] ?? 'PENDING');
+            $internalStatus = $this->statusMapper->map($providerStatus);
+            $this->transitions->apply(
+                $payment,
+                $reference,
+                $internalStatus,
+                $providerStatus,
+                is_array($statusPayload['raw'] ?? null) ? $statusPayload['raw'] : [],
+                $source
+            );
+        } catch (Throwable $e) {
+            $this->logger->error('Débito reused payment refresh failed', [
+                'payment_id' => $paymentId,
+                'source' => $source,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->payments->findById($paymentId) ?? $payment;
     }
 }
