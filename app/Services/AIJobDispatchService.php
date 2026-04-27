@@ -28,17 +28,24 @@ final class AIJobDispatchService
 
         $stage = 'document_generation';
         $db = Database::connect();
-        $db->beginTransaction();
+        $managesTransaction = !$db->inTransaction();
+        if ($managesTransaction) {
+            $db->beginTransaction();
+        }
         try {
             $lockedOrder = $this->orders->lockByIdForUpdate($orderId);
             if (!is_array($lockedOrder)) {
-                $db->rollBack();
+                if ($managesTransaction && $db->inTransaction()) {
+                    $db->rollBack();
+                }
                 return null;
             }
 
             $existing = $this->jobs->findOpenByOrderAndStage($orderId, $stage);
             if ($existing !== null) {
-                $db->commit();
+                if ($managesTransaction) {
+                    $db->commit();
+                }
                 $this->logger->info('AI job dispatch skipped (open job exists)', [
                     'order_id' => $orderId,
                     'existing_job_id' => (int) $existing['id'],
@@ -62,9 +69,11 @@ final class AIJobDispatchService
             ];
 
             $jobId = $this->jobs->create($orderId, $stage, 'queued', $payload);
-            $db->commit();
+            if ($managesTransaction) {
+                $db->commit();
+            }
         } catch (Throwable $e) {
-            if ($db->inTransaction()) {
+            if ($managesTransaction && $db->inTransaction()) {
                 $db->rollBack();
             }
             throw $e;

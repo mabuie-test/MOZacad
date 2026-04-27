@@ -111,6 +111,11 @@ final class PaymentService
                     ?? $this->payments->findLatestByOrderId((int) ($context['order_id'] ?? 0));
 
                 if ($reusedPayment !== null) {
+                    $existingReference = trim((string) ($reusedPayment['external_reference'] ?? ''));
+                    if ($existingReference === '') {
+                        throw new RuntimeException('Já existe uma transação activa sem referência externa associada. Contacte o suporte para reconciliar o pagamento sem duplicações.', 0, $e);
+                    }
+
                     $reusedPayment = $this->refreshReusedPaymentStatus($reusedPayment, 'initiate_reuse_conflict');
                     $this->logger->info('Débito initiation reused after active transaction conflict', [
                         'order_id' => $context['order_id'] ?? null,

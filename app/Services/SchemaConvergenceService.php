@@ -145,9 +145,15 @@ final class SchemaConvergenceService
 
         $checks = [
             ['table' => 'institutions', 'column' => 'slug'],
+            ['table' => 'payments', 'column' => 'provider_status'],
+            ['table' => 'payments', 'column' => 'external_reference'],
+            ['table' => 'payments', 'column' => 'paid_at'],
             ['table' => 'ai_jobs', 'column' => 'reservation_token'],
             ['table' => 'ai_jobs', 'column' => 'attempts'],
             ['table' => 'ai_jobs', 'column' => 'next_retry_at'],
+            ['table' => 'generated_documents', 'column' => 'file_path'],
+            ['table' => 'generated_documents', 'column' => 'status'],
+            ['table' => 'generated_documents', 'column' => 'version'],
             ['table' => 'human_review_queue', 'column' => 'generated_document_id'],
             ['table' => 'human_review_queue', 'column' => 'generated_document_version'],
             ['table' => 'revisions', 'column' => 'generated_document_id'],

@@ -108,6 +108,19 @@ final class PaymentRepository extends BaseRepository
         return $stmt->fetchAll();
     }
 
+    public function findSuccessfulButNotPaid(int $limit = 200): array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM payments
+            WHERE status IN ('pending','processing','pending_confirmation')
+              AND UPPER(TRIM(COALESCE(provider_status, ''))) = 'SUCCESSFUL'
+            ORDER BY updated_at ASC, id ASC
+            LIMIT :limit");
+        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll();
+    }
+
     public function markPaid(int $id, string $providerStatus): void
     {
         $stmt = $this->db->prepare('UPDATE payments SET status = :status, provider_status = :provider_status, paid_at = NOW(), updated_at = NOW() WHERE id = :id');

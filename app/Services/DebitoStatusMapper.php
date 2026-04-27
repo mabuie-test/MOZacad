@@ -8,23 +8,35 @@ final class DebitoStatusMapper
 {
     public function map(string $providerStatus): string
     {
-        $normalized = strtolower(trim($providerStatus));
+        $normalized = $this->normalize($providerStatus);
 
         return match ($normalized) {
             'pending', 'created', 'queued' => 'pending',
-            'processing', 'in_progress', 'authorizing' => 'processing',
-            'waiting_confirmation', 'awaiting_confirmation' => 'pending_confirmation',
+            'processing', 'inprogress', 'authorizing' => 'processing',
+            'waitingconfirmation', 'awaitingconfirmation' => 'pending_confirmation',
             'confirmed', 'confirmado', 'confirmada', 'approved', 'aprovado', 'aprovada' => 'paid',
             'paid', 'success', 'successful', 'completed', 'complete', 'concluido', 'concluído' => 'paid',
-            'failed', 'error', 'declined', 'denied', 'rejected' => 'failed',
+            'transactionsuccessful', 'completedsuccessfully' => 'paid',
+            'failed', 'error', 'declined', 'denied', 'rejected', 'unsuccessful' => 'failed',
             'cancelled', 'canceled' => 'cancelled',
-            'expired', 'timeout', 'timed_out' => 'expired',
+            'expired', 'timeout', 'timedout' => 'expired',
             default => $this->fallbackStateForUnknown($normalized),
         };
     }
 
+    private function normalize(string $providerStatus): string
+    {
+        $normalized = strtolower(trim($providerStatus));
+        $normalized = str_replace([' ', '-', '_'], '', $normalized);
+        return $normalized;
+    }
+
     private function fallbackStateForUnknown(string $providerStatus): string
     {
+        if (str_contains($providerStatus, 'unsuccess')) {
+            return 'failed';
+        }
+
         if (str_contains($providerStatus, 'fail') || str_contains($providerStatus, 'error')) {
             return 'failed';
         }
