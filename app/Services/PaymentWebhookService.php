@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Helpers\Env;
 use App\Repositories\PaymentRepository;
+use App\Repositories\WebhookReplayRepository;
 use RuntimeException;
 
 final class PaymentWebhookService
@@ -13,6 +14,7 @@ final class PaymentWebhookService
     public function __construct(
         private readonly DebitoLoggerService $logger = new DebitoLoggerService(),
         private readonly PaymentRepository $payments = new PaymentRepository(),
+        private readonly WebhookReplayRepository $replayEvents = new WebhookReplayRepository(),
         private readonly DebitoStatusMapper $statusMapper = new DebitoStatusMapper(),
         private readonly PaymentStateTransitionService $transitions = new PaymentStateTransitionService(),
     ) {}
@@ -43,6 +45,10 @@ final class PaymentWebhookService
             return ['received' => false, 'processed' => false, 'http_status' => 400, 'reason' => 'invalid_json'];
         }
 
+        if (!$this->validateFreshness($payload, $normalizedHeaders)) {
+            return ['received' => true, 'processed' => false, 'http_status' => 401, 'reason' => 'stale_or_invalid_timestamp'];
+        }
+
         $reference = $this->extractReference($payload);
         if ($reference === '') {
             return ['received' => true, 'processed' => false, 'http_status' => 422, 'reason' => 'missing_reference'];
@@ -55,6 +61,25 @@ final class PaymentWebhookService
 
         $providerStatus = $this->extractProviderStatus($payload);
         $internalStatus = $this->statusMapper->map($providerStatus);
+        $eventKey = $this->resolveEventKey($rawBody, $payload);
+        $ttlSeconds = max(60, (int) Env::get('DEBITO_WEBHOOK_REPLAY_TTL_SECONDS', 86400));
+        $signatureHash = hash('sha256', (string) ($normalizedHeaders['x_debito_signature'] ?? $normalizedHeaders['x_webhook_signature'] ?? ''));
+        $payloadHash = hash('sha256', $rawBody);
+        $eventTimestamp = $this->resolveEventTimestampIso($payload, $normalizedHeaders);
+
+        $this->replayEvents->purgeExpired('debito');
+        $replay = $this->replayEvents->registerEvent('debito', $eventKey, $signatureHash, $payloadHash, $ttlSeconds, $eventTimestamp);
+        if (($replay['accepted'] ?? false) !== true) {
+            $this->logger->info('Webhook Débito replay bloqueado', ['event_key' => $eventKey, 'reference' => $reference, 'hit_count' => (int) ($replay['hit_count'] ?? 0)]);
+            if ((int) ($replay['hit_count'] ?? 0) >= 5) {
+                (new ApplicationLoggerService())->alert('payment.webhook.replay.suspicious', [
+                    'event_key' => $eventKey,
+                    'reference' => $reference,
+                    'hit_count' => (int) ($replay['hit_count'] ?? 0),
+                ]);
+            }
+            return ['received' => true, 'processed' => false, 'http_status' => 202, 'reason' => 'replay_detected'];
+        }
 
         try {
             $updated = $this->transitions->apply(
@@ -69,7 +94,9 @@ final class PaymentWebhookService
             $this->logger->error('Webhook Débito falhou', [
                 'reference' => $reference,
                 'error' => $e->getMessage(),
+                'event_key' => $eventKey,
             ]);
+            $this->replayEvents->release('debito', $eventKey);
             throw new RuntimeException('processing_error', 0, $e);
         }
 
@@ -81,6 +108,87 @@ final class PaymentWebhookService
             'payment_id' => (int) $payment['id'],
             'status' => $internalStatus,
         ];
+    }
+
+    private function validateFreshness(array $payload, array $headers): bool
+    {
+        $maxSkewSeconds = max(60, (int) Env::get('DEBITO_WEBHOOK_MAX_SKEW_SECONDS', 900));
+        $requireTimestamp = filter_var((string) Env::get('DEBITO_WEBHOOK_REQUIRE_TIMESTAMP', true), FILTER_VALIDATE_BOOL);
+        if ($this->isProduction()) {
+            $requireTimestamp = true;
+        }
+        $timestamp = $headers['x_debito_timestamp']
+            ?? $headers['x_webhook_timestamp']
+            ?? $payload['timestamp']
+            ?? $payload['event_time']
+            ?? $payload['data']['timestamp']
+            ?? null;
+
+        if ($timestamp === null || trim((string) $timestamp) === '') {
+            return !$requireTimestamp;
+        }
+
+        $raw = trim((string) $timestamp);
+        if (ctype_digit($raw)) {
+            $eventTs = (int) $raw;
+            if ($eventTs > 9999999999) {
+                $eventTs = (int) floor($eventTs / 1000);
+            }
+        } else {
+            $parsed = strtotime($raw);
+            if ($parsed === false) {
+                return false;
+            }
+            $eventTs = $parsed;
+        }
+
+        return abs(time() - $eventTs) <= $maxSkewSeconds;
+    }
+
+    private function resolveEventKey(string $rawBody, array $payload): string
+    {
+        $candidate = trim((string) (
+            $payload['event_id']
+            ?? $payload['idempotency_key']
+            ?? $payload['id']
+            ?? ''
+        ));
+
+        if ($candidate !== '' && preg_match('/^[A-Za-z0-9._\-:\/]{6,190}$/', $candidate) === 1) {
+            return $candidate;
+        }
+
+        return 'hash:' . hash('sha256', $rawBody);
+    }
+
+    private function resolveEventTimestampIso(array $payload, array $headers): ?string
+    {
+        $timestamp = $headers['x_debito_timestamp']
+            ?? $headers['x_webhook_timestamp']
+            ?? $payload['timestamp']
+            ?? $payload['event_time']
+            ?? $payload['data']['timestamp']
+            ?? null;
+
+        if ($timestamp === null || trim((string) $timestamp) === '') {
+            return null;
+        }
+
+        $raw = trim((string) $timestamp);
+        if (ctype_digit($raw)) {
+            $eventTs = (int) $raw;
+            if ($eventTs > 9999999999) {
+                $eventTs = (int) floor($eventTs / 1000);
+            }
+            return date('Y-m-d H:i:s', $eventTs);
+        }
+
+        $parsed = strtotime($raw);
+        if ($parsed === false) {
+            return null;
+        }
+
+        return date('Y-m-d H:i:s', $parsed);
     }
 
     private function validateSignature(string $rawBody, array $headers): bool

@@ -91,6 +91,7 @@ return static function (Router $router): void {
         $router->post('/institution-work-type-rules', [AdminGovernanceController::class, 'saveInstitutionWorkTypeRule'], [$csrf]);
         $router->post('/templates/norms', [AdminGovernanceController::class, 'publishNorm'], [$csrf]);
         $router->post('/templates/work-type', [AdminGovernanceController::class, 'publishWorkTypeTemplate'], [$csrf]);
+        $router->post('/templates/artifacts/{artifactId}/activate', [AdminGovernanceController::class, 'activateTemplateArtifact'], [$csrf]);
         $router->post('/discounts', [AdminCommercialController::class, 'createDiscount'], [$csrf]);
         $router->post('/discounts/{id}', [AdminCommercialController::class, 'updateDiscount'], [$csrf]);
         $router->post('/coupons', [AdminCommercialController::class, 'createCoupon'], [$csrf]);

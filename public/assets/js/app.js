@@ -99,6 +99,42 @@
   bindAjaxForm('[data-order-create]', (payload) => payload.order_id && (window.location.href = `/orders/${payload.order_id}`));
   bindAjaxForm('[data-order-pay]', (payload) => payload.order_id && (window.location.href = `/orders/${payload.order_id}`));
   bindAjaxForm('[data-revision-form]', () => window.location.reload());
+  bindAjaxForm('[data-admin-pricing-rule-form]');
+  bindAjaxForm('[data-admin-pricing-extra-form]');
+
+  const bindSemanticPricingValidation = () => {
+    document.querySelectorAll('[data-admin-pricing-rule-form], [data-admin-pricing-extra-form]').forEach((form) => {
+      form.addEventListener('submit', (event) => {
+        const ruleCode = form.querySelector('input[name="rule_code"]');
+        const extraCode = form.querySelector('input[name="extra_code"]');
+        const amount = form.querySelector('input[name="amount"]');
+
+        if (ruleCode && !/^[A-Z0-9_.:-]{3,100}$/.test((ruleCode.value || '').trim().toUpperCase())) {
+          event.preventDefault();
+          setFeedback(form, 'rule_code inválido. Use A-Z, 0-9, _, ., :, - (3-100).', 'warning');
+          ruleCode.focus();
+          return;
+        }
+
+        if (extraCode && !/^[A-Z0-9_.:-]{3,100}$/.test((extraCode.value || '').trim().toUpperCase())) {
+          event.preventDefault();
+          setFeedback(form, 'extra_code inválido. Use A-Z, 0-9, _, ., :, - (3-100).', 'warning');
+          extraCode.focus();
+          return;
+        }
+
+        if (amount) {
+          const value = Number.parseFloat(amount.value || '');
+          if (!Number.isFinite(value) || value < 0 || value > 10000000) {
+            event.preventDefault();
+            setFeedback(form, 'amount deve estar entre 0 e 10000000.', 'warning');
+            amount.focus();
+          }
+        }
+      });
+    });
+  };
+  bindSemanticPricingValidation();
 
   const createForm = document.querySelector('[data-order-create]');
   if (!createForm) return;

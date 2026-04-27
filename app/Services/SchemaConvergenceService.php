@@ -88,6 +88,20 @@ final class SchemaConvergenceService
               UNIQUE KEY uq_auth_login_attempts_email_ip (email, ip_address),
               INDEX idx_auth_login_attempts_locked_until (locked_until)
             )",
+
+            "CREATE TABLE IF NOT EXISTS webhook_replay_events (
+              id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              provider VARCHAR(40) NOT NULL,
+              event_key VARCHAR(190) NOT NULL,
+              signature_hash CHAR(64) NOT NULL,
+              payload_hash CHAR(64) NOT NULL,
+              received_at DATETIME NOT NULL,
+              expires_at DATETIME NULL,
+              created_at TIMESTAMP NULL,
+              UNIQUE KEY uq_webhook_replay_provider_event (provider, event_key),
+              INDEX idx_webhook_replay_expires (expires_at),
+              INDEX idx_webhook_replay_provider_received (provider, received_at)
+            )",
         ];
 
         if ($applyRepairs) {
@@ -122,6 +136,9 @@ final class SchemaConvergenceService
             ['table' => 'template_artifacts', 'column' => 'artifact_type'],
             ['table' => 'auth_login_attempts', 'column' => 'email'],
             ['table' => 'auth_login_attempts', 'column' => 'locked_until'],
+            ['table' => 'webhook_replay_events', 'column' => 'provider'],
+            ['table' => 'webhook_replay_events', 'column' => 'event_key'],
+            ['table' => 'webhook_replay_events', 'column' => 'expires_at'],
         ];
         foreach ($checks as $check) {
             if (!$this->columnExists($db, $check['table'], $check['column'])) {
@@ -137,6 +154,8 @@ final class SchemaConvergenceService
             ['table' => 'revisions', 'index' => 'idx_revisions_order_document'],
             ['table' => 'template_artifacts', 'index' => 'idx_template_artifacts_lookup'],
             ['table' => 'auth_login_attempts', 'index' => 'uq_auth_login_attempts_email_ip'],
+            ['table' => 'webhook_replay_events', 'index' => 'uq_webhook_replay_provider_event'],
+            ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_expires'],
         ];
         foreach ($indexChecks as $check) {
             if (!$this->indexExists($db, $check['table'], $check['index'])) {
