@@ -85,7 +85,10 @@ final class AdminCommercialController extends AdminActionController
     {
         if (!$this->guardAdminPost()) return;
 
-        (new AdminCommercialService())->updateDiscount($id, $_POST);
+        if (!(new AdminCommercialService())->updateDiscount($id, $_POST)) {
+            $this->adminError('Dados inválidos para atualizar desconto.', 422, '/admin/discounts');
+            return;
+        }
         $this->audit('admin.discount.updated', 'user_discount', $id);
         $this->adminSuccess('Desconto atualizado.', '/admin/discounts', ['discount_id' => $id]);
     }

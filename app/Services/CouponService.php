@@ -49,23 +49,43 @@ final class CouponService
         }
 
         $db = Database::connect();
-        $db->beginTransaction();
+        $ownsTransaction = !$db->inTransaction();
+        $savepoint = 'sp_coupon_consume_' . (string) random_int(1000, 999999);
+        if ($ownsTransaction) {
+            $db->beginTransaction();
+        } else {
+            $db->exec('SAVEPOINT ' . $savepoint);
+        }
+
         try {
             $coupon = $this->coupons->findActiveByCodeForUpdate($code);
             if ($coupon === null) {
-                $db->commit();
+                if ($ownsTransaction) {
+                    $db->commit();
+                } else {
+                    $db->exec('RELEASE SAVEPOINT ' . $savepoint);
+                }
                 return null;
             }
 
             $existing = $this->usage->findByOrderAndCouponForUpdate($orderId, (int) $coupon['id']);
             if ($existing !== null) {
-                $db->commit();
+                if ($ownsTransaction) {
+                    $db->commit();
+                } else {
+                    $db->exec('RELEASE SAVEPOINT ' . $savepoint);
+                }
                 return $coupon;
             }
 
             $reserved = $this->coupons->reserveUsageById((int) $coupon['id']);
             if (!$reserved) {
-                $db->rollBack();
+                if ($ownsTransaction) {
+                    $db->rollBack();
+                } else {
+                    $db->exec('ROLLBACK TO SAVEPOINT ' . $savepoint);
+                    $db->exec('RELEASE SAVEPOINT ' . $savepoint);
+                }
                 return null;
             }
 
@@ -76,12 +96,19 @@ final class CouponService
                 $code
             );
 
-            $db->commit();
+            if ($ownsTransaction) {
+                $db->commit();
+            } else {
+                $db->exec('RELEASE SAVEPOINT ' . $savepoint);
+            }
             $coupon['used_count'] = ((int) ($coupon['used_count'] ?? 0)) + 1;
             return $coupon;
         } catch (\Throwable $e) {
-            if ($db->inTransaction()) {
+            if ($ownsTransaction && $db->inTransaction()) {
                 $db->rollBack();
+            } elseif (!$ownsTransaction) {
+                $db->exec('ROLLBACK TO SAVEPOINT ' . $savepoint);
+                $db->exec('RELEASE SAVEPOINT ' . $savepoint);
             }
             throw $e;
         }

@@ -32,6 +32,7 @@ final class OrderApplicationService
         }
 
         $db = Database::connect();
+        $uploaded = [];
         try {
             $db->beginTransaction();
             $orderId = $this->orders->create($data);
@@ -85,8 +86,19 @@ final class OrderApplicationService
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
+            $this->cleanupUploadedFiles($uploaded);
             $this->logger->error('order.create.failed', ['user_id' => $userId, 'error' => $e->getMessage()]);
             throw $e;
+        }
+    }
+
+    private function cleanupUploadedFiles(array $uploaded): void
+    {
+        foreach ($uploaded as $row) {
+            $path = (string) ($row['path'] ?? '');
+            if ($path !== '' && is_file($path)) {
+                @unlink($path);
+            }
         }
     }
 
