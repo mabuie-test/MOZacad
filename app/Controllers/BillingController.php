@@ -52,13 +52,36 @@ final class BillingController extends BaseController
 
         try {
             $file = (new DocumentDownloadService())->resolve($documentId, $userId);
-            header('Content-Type: ' . $file['mime']);
-            header('Content-Disposition: attachment; filename="' . basename($file['download_name']) . '"');
-            header('Content-Length: ' . (string) filesize($file['path']));
+
+            while (ob_get_level() > 0) {
+                ob_end_clean();
+            }
+
+            @ini_set('display_errors', '0');
+
+            $path = (string) $file['path'];
+            $name = basename((string) $file['download_name']);
+            $size = filesize($path);
+            if ($size === false) {
+                throw new RuntimeException('Não foi possível ler o ficheiro para download.');
+            }
+
+            header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+            header('Content-Disposition: attachment; filename="' . $name . '"');
+            header('Content-Transfer-Encoding: binary');
+            header('Content-Length: ' . (string) $size);
             header('X-Content-Type-Options: nosniff');
             header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
             header('Pragma: no-cache');
-            readfile($file['path']);
+
+            $handle = fopen($path, 'rb');
+            if ($handle === false) {
+                throw new RuntimeException('Falha ao abrir ficheiro para transmissão.');
+            }
+
+            fpassthru($handle);
+            fclose($handle);
+            exit;
         } catch (RuntimeException $e) {
             $this->errorResponse($e->getMessage(), 403, '/downloads');
         }

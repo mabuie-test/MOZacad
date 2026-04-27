@@ -104,12 +104,17 @@ PROMPT;
             throw new RuntimeException('OPENAI_API_KEY não configurada.');
         }
 
-        return [
+        $payload = [
             'model' => $model,
             'input' => $input,
             'max_output_tokens' => (int) Env::get('OPENAI_MAX_OUTPUT_TOKENS', 4000),
-            'temperature' => (float) Env::get('OPENAI_TEMPERATURE', 0.7),
         ];
+
+        if ($this->supportsTemperature($model)) {
+            $payload['temperature'] = (float) Env::get('OPENAI_TEMPERATURE', 0.7);
+        }
+
+        return $payload;
     }
 
     private function sendRequest(array $payload): array
@@ -186,6 +191,19 @@ PROMPT;
         };
     }
 
+
+    private function supportsTemperature(string $model): bool
+    {
+        $normalized = strtolower(trim($model));
+
+        foreach (['gpt-5', 'o1', 'o3'] as $prefix) {
+            if (str_starts_with($normalized, $prefix)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
     private function assertSuccessResponse(ResponseInterface $response): void
     {
         $status = $response->getStatusCode();

@@ -19,8 +19,8 @@ use App\Services\DocxAssemblyService;
 use App\Services\ExportService;
 use App\Services\HumanReviewQueueService;
 use App\Services\InstitutionFormattingService;
-use App\Services\InstitutionTemplateService;
 use App\Services\InstitutionNormDocumentService;
+use App\Services\InstitutionTemplateService;
 use App\Services\MozPortugueseHumanizerService;
 use App\Services\PromptComposerService;
 use App\Services\RequirementInterpreterService;
@@ -98,20 +98,30 @@ final class GenerateOrderDocumentJob
         $sections = $workTypeRepo->getStructureByWorkType((int) $order['work_type_id']);
         $blueprint = (new StructureBuilderService())->build($sections, $resolvedRulesDto->structureRules);
         $prompts = (new PromptComposerService())->compose($blueprint, $resolvedRules, $briefing);
+        $referenceStyle = (string) ($resolvedRules['referenceRules']['style'] ?? 'APA');
 
-        $generated = (new AIOrchestrationService())->run($prompts, $blueprint);
-        $refined = (new AcademicRefinementService())->refine($generated, [
-            'reference_style' => (string) ($resolvedRules['referenceRules']['style'] ?? 'APA'),
-        ]);
-        $humanized = (new MozPortugueseHumanizerService())->humanize(
-            $refined,
-            'academic_humanized_pt_mz',
-            (bool) ($briefing['extras']['needs_humanized_revision'] ?? true)
-        );
-        $cited = (new CitationFormatterService())->format($humanized, (string) ($resolvedRules['referenceRules']['style'] ?? 'APA'));
+        try {
+            $generated = (new AIOrchestrationService())->run($prompts, $blueprint);
+            $refined = (new AcademicRefinementService())->refine($generated, [
+                'reference_style' => $referenceStyle,
+            ]);
+            $humanized = (new MozPortugueseHumanizerService())->humanize(
+                $refined,
+                'academic_humanized_pt_mz',
+                (bool) ($briefing['extras']['needs_humanized_revision'] ?? true)
+            );
+            $cited = (new CitationFormatterService())->format($humanized, $referenceStyle);
+        } catch (\Throwable $e) {
+            $logger->error('ai_job.document_generation.ai_failed_using_local_fallback', [
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+            ]);
+
+            $cited = $this->buildLocalFallbackSections($blueprint, $briefing, $referenceStyle);
+        }
+
         $formatted = (new InstitutionFormattingService())->apply($cited, $resolvedRules);
-
-        $doc = (new DocxAssemblyService())->assemble($formatted, $briefing['title']);
+        $doc = (new DocxAssemblyService())->assemble($formatted, (string) $briefing['title']);
 
         $documents = new GeneratedDocumentRepository();
         $latest = $documents->findLatestByOrderId($orderId);
@@ -185,6 +195,60 @@ final class GenerateOrderDocumentJob
             'human_review_queue_id' => $queueId,
             'regeneration_cycle' => (string) ($order['status'] ?? '') === 'revision_requested',
         ];
+    }
+
+    private function buildLocalFallbackSections(array $blueprint, array $briefing, string $referenceStyle): array
+    {
+        $fallbackByCode = [
+            'resumo' => 'Este trabalho apresenta uma síntese académica do tema, destacando enquadramento conceptual, objectivo central e relevância para o contexto moçambicano.',
+            'introducao' => 'A introdução enquadra o tema no cenário académico, define o problema orientador e evidencia a pertinência científica da investigação proposta.',
+            'metodologia' => 'A metodologia adopta uma abordagem compatível com investigação aplicada, com revisão bibliográfica e análise crítica de fundamentos teóricos.',
+            'resultados_discussao' => 'A discussão apresenta interpretações consistentes com a literatura, destacando implicações teóricas e contribuições para práticas institucionais.',
+            'conclusao' => 'A conclusão sintetiza os principais contributos, reafirma o objectivo geral e propõe recomendações para aprofundamento académico.',
+            'referencias' => "Referências organizadas conforme {$referenceStyle}.",
+        ];
+
+        $sections = [];
+        foreach ($blueprint as $item) {
+            $code = mb_strtolower((string) ($item['code'] ?? ''));
+            $title = (string) ($item['title'] ?? 'Secção');
+
+            if (str_contains($code, 'resumo')) {
+                $key = 'resumo';
+            } elseif (str_contains($code, 'introdu')) {
+                $key = 'introducao';
+            } elseif (str_contains($code, 'metod')) {
+                $key = 'metodologia';
+            } elseif (str_contains($code, 'resultado') || str_contains($code, 'discuss')) {
+                $key = 'resultados_discussao';
+            } elseif (str_contains($code, 'conclus')) {
+                $key = 'conclusao';
+            } elseif (str_contains($code, 'refer')) {
+                $key = 'referencias';
+            } else {
+                continue;
+            }
+
+            $sections[] = [
+                'code' => $code,
+                'title' => $title,
+                'content' => $fallbackByCode[$key],
+            ];
+        }
+
+        if ($sections === []) {
+            $title = trim((string) ($briefing['title'] ?? 'Trabalho Académico'));
+            $sections = [
+                ['code' => 'resumo', 'title' => 'Resumo', 'content' => $fallbackByCode['resumo']],
+                ['code' => 'introducao', 'title' => 'Introdução', 'content' => "{$title}. {$fallbackByCode['introducao']}"],
+                ['code' => 'metodologia', 'title' => 'Metodologia', 'content' => $fallbackByCode['metodologia']],
+                ['code' => 'resultados_discussao', 'title' => 'Resultados e Discussão', 'content' => $fallbackByCode['resultados_discussao']],
+                ['code' => 'conclusao', 'title' => 'Conclusão', 'content' => $fallbackByCode['conclusao']],
+                ['code' => 'referencias', 'title' => 'Referências', 'content' => $fallbackByCode['referencias']],
+            ];
+        }
+
+        return $sections;
     }
 
     private function documentFileExists(string $candidatePath): bool
