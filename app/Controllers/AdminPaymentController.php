@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Services\AdminPaymentService;
 use RuntimeException;
 
-final class AdminPaymentController extends AdminActionController
+final class AdminPaymentController extends BaseController
 {
     public function confirmManual(int $id): void
     {

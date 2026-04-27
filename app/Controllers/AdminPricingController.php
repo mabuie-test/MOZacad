@@ -6,7 +6,7 @@ namespace App\Controllers;
 
 use App\Services\AdminPricingService;
 
-final class AdminPricingController extends AdminActionController
+final class AdminPricingController extends BaseController
 {
     public function upsertPricingRule(): void
     {
