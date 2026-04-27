@@ -36,7 +36,11 @@ final class DocumentDownloadService
             throw new RuntimeException('Ficheiro físico não encontrado no storage.');
         }
 
-        $this->auditLogs->log($actorUserId, 'document.download', 'generated_document', $documentId, ['order_id' => (int) $doc['order_id'], 'file_path' => $path]);
+        $this->auditLogs->log($actorUserId, 'document.download', 'generated_document', $documentId, [
+            'order_id' => (int) $doc['order_id'],
+            'file_name' => basename($path),
+            'version' => (int) ($doc['version'] ?? 1),
+        ]);
 
         return [
             'path' => $path,

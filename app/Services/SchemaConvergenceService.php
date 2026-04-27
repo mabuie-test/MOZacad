@@ -95,13 +95,32 @@ final class SchemaConvergenceService
               event_key VARCHAR(190) NOT NULL,
               signature_hash CHAR(64) NOT NULL,
               payload_hash CHAR(64) NOT NULL,
+              event_timestamp DATETIME NULL,
               received_at DATETIME NOT NULL,
+              first_seen_at DATETIME NOT NULL,
+              last_seen_at DATETIME NOT NULL,
+              hit_count INT UNSIGNED NOT NULL DEFAULT 1,
               expires_at DATETIME NULL,
               created_at TIMESTAMP NULL,
               UNIQUE KEY uq_webhook_replay_provider_event (provider, event_key),
               INDEX idx_webhook_replay_expires (expires_at),
-              INDEX idx_webhook_replay_provider_received (provider, received_at)
+              INDEX idx_webhook_replay_provider_received (provider, received_at),
+              INDEX idx_webhook_replay_provider_last_seen (provider, last_seen_at),
+              INDEX idx_webhook_replay_provider_hits (provider, hit_count)
             )",
+
+            "ALTER TABLE webhook_replay_events ADD COLUMN IF NOT EXISTS event_timestamp DATETIME NULL AFTER payload_hash",
+            "ALTER TABLE webhook_replay_events ADD COLUMN IF NOT EXISTS first_seen_at DATETIME NULL AFTER received_at",
+            "ALTER TABLE webhook_replay_events ADD COLUMN IF NOT EXISTS last_seen_at DATETIME NULL AFTER first_seen_at",
+            "ALTER TABLE webhook_replay_events ADD COLUMN IF NOT EXISTS hit_count INT UNSIGNED NOT NULL DEFAULT 1 AFTER last_seen_at",
+            "UPDATE webhook_replay_events
+                SET first_seen_at = COALESCE(first_seen_at, received_at, NOW()),
+                    last_seen_at = COALESCE(last_seen_at, received_at, NOW()),
+                    hit_count = CASE WHEN hit_count IS NULL OR hit_count < 1 THEN 1 ELSE hit_count END",
+            "ALTER TABLE webhook_replay_events MODIFY COLUMN first_seen_at DATETIME NOT NULL",
+            "ALTER TABLE webhook_replay_events MODIFY COLUMN last_seen_at DATETIME NOT NULL",
+            "ALTER TABLE webhook_replay_events ADD INDEX IF NOT EXISTS idx_webhook_replay_provider_last_seen (provider, last_seen_at)",
+            "ALTER TABLE webhook_replay_events ADD INDEX IF NOT EXISTS idx_webhook_replay_provider_hits (provider, hit_count)",
         ];
 
         if ($applyRepairs) {
@@ -138,6 +157,10 @@ final class SchemaConvergenceService
             ['table' => 'auth_login_attempts', 'column' => 'locked_until'],
             ['table' => 'webhook_replay_events', 'column' => 'provider'],
             ['table' => 'webhook_replay_events', 'column' => 'event_key'],
+            ['table' => 'webhook_replay_events', 'column' => 'event_timestamp'],
+            ['table' => 'webhook_replay_events', 'column' => 'first_seen_at'],
+            ['table' => 'webhook_replay_events', 'column' => 'last_seen_at'],
+            ['table' => 'webhook_replay_events', 'column' => 'hit_count'],
             ['table' => 'webhook_replay_events', 'column' => 'expires_at'],
         ];
         foreach ($checks as $check) {
@@ -156,6 +179,8 @@ final class SchemaConvergenceService
             ['table' => 'auth_login_attempts', 'index' => 'uq_auth_login_attempts_email_ip'],
             ['table' => 'webhook_replay_events', 'index' => 'uq_webhook_replay_provider_event'],
             ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_expires'],
+            ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_provider_last_seen'],
+            ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_provider_hits'],
         ];
         foreach ($indexChecks as $check) {
             if (!$this->indexExists($db, $check['table'], $check['index'])) {
