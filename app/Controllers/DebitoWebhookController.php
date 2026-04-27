@@ -18,6 +18,11 @@ final class DebitoWebhookController extends BaseController
             'user_agent' => (string) ($_SERVER['HTTP_USER_AGENT'] ?? ''),
             'x_debito_signature' => (string) ($_SERVER['HTTP_X_DEBITO_SIGNATURE'] ?? ''),
             'x-webhook-signature' => (string) ($_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] ?? ''),
+            'x_debito_event_id' => (string) ($_SERVER['HTTP_X_DEBITO_EVENT_ID'] ?? ''),
+            'x_event_id' => (string) ($_SERVER['HTTP_X_EVENT_ID'] ?? ''),
+            'x_idempotency_key' => (string) ($_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? ''),
+            'x_debito_timestamp' => (string) ($_SERVER['HTTP_X_DEBITO_TIMESTAMP'] ?? ''),
+            'x_webhook_timestamp' => (string) ($_SERVER['HTTP_X_WEBHOOK_TIMESTAMP'] ?? ''),
         ];
 
         try {

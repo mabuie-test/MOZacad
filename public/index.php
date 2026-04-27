@@ -4,19 +4,47 @@ declare(strict_types=1);
 
 use App\Helpers\Env;
 use App\Helpers\Router;
+use App\Services\TraceContextService;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 Env::boot(__DIR__ . '/../.env');
+$traceId = (new TraceContextService())->currentTraceId($_SERVER);
+header('X-Request-ID: ' . $traceId);
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
+    $appEnv = strtolower(trim((string) Env::get('APP_ENV', 'production')));
+    $isProduction = $appEnv === 'production';
+    $secureCookie = $isProduction || (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $configuredSameSite = ucfirst(strtolower(trim((string) Env::get('SESSION_SAMESITE', $isProduction ? 'Strict' : 'Lax'))));
+    $sameSite = in_array($configuredSameSite, ['Lax', 'Strict', 'None'], true) ? $configuredSameSite : ($isProduction ? 'Strict' : 'Lax');
+    if ($isProduction) {
+        $sameSite = 'Strict';
+    }
+    if ($sameSite === 'None') {
+        $secureCookie = true;
+    }
+
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_trans_sid', '0');
     ini_set('session.cookie_httponly', '1');
+    ini_set('session.cookie_secure', $secureCookie ? '1' : '0');
+    ini_set('session.cookie_samesite', $sameSite);
+    ini_set('session.sid_length', '48');
+    ini_set('session.sid_bits_per_character', '6');
+    ini_set('session.cache_limiter', 'nocache');
+
+    if ($isProduction && $secureCookie) {
+        session_name('__Host-MOZSESSID');
+    }
+
     session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
         'httponly' => true,
-        'secure' => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-        'samesite' => 'Lax',
+        'secure' => $secureCookie,
+        'samesite' => $sameSite,
     ]);
     session_start();
 }

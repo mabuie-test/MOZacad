@@ -116,3 +116,38 @@
     </div>
   </div>
 <?php endforeach; ?>
+
+<div class="card p-3">
+  <h3 class="h6">Lifecycle de artefactos (publicação/rollback)</h3>
+  <p class="small text-secondary">Active uma versão anterior para rollback operacional sem reupload.</p>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>ID</th><th>Escopo</th><th>Tipo</th><th>Ficheiro</th><th>Estado</th><th>Publicado por</th><th>Ação</th></tr></thead>
+      <tbody>
+      <?php foreach (($templateArtifacts ?? []) as $artifact): ?>
+        <tr>
+          <td>#<?= (int) $artifact['id'] ?></td>
+          <td>
+            <?= htmlspecialchars((string) ($artifact['institution_name'] ?? '-')) ?>
+            <div class="muted-meta"><?= htmlspecialchars((string) ($artifact['work_type_name'] ?? 'global')) ?></div>
+          </td>
+          <td><code><?= htmlspecialchars((string) ($artifact['artifact_type'] ?? '-')) ?></code></td>
+          <td><small><?= htmlspecialchars((string) basename((string) ($artifact['file_path'] ?? ''))) ?></small></td>
+          <td><?= !empty($artifact['is_active']) ? '<span class="badge text-bg-success">published</span>' : '<span class="badge text-bg-secondary">archived</span>' ?></td>
+          <td><?= htmlspecialchars((string) ($artifact['actor_name'] ?? '-')) ?><div class="muted-meta"><?= htmlspecialchars((string) ($artifact['created_at'] ?? '-')) ?></div></td>
+          <td>
+            <?php if (empty($artifact['is_active'])): ?>
+              <form method="post" action="/admin/templates/artifacts/<?= (int) $artifact['id'] ?>/activate">
+                <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+                <button class="btn btn-sm btn-outline-primary">Tornar ativo</button>
+              </form>
+            <?php else: ?>
+              <span class="text-secondary small">Atual</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>

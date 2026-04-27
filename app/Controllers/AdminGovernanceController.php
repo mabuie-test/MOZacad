@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Repositories\InstitutionRepository;
 use App\Services\AdminGovernanceService;
+use App\Services\AdminTemplateLifecycleService;
 use App\Services\AdminTemplateOperationService;
 use RuntimeException;
 
@@ -78,6 +79,19 @@ final class AdminGovernanceController extends AdminActionController
                 $redirect .= '?institution_id=' . $institutionId;
             }
             $this->adminSuccess('Template publicado com sucesso.', $redirect);
+        } catch (RuntimeException $e) {
+            $this->adminError($e->getMessage(), 422, '/admin/templates');
+        }
+    }
+
+    public function activateTemplateArtifact(int $artifactId): void
+    {
+        if (!$this->guardAdminPost()) return;
+
+        try {
+            $result = (new AdminTemplateLifecycleService())->activateArtifactVersion($artifactId);
+            $this->audit('admin.template_artifact.activated', 'template_artifact', $artifactId, $result);
+            $this->adminSuccess('Versão do artefacto activada com sucesso.', '/admin/templates', $result);
         } catch (RuntimeException $e) {
             $this->adminError($e->getMessage(), 422, '/admin/templates');
         }

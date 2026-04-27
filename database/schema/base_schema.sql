@@ -457,6 +457,20 @@ CREATE TABLE audit_logs (
   created_at TIMESTAMP NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE webhook_replay_events (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  provider VARCHAR(40) NOT NULL,
+  event_key VARCHAR(190) NOT NULL,
+  signature_hash CHAR(64) NOT NULL,
+  payload_hash CHAR(64) NOT NULL,
+  received_at DATETIME NOT NULL,
+  expires_at DATETIME NULL,
+  created_at TIMESTAMP NULL,
+  UNIQUE KEY uq_webhook_replay_provider_event (provider, event_key),
+  INDEX idx_webhook_replay_expires (expires_at),
+  INDEX idx_webhook_replay_provider_received (provider, received_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE auth_login_attempts (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(190) NOT NULL,
@@ -487,7 +501,7 @@ CREATE TABLE ai_jobs (
   updated_at TIMESTAMP NULL,
   INDEX idx_ai_jobs_order_id (order_id),
   INDEX idx_ai_jobs_order_stage_status (order_id, stage, status),
-  INDEX idx_ai_jobs_status_created (status, created_at),
+  INDEX idx_ai_jobs_status_created (status, next_retry_at, created_at),
   INDEX idx_ai_jobs_reservation_token (reservation_token),
   INDEX idx_ai_jobs_processing_started (processing_started_at),
   CONSTRAINT fk_ai_jobs_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
