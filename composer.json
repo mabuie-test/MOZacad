@@ -29,6 +29,9 @@
     "ops:validate": [
       "@php scripts/validate_runtime.php"
     ],
+    "ops:reconcile-successful-payments": [
+      "@php scripts/reconcile_successful_payments.php"
+    ],
     "deploy:release": [
       "@php scripts/deploy_release.php"
     ]

@@ -68,7 +68,8 @@ final class PaymentStateTransitionService
                 if ($this->canMoveOrderToQueued($lockedOrder)) {
                     $this->orders->updateStatus((int) $lockedPayment['order_id'], 'queued');
                 }
-                $this->dispatcher->enqueueDocumentGeneration($lockedOrder, $lockedPayment, $source);
+                $refreshedPayment = $this->payments->findById($paymentId) ?? $lockedPayment;
+                $this->dispatcher->enqueueDocumentGeneration($lockedOrder, $refreshedPayment, $source);
             } elseif (in_array($internalStatus, ['failed', 'cancelled', 'expired'], true)) {
                 $this->logger->error('payment.transition.failed_like', ['payment_id' => $paymentId, 'status' => $internalStatus, 'source' => $source]);
                 if (!$this->isOrderBeyondPayment((string) ($lockedOrder['status'] ?? ''))) {
@@ -111,7 +112,7 @@ final class PaymentStateTransitionService
         }
 
         $status = (string) ($order['status'] ?? '');
-        return !in_array($status, ['queued', 'under_human_review', 'ready', 'revision_requested'], true);
+        return in_array($status, ['pending_payment', 'draft', 'pending', 'processing'], true);
     }
 
     private function isOrderBeyondPayment(string $status): bool

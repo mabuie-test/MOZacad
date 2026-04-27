@@ -8,7 +8,7 @@ final class AIJobRepository extends BaseRepository
 {
     public function findOpenByOrderAndStage(int $orderId, string $stage): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM ai_jobs WHERE order_id = :order_id AND stage = :stage AND status IN ('queued','pending','reserved','processing') ORDER BY id DESC LIMIT 1");
+        $stmt = $this->db->prepare("SELECT * FROM ai_jobs WHERE order_id = :order_id AND stage = :stage AND status IN ('queued','pending','reserved','processing','retry_wait') ORDER BY id DESC LIMIT 1");
         $stmt->execute(['order_id' => $orderId, 'stage' => $stage]);
         return $stmt->fetch() ?: null;
     }

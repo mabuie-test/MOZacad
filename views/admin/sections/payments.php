@@ -16,6 +16,8 @@
           <th>Utilizador</th>
           <th>Status</th>
           <th>Provider</th>
+          <th>Método</th>
+          <th>Provider status</th>
           <th>Ref.</th>
           <th>Data</th>
           <th>Ações</th>
@@ -29,6 +31,8 @@
             <td>#<?= (int) $p['order_id'] ?></td>
             <td><?= htmlspecialchars((string) ($p['user_email'] ?? '-')) ?></td>
             <td><?= $badge($status) ?></td>
+            <td><?= htmlspecialchars((string) ($p['provider'] ?? '-')) ?></td>
+            <td><?= htmlspecialchars((string) ($p['method'] ?? '-')) ?></td>
             <td><?= htmlspecialchars((string) ($p['provider_status'] ?? '-')) ?></td>
             <td><code><?= htmlspecialchars((string) ($p['external_reference'] ?? '-')) ?></code></td>
             <td><?= htmlspecialchars((string) ($p['created_at'] ?? '-')) ?></td>
