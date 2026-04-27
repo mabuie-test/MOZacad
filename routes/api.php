@@ -8,6 +8,7 @@ use App\Controllers\AdminCatalogController;
 use App\Controllers\AdminCommercialController;
 use App\Controllers\AdminGovernanceController;
 use App\Controllers\AdminHumanReviewController;
+use App\Controllers\AdminPaymentController;
 use App\Controllers\AdminPricingController;
 use App\Helpers\Router;
 use App\Services\HttpRoutePolicyService;
@@ -44,6 +45,7 @@ return static function (Router $router): void {
         $router->post('/coupons/{id}/toggle', [AdminCommercialController::class, 'toggleCoupon']);
         $router->post('/human-review/{queueId}/assign', [AdminHumanReviewController::class, 'assignHumanReview']);
         $router->post('/human-review/{queueId}/decision', [AdminHumanReviewController::class, 'decideHumanReview']);
+        $router->post('/payments/{id}/confirm-manual', [AdminPaymentController::class, 'confirmManual']);
         $router->post('/pricing/rules', [AdminPricingController::class, 'upsertPricingRule']);
         $router->post('/pricing/extras', [AdminPricingController::class, 'upsertPricingExtra']);
     });

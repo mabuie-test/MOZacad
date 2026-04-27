@@ -10,6 +10,7 @@ use App\Controllers\AdminGovernancePageController;
 use App\Controllers\AdminCommercialPageController;
 use App\Controllers\AdminReviewPageController;
 use App\Controllers\AdminHumanReviewController;
+use App\Controllers\AdminPaymentController;
 use App\Controllers\AdminPricingController;
 use App\Controllers\AuthController;
 use App\Controllers\BillingController;
@@ -99,6 +100,7 @@ return static function (Router $router): void {
         $router->post('/coupons/{id}/toggle', [AdminCommercialController::class, 'toggleCoupon'], [$csrf]);
         $router->post('/human-review/{queueId}/assign', [AdminHumanReviewController::class, 'assignHumanReview'], [$csrf]);
         $router->post('/human-review/{queueId}/decision', [AdminHumanReviewController::class, 'decideHumanReview'], [$csrf]);
+        $router->post('/payments/{id}/confirm-manual', [AdminPaymentController::class, 'confirmManual'], [$csrf]);
         $router->post('/pricing/rules', [AdminPricingController::class, 'upsertPricingRule'], [$csrf]);
         $router->post('/pricing/extras', [AdminPricingController::class, 'upsertPricingExtra'], [$csrf]);
     });

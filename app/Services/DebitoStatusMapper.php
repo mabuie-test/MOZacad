@@ -14,7 +14,7 @@ final class DebitoStatusMapper
             'pending', 'created', 'queued' => 'pending',
             'processing', 'in_progress', 'authorizing' => 'processing',
             'waiting_confirmation', 'awaiting_confirmation' => 'pending_confirmation',
-            'paid', 'success', 'successful', 'completed' => 'paid',
+            'paid', 'success', 'successful', 'completed', 'complete', 'concluido', 'concluído' => 'paid',
             'failed', 'error', 'declined', 'denied', 'rejected' => 'failed',
             'cancelled', 'canceled' => 'cancelled',
             'expired', 'timeout', 'timed_out' => 'expired',
@@ -34,6 +34,12 @@ final class DebitoStatusMapper
 
         if (str_contains($providerStatus, 'expir')) {
             return 'expired';
+        }
+
+        if (str_contains($providerStatus, 'succes')
+            || str_contains($providerStatus, 'complet')
+            || str_contains($providerStatus, 'conclu')) {
+            return 'paid';
         }
 
         return 'pending_confirmation';

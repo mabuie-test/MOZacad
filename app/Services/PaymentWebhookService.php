@@ -273,9 +273,12 @@ final class PaymentWebhookService
     private function extractProviderStatus(array $payload): string
     {
         return (string) (
-            $payload['status']
+            $payload['transaction_status']
+            ?? $payload['payment_status']
+            ?? $payload['data']['transaction_status']
+            ?? $payload['data']['payment_status']
+            ?? $payload['status']
             ?? $payload['state']
-            ?? $payload['transaction_status']
             ?? $payload['data']['status']
             ?? 'PENDING'
         );

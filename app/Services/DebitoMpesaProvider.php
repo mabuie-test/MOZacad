@@ -62,10 +62,10 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
     private function extractProviderStatus(array $response): string
     {
         return (string) ($this->findFirstScalar($response, [
-            'status',
-            'state',
             'transaction_status',
             'payment_status',
+            'status',
+            'state',
         ]) ?? 'PENDING');
     }
 

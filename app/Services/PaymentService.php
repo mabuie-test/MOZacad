@@ -20,6 +20,7 @@ final class PaymentService
         private readonly PaymentRepository $payments = new PaymentRepository(),
         private readonly DebitoTransactionRepository $debitoTransactions = new DebitoTransactionRepository(),
         private readonly DebitoStatusMapper $statusMapper = new DebitoStatusMapper(),
+        private readonly PaymentStateTransitionService $transitions = new PaymentStateTransitionService(),
         private readonly DebitoLoggerService $logger = new DebitoLoggerService(),
         private readonly OrderRepository $orders = new OrderRepository(),
     ) {}
@@ -30,6 +31,10 @@ final class PaymentService
         $db->beginTransaction();
 
         $paymentId = 0;
+        $debitoReference = '';
+        $providerStatus = 'PENDING';
+        $internalStatus = 'pending';
+        $providerPayload = [];
         try {
             $order = $this->orders->lockByIdForUpdate((int) $context['order_id']);
             if ($order === null) {
@@ -79,9 +84,9 @@ final class PaymentService
 
             $providerStatus = (string) ($providerResponse['provider_status'] ?? 'PENDING');
             $internalStatus = $this->statusMapper->map($providerStatus);
+            $providerPayload = is_array($providerResponse['raw'] ?? null) ? $providerResponse['raw'] : [];
 
             $this->payments->setExternalReference($paymentId, $debitoReference, $providerResponse['provider_transaction_id'] ?: null, $providerStatus);
-            $this->payments->updateStatus($paymentId, $internalStatus, $providerStatus, $providerResponse['provider_message'] ?: null);
 
             $this->debitoTransactions->create([
                 'payment_id' => $paymentId,
@@ -91,7 +96,7 @@ final class PaymentService
                 'response_payload_json' => json_encode($providerResponse['raw'] ?? [], JSON_UNESCAPED_UNICODE),
                 'provider_response_code' => $providerResponse['provider_code'] ?: null,
                 'provider_response_message' => $providerResponse['provider_message'] ?: null,
-                'status' => $internalStatus,
+                'status' => 'pending',
             ]);
 
             $db->commit();
@@ -110,6 +115,18 @@ final class PaymentService
         $this->logger->info('Débito initiation', ['payment_id' => $paymentId]);
 
         $payment = $this->payments->findById($paymentId);
+        if (is_array($payment) && $debitoReference !== '') {
+            $this->transitions->apply(
+                $payment,
+                $debitoReference,
+                $internalStatus,
+                $providerStatus,
+                $providerPayload,
+                'initiate'
+            );
+            $payment = $this->payments->findById($paymentId);
+        }
+
         return [
             'payment_id' => $paymentId,
             'internal_reference' => (string) ($payment['internal_reference'] ?? ''),
