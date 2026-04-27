@@ -49,9 +49,11 @@ INSERT INTO pricing_extras (extra_code, name, amount, is_active, created_at, upd
 ('needs_slides','Apresentação de slides',800,1,NOW(),NOW()),
 ('needs_defense_summary','Resumo de defesa',450,1,NOW(),NOW());
 
+-- Credenciais seed admin adicional: teste@teste.com / admin123
 INSERT INTO users (name, email, phone, password_hash, is_active, created_at, updated_at) VALUES
 ('VIP Student','vip@mozacad.test','841111111','$2y$12$FKAVAGTDq8h//J9Kba80gOVGeJUhKWQjnBqVQ7ZPuJEQXWtOuqiLa',1,NOW(),NOW()),
-('Super Admin','superadmin@mozacad.test','851111111','$2y$12$FKAVAGTDq8h//J9Kba80gOVGeJUhKWQjnBqVQ7ZPuJEQXWtOuqiLa',1,NOW(),NOW());
+('Super Admin','superadmin@mozacad.test','851111111','$2y$12$FKAVAGTDq8h//J9Kba80gOVGeJUhKWQjnBqVQ7ZPuJEQXWtOuqiLa',1,NOW(),NOW()),
+('Admin Teste','teste@teste.com','852222222','$2y$12$bsviR6u36PvtaV8TJr1y6.0wJtstYuqhu5SMVEQLsdxNmx9iaLhI2',1,NOW(),NOW());
 
 INSERT INTO user_discounts (user_id, name, discount_type, discount_value, usage_limit, used_count, starts_at, ends_at, is_active, created_by_admin_id, notes, created_at, updated_at) VALUES
 (1,'VIP 10%','percent',10,100,0,NOW(),DATE_ADD(NOW(), INTERVAL 30 DAY),1,2,'Benefício promocional VIP',NOW(),NOW());
@@ -60,7 +62,8 @@ INSERT INTO user_discounts (user_id, name, discount_type, discount_value, usage_
 INSERT INTO user_roles (user_id, role_id) VALUES
 (1, 1),
 (2, 2),
-(2, 4);
+(2, 4),
+(3, 2);
 
 INSERT INTO institution_rules (institution_id, font_family, font_size, heading_font_size, line_spacing, margin_top, margin_right, margin_bottom, margin_left, references_style, front_page_rules_json, notes, created_at, updated_at) VALUES
 (1, 'Times New Roman', 12, 14, 1.5, 2.5, 3, 2.5, 3, 'APA', '{"institution_name":"Universidade Eduardo Mondlane","city":"Maputo"}', 'Regras base UEM', NOW(), NOW()),
