@@ -6,7 +6,7 @@ namespace App\Controllers;
 
 use App\Services\AdminAcademicCatalogService;
 
-final class AdminCatalogController extends AdminActionController
+final class AdminCatalogController extends BaseController
 {
     public function createInstitution(): void { $this->upsertInstitution(0); }
     public function updateInstitution(int $id): void { $this->upsertInstitution($id); }

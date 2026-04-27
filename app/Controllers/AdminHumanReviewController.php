@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Services\AdminHumanReviewService;
 use RuntimeException;
 
-final class AdminHumanReviewController extends AdminActionController
+final class AdminHumanReviewController extends BaseController
 {
     public function assignHumanReview(int $queueId): void
     {

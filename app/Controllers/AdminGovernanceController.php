@@ -10,7 +10,7 @@ use App\Services\AdminTemplateLifecycleService;
 use App\Services\AdminTemplateOperationService;
 use RuntimeException;
 
-final class AdminGovernanceController extends AdminActionController
+final class AdminGovernanceController extends BaseController
 {
     public function saveInstitutionRule(): void
     {

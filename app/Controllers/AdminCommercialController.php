@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Repositories\CouponRepository;
 use App\Services\AdminCommercialService;
 
-final class AdminCommercialController extends AdminActionController
+final class AdminCommercialController extends BaseController
 {
     public function createCoupon(): void
     {
