@@ -31,8 +31,6 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     ini_set('session.cookie_httponly', '1');
     ini_set('session.cookie_secure', $secureCookie ? '1' : '0');
     ini_set('session.cookie_samesite', $sameSite);
-    ini_set('session.sid_length', '48');
-    ini_set('session.sid_bits_per_character', '6');
     ini_set('session.cache_limiter', 'nocache');
 
     if ($isProduction && $secureCookie) {
