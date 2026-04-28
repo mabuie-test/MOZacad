@@ -37,6 +37,29 @@ final class SchemaConvergenceService
             "ALTER TABLE human_review_queue ADD COLUMN IF NOT EXISTS generated_document_version INT NULL AFTER generated_document_id",
             "ALTER TABLE human_review_queue ADD INDEX IF NOT EXISTS idx_hrq_order_status_updated (order_id, status, updated_at)",
             "ALTER TABLE human_review_queue ADD INDEX IF NOT EXISTS idx_hrq_order_document (order_id, generated_document_id)",
+
+            "ALTER TABLE human_review_queue ADD COLUMN IF NOT EXISTS created_by BIGINT UNSIGNED NULL AFTER reviewer_id",
+            "ALTER TABLE human_review_queue ADD COLUMN IF NOT EXISTS assigned_by BIGINT UNSIGNED NULL AFTER created_by",
+            "ALTER TABLE human_review_queue ADD COLUMN IF NOT EXISTS last_decided_by BIGINT UNSIGNED NULL AFTER assigned_by",
+            "ALTER TABLE human_review_queue ADD COLUMN IF NOT EXISTS approval_count INT UNSIGNED NOT NULL DEFAULT 0 AFTER decision",
+            "ALTER TABLE human_review_queue ADD COLUMN IF NOT EXISTS required_approvals INT UNSIGNED NOT NULL DEFAULT 1 AFTER approval_count",
+            "ALTER TABLE human_review_queue ADD INDEX IF NOT EXISTS idx_hrq_reviewer_status (reviewer_id, status)",
+            "ALTER TABLE human_review_queue ADD INDEX IF NOT EXISTS idx_hrq_stage_counts (status, approval_count, required_approvals)",
+            "CREATE TABLE IF NOT EXISTS human_review_decisions (
+              id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              human_review_queue_id BIGINT UNSIGNED NOT NULL,
+              actor_id BIGINT UNSIGNED NOT NULL,
+              stage VARCHAR(40) NOT NULL,
+              decision VARCHAR(20) NOT NULL,
+              justification TEXT NULL,
+              decided_at DATETIME NOT NULL,
+              created_at TIMESTAMP NULL,
+              INDEX idx_hrd_queue_stage (human_review_queue_id, stage, decided_at),
+              INDEX idx_hrd_actor_decided (actor_id, decided_at),
+              CONSTRAINT fk_hrd_queue FOREIGN KEY (human_review_queue_id) REFERENCES human_review_queue(id) ON DELETE CASCADE,
+              CONSTRAINT fk_hrd_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE RESTRICT
+            )",
+
             "ALTER TABLE revisions ADD COLUMN IF NOT EXISTS generated_document_id BIGINT UNSIGNED NULL AFTER user_id",
             "ALTER TABLE revisions ADD COLUMN IF NOT EXISTS generated_document_version INT NULL AFTER generated_document_id",
             "ALTER TABLE revisions ADD INDEX IF NOT EXISTS idx_revisions_order_id (order_id)",
@@ -130,6 +153,11 @@ final class SchemaConvergenceService
             }
 
             $this->ensureForeignKey($db, 'human_review_queue', 'fk_hrq_generated_document', 'generated_document_id', 'generated_documents', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'human_review_queue', 'fk_hrq_created_by', 'created_by', 'users', 'id', 'SET NULL');
+            $this->ensureForeignKey($db, 'human_review_queue', 'fk_hrq_assigned_by', 'assigned_by', 'users', 'id', 'SET NULL');
+            $this->ensureForeignKey($db, 'human_review_queue', 'fk_hrq_last_decided_by', 'last_decided_by', 'users', 'id', 'SET NULL');
+            $this->ensureForeignKey($db, 'human_review_decisions', 'fk_hrd_queue', 'human_review_queue_id', 'human_review_queue', 'id', 'CASCADE');
+            $this->ensureForeignKey($db, 'human_review_decisions', 'fk_hrd_actor', 'actor_id', 'users', 'id', 'RESTRICT');
             $this->ensureForeignKey($db, 'revisions', 'fk_revisions_order', 'order_id', 'orders', 'id', 'CASCADE');
             $this->ensureForeignKey($db, 'revisions', 'fk_revisions_user', 'user_id', 'users', 'id', 'CASCADE');
             $this->ensureForeignKey($db, 'revisions', 'fk_revisions_generated_document', 'generated_document_id', 'generated_documents', 'id', 'SET NULL');
@@ -156,6 +184,12 @@ final class SchemaConvergenceService
             ['table' => 'generated_documents', 'column' => 'version'],
             ['table' => 'human_review_queue', 'column' => 'generated_document_id'],
             ['table' => 'human_review_queue', 'column' => 'generated_document_version'],
+            ['table' => 'human_review_queue', 'column' => 'created_by'],
+            ['table' => 'human_review_queue', 'column' => 'assigned_by'],
+            ['table' => 'human_review_queue', 'column' => 'last_decided_by'],
+            ['table' => 'human_review_queue', 'column' => 'approval_count'],
+            ['table' => 'human_review_queue', 'column' => 'required_approvals'],
+            ['table' => 'human_review_decisions', 'column' => 'stage'],
             ['table' => 'revisions', 'column' => 'generated_document_id'],
             ['table' => 'revisions', 'column' => 'generated_document_version'],
             ['table' => 'template_artifacts', 'column' => 'artifact_type'],
@@ -178,6 +212,9 @@ final class SchemaConvergenceService
         $indexChecks = [
             ['table' => 'payments', 'index' => 'uq_payments_provider_external_reference'],
             ['table' => 'human_review_queue', 'index' => 'idx_hrq_order_document'],
+            ['table' => 'human_review_queue', 'index' => 'idx_hrq_reviewer_status'],
+            ['table' => 'human_review_queue', 'index' => 'idx_hrq_stage_counts'],
+            ['table' => 'human_review_decisions', 'index' => 'idx_hrd_queue_stage'],
             ['table' => 'generated_documents', 'index' => 'uq_generated_documents_order_version'],
             ['table' => 'ai_jobs', 'index' => 'idx_ai_jobs_status_created'],
             ['table' => 'revisions', 'index' => 'idx_revisions_order_document'],
