@@ -199,19 +199,70 @@ final class GenerateOrderDocumentJob
 
     private function buildLocalFallbackSections(array $blueprint, array $briefing, string $referenceStyle): array
     {
-        $fallbackByCode = [
-            'resumo' => 'Este trabalho apresenta uma síntese académica do tema, destacando enquadramento conceptual, objectivo central e relevância para o contexto moçambicano.',
-            'introducao' => 'A introdução enquadra o tema no cenário académico, define o problema orientador e evidencia a pertinência científica da investigação proposta.',
-            'metodologia' => 'A metodologia adopta uma abordagem compatível com investigação aplicada, com revisão bibliográfica e análise crítica de fundamentos teóricos.',
-            'resultados_discussao' => 'A discussão apresenta interpretações consistentes com a literatura, destacando implicações teóricas e contribuições para práticas institucionais.',
-            'conclusao' => 'A conclusão sintetiza os principais contributos, reafirma o objectivo geral e propõe recomendações para aprofundamento académico.',
-            'referencias' => "Referências organizadas conforme {$referenceStyle}.",
+        $title = trim((string) ($briefing['title'] ?? 'Trabalho Académico'));
+        $problem = trim((string) ($briefing['problem'] ?? ''));
+        $generalObjective = trim((string) ($briefing['generalObjective'] ?? ''));
+
+        if ($problem === '') {
+            $problem = 'Investigar o tema em contexto académico moçambicano, delimitando fundamentos teóricos, pertinência social e relevância científica.';
+        }
+
+        if ($generalObjective === '') {
+            $generalObjective = 'Desenvolver uma análise académica coerente do tema, com linguagem formal e estrutura metodológica consistente.';
+        }
+
+        $specificObjectives = [];
+        $rawSpecific = $briefing['specificObjectives'] ?? [];
+        if (is_array($rawSpecific)) {
+            foreach ($rawSpecific as $item) {
+                $candidate = trim((string) $item);
+                if ($candidate !== '') {
+                    $specificObjectives[] = $candidate;
+                }
+            }
+        }
+        if ($specificObjectives === []) {
+            $specificObjectives = [
+                'Caracterizar os conceitos fundamentais relacionados ao tema.',
+                'Apresentar uma metodologia de investigação adequada aos objectivos.',
+                'Discutir implicações académicas e recomendações coerentes com a análise desenvolvida.',
+            ];
+        }
+
+        $specificObjectivesText = implode('; ', $specificObjectives);
+
+        $canonical = [
+            'resumo' => [
+                'title' => 'Resumo',
+                'content' => "{$title}. O estudo apresenta síntese académica do tema, enuncia o problema orientador ({$problem}) e assume como objectivo geral {$generalObjective}. A abordagem valoriza consistência teórica e clareza argumentativa.",
+            ],
+            'introducao' => [
+                'title' => 'Introdução',
+                'content' => "No contexto do tema {$title}, estabelece-se como problema orientador {$problem}. O objectivo geral consiste em {$generalObjective}. Como objectivos específicos, consideram-se: {$specificObjectivesText}.",
+            ],
+            'metodologia' => [
+                'title' => 'Metodologia',
+                'content' => 'A investigação adopta abordagem qualitativa de natureza descritiva e analítica, com revisão bibliográfica e sistematização conceptual. O percurso metodológico assegura coerência entre problema, objectivo geral e objectivos específicos, preservando rigor académico.',
+            ],
+            'resultados_discussao' => [
+                'title' => 'Resultados e Discussão',
+                'content' => 'A discussão académica evidencia relações entre fundamentos teóricos e implicações para o contexto analisado. A interpretação privilegia consistência argumentativa, articulação lógica entre categorias e contributos para aprofundamento do tema em ambiente institucional.',
+            ],
+            'conclusao' => [
+                'title' => 'Conclusão',
+                'content' => "Conclui-se que o desenvolvimento do tema {$title} permite responder ao problema orientador e sustentar o objectivo geral proposto. Os objectivos específicos são retomados de forma integrada, reforçando contributos académicos e encaminhamentos para estudos futuros.",
+            ],
+            'referencias' => [
+                'title' => 'Referências',
+                'content' => "Referências organizadas conforme {$referenceStyle}, com normalização formal para revisão editorial subsequente.",
+            ],
         ];
 
-        $sections = [];
+        $resolved = [];
         foreach ($blueprint as $item) {
             $code = mb_strtolower((string) ($item['code'] ?? ''));
-            $title = (string) ($item['title'] ?? 'Secção');
+            $titleFromBlueprint = trim((string) ($item['title'] ?? ''));
+            $key = null;
 
             if (str_contains($code, 'resumo')) {
                 $key = 'resumo';
@@ -225,30 +276,32 @@ final class GenerateOrderDocumentJob
                 $key = 'conclusao';
             } elseif (str_contains($code, 'refer')) {
                 $key = 'referencias';
-            } else {
+            }
+
+            if ($key === null || isset($resolved[$key])) {
                 continue;
             }
 
-            $sections[] = [
-                'code' => $code,
-                'title' => $title,
-                'content' => $fallbackByCode[$key],
+            $resolved[$key] = [
+                'code' => $code !== '' ? $code : $key,
+                'title' => $titleFromBlueprint !== '' ? $titleFromBlueprint : $canonical[$key]['title'],
+                'content' => $canonical[$key]['content'],
             ];
         }
 
-        if ($sections === []) {
-            $title = trim((string) ($briefing['title'] ?? 'Trabalho Académico'));
-            $sections = [
-                ['code' => 'resumo', 'title' => 'Resumo', 'content' => $fallbackByCode['resumo']],
-                ['code' => 'introducao', 'title' => 'Introdução', 'content' => "{$title}. {$fallbackByCode['introducao']}"],
-                ['code' => 'metodologia', 'title' => 'Metodologia', 'content' => $fallbackByCode['metodologia']],
-                ['code' => 'resultados_discussao', 'title' => 'Resultados e Discussão', 'content' => $fallbackByCode['resultados_discussao']],
-                ['code' => 'conclusao', 'title' => 'Conclusão', 'content' => $fallbackByCode['conclusao']],
-                ['code' => 'referencias', 'title' => 'Referências', 'content' => $fallbackByCode['referencias']],
+        foreach ($canonical as $key => $data) {
+            if (isset($resolved[$key])) {
+                continue;
+            }
+
+            $resolved[$key] = [
+                'code' => $key,
+                'title' => $data['title'],
+                'content' => $data['content'],
             ];
         }
 
-        return $sections;
+        return array_values($resolved);
     }
 
     private function documentFileExists(string $candidatePath): bool

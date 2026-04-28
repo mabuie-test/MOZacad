@@ -18,13 +18,15 @@ final class DocxAssemblyService
         $phpWord->setDefaultFontName((string) ($rules['font_family'] ?? 'Times New Roman'));
         $phpWord->setDefaultFontSize($this->safeInt($rules['font_size'] ?? 12, 12));
 
-        $phpWord->addParagraphStyle('body_text', ['alignment' => Jc::BOTH, 'spaceAfter' => 160, 'lineHeight' => $this->safeFloat($rules['line_spacing'] ?? 1.5, 1.5), 'indentation' => ['firstLine' => 600]]);
-        $phpWord->addParagraphStyle('plain_text', ['alignment' => Jc::LEFT, 'spaceAfter' => 140, 'lineHeight' => $this->safeFloat($rules['line_spacing'] ?? 1.5, 1.5)]);
+        $lineSpacing = $this->safeFloat($rules['line_spacing'] ?? 1.5, 1.5);
+        $phpWord->addParagraphStyle('body_text', ['alignment' => Jc::BOTH, 'spaceAfter' => 160, 'lineHeight' => $lineSpacing, 'indentation' => ['firstLine' => 600]]);
+        $phpWord->addParagraphStyle('plain_text', ['alignment' => Jc::LEFT, 'spaceAfter' => 140, 'lineHeight' => $lineSpacing]);
         $phpWord->addParagraphStyle('quote_long', ['alignment' => Jc::BOTH, 'spaceAfter' => 120, 'lineHeight' => 1.0, 'indentation' => ['left' => 720, 'right' => 720]]);
         $phpWord->addParagraphStyle('references_item', ['alignment' => Jc::LEFT, 'spaceAfter' => 100, 'lineHeight' => 1.0, 'indentation' => ['hanging' => 360]]);
 
-        $phpWord->addTitleStyle(1, ['bold' => true, 'size' => $this->safeInt($rules['heading_font_size'] ?? 14, 14)], ['alignment' => Jc::CENTER, 'spaceAfter' => 200]);
-        $phpWord->addTitleStyle(2, ['bold' => true, 'size' => max(12, $this->safeInt($rules['heading_font_size'] ?? 14, 14) - 1)], ['alignment' => Jc::LEFT, 'spaceAfter' => 180]);
+        $headingSize = $this->safeInt($rules['heading_font_size'] ?? 14, 14);
+        $phpWord->addTitleStyle(1, ['bold' => true, 'size' => $headingSize], ['alignment' => Jc::CENTER, 'spaceAfter' => 200]);
+        $phpWord->addTitleStyle(2, ['bold' => true, 'size' => max(12, $headingSize - 1)], ['alignment' => Jc::LEFT, 'spaceAfter' => 180]);
 
         $section = $phpWord->addSection([
             'marginTop' => $this->cmToTwip($rules['margins']['top'] ?? 2.5),
@@ -40,7 +42,7 @@ final class DocxAssemblyService
         $this->addCoverPage($section, $title, $frontPage);
         $this->addTitlePage($section, $title, $frontPage);
         $this->addPreTextSections($section, $sections, ['resumo', 'abstract']);
-        $this->addTableOfContentsPlaceholder($section, $sections);
+        $this->addTableOfContentsPlaceholder($section);
         $this->addMainChapters($section, $sections);
         $this->addReferences($section, $sections);
         $this->addAnnexesAndAppendices($section, $sections);
@@ -50,29 +52,36 @@ final class DocxAssemblyService
 
     private function addHeaderFooter(Section $section, array $frontPage): void
     {
-        $section->addHeader()->addText($this->cleanText((string) ($frontPage['institution_name'] ?? 'MOZacad')), ['size' => 10], ['alignment' => Jc::CENTER]);
+        $headerText = $this->cleanText((string) ($frontPage['institution_name'] ?? 'MOZacad'));
+        $section->addHeader()->addText($headerText !== '' ? $headerText : 'MOZacad', ['size' => 10], ['alignment' => Jc::CENTER]);
         $section->addFooter()->addPreserveText('Página {PAGE}', ['size' => 10], ['alignment' => Jc::RIGHT]);
     }
 
     private function addCoverPage(Section $section, string $title, array $frontPage): void
     {
         $section->addText($this->cleanText((string) ($frontPage['institution_name'] ?? 'Instituição Académica')), ['bold' => true, 'size' => 14], ['alignment' => Jc::CENTER]);
+
         if (!empty($frontPage['faculty'])) {
             $section->addText($this->cleanText((string) $frontPage['faculty']), ['size' => 12], ['alignment' => Jc::CENTER]);
         }
         if (!empty($frontPage['department'])) {
             $section->addText($this->cleanText((string) $frontPage['department']), ['size' => 12], ['alignment' => Jc::CENTER]);
         }
+
         $section->addTextBreak(4);
         $section->addText($this->cleanText($title), ['bold' => true, 'size' => 16], ['alignment' => Jc::CENTER]);
+
         if (!empty($frontPage['student_name'])) {
             $section->addText('Discente: ' . $this->cleanText((string) $frontPage['student_name']), ['size' => 12], ['alignment' => Jc::CENTER]);
         }
         if (!empty($frontPage['supervisor_name'])) {
             $section->addText('Orientador(a): ' . $this->cleanText((string) $frontPage['supervisor_name']), ['size' => 12], ['alignment' => Jc::CENTER]);
         }
+
         $section->addTextBreak(6);
-        $section->addText($this->cleanText(((string) ($frontPage['city'] ?? 'Maputo')) . ', ' . ((string) ($frontPage['year'] ?? date('Y')))), ['size' => 12], ['alignment' => Jc::CENTER]);
+        $city = $this->cleanText((string) ($frontPage['city'] ?? 'Maputo'));
+        $year = $this->cleanText((string) ($frontPage['year'] ?? date('Y')));
+        $section->addText($city . ', ' . $year, ['size' => 12], ['alignment' => Jc::CENTER]);
         $section->addPageBreak();
     }
 
@@ -81,6 +90,7 @@ final class DocxAssemblyService
         $section->addTitle('Folha de rosto', 1);
         $section->addText($this->cleanText($title), ['bold' => true, 'size' => 14], ['alignment' => Jc::CENTER]);
         $section->addTextBreak(1);
+
         $note = (string) ($frontPage['submission_note'] ?? 'Documento académico elaborado segundo normas institucionais.');
         $section->addText($this->cleanText($note), [], 'body_text');
         $section->addPageBreak();
@@ -95,8 +105,9 @@ final class DocxAssemblyService
             }
 
             $found = true;
-            $section->addTitle($this->cleanText((string) ($item['title'] ?? 'Resumo')), 1);
-            $this->appendParagraphs($section, (string) ($item['content'] ?? ''));
+            $title = $this->cleanText((string) ($item['title'] ?? 'Resumo'));
+            $section->addTitle($title !== '' ? $title : 'Resumo', 1);
+            $this->appendParagraphs($section, (string) ($item['content'] ?? ''), $title);
         }
 
         if (!$found) {
@@ -107,26 +118,10 @@ final class DocxAssemblyService
         $section->addPageBreak();
     }
 
-    private function addTableOfContentsPlaceholder(Section $section, array $sections): void
+    private function addTableOfContentsPlaceholder(Section $section): void
     {
         $section->addTitle('Índice', 1);
-
-        $indexable = [];
-        foreach ($sections as $item) {
-            $title = $this->cleanText((string) ($item['title'] ?? 'Capítulo'));
-            if ($title !== '') {
-                $indexable[] = $title;
-            }
-        }
-
-        if ($indexable === []) {
-            $section->addText('Índice a ser actualizado conforme a estrutura final do documento.', [], 'plain_text');
-        } else {
-            foreach ($indexable as $position => $heading) {
-                $section->addText(($position + 1) . '. ' . $heading . ' ........................', [], 'plain_text');
-            }
-        }
-
+        $section->addText('O índice pode ser actualizado automaticamente no Microsoft Word ou LibreOffice, caso seja necessário.', [], 'plain_text');
         $section->addPageBreak();
     }
 
@@ -138,8 +133,10 @@ final class DocxAssemblyService
                 continue;
             }
 
-            $section->addTitle($this->cleanText((string) ($item['title'] ?? 'Capítulo')), 1);
-            $this->appendParagraphs($section, (string) ($item['content'] ?? ''));
+            $title = $this->cleanText((string) ($item['title'] ?? 'Capítulo'));
+            $safeTitle = $title !== '' ? $title : 'Capítulo';
+            $section->addTitle($safeTitle, 1);
+            $this->appendParagraphs($section, (string) ($item['content'] ?? ''), $safeTitle);
         }
     }
 
@@ -151,8 +148,10 @@ final class DocxAssemblyService
                 continue;
             }
 
+            $title = $this->cleanText((string) ($item['title'] ?? 'Referências'));
             $section->addPageBreak();
-            $section->addTitle($this->cleanText((string) ($item['title'] ?? 'Referências')), 1);
+            $section->addTitle($title !== '' ? $title : 'Referências', 1);
+
             foreach (preg_split('/\n+/', (string) ($item['content'] ?? '')) ?: [] as $reference) {
                 $clean = $this->cleanText($reference);
                 if ($clean !== '') {
@@ -171,18 +170,29 @@ final class DocxAssemblyService
                 continue;
             }
 
+            $title = $this->cleanText((string) ($item['title'] ?? 'Anexo/Apêndice'));
+            $safeTitle = $title !== '' ? $title : 'Anexo/Apêndice';
             $section->addPageBreak();
-            $section->addTitle($this->cleanText((string) ($item['title'] ?? 'Anexo/Apêndice')), 1);
-            $this->appendParagraphs($section, (string) ($item['content'] ?? ''));
+            $section->addTitle($safeTitle, 1);
+            $this->appendParagraphs($section, (string) ($item['content'] ?? ''), $safeTitle);
         }
     }
 
-    private function appendParagraphs(Section $section, string $content): void
+    private function appendParagraphs(Section $section, string $content, ?string $sectionTitle = null): void
     {
+        $normalizedTitle = $sectionTitle !== null ? mb_strtolower(trim($this->cleanText($sectionTitle), " \t\n\r\0\x0B.:;")) : '';
+
         foreach (preg_split('/\n+/', $content) ?: [] as $paragraph) {
             $clean = $this->cleanText($paragraph);
             if ($clean === '') {
                 continue;
+            }
+
+            if ($normalizedTitle !== '') {
+                $normalizedParagraph = mb_strtolower(trim($clean, " \t\n\r\0\x0B.:;"));
+                if ($normalizedParagraph === $normalizedTitle) {
+                    continue;
+                }
             }
 
             $isLongCitation = str_starts_with($clean, '"') && mb_strlen($clean) > 280;
@@ -194,17 +204,23 @@ final class DocxAssemblyService
     {
         $clean = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', ' ', $text) ?? '';
         $clean = str_replace(["\r\n", "\r"], "\n", $clean);
+
         $clean = preg_replace('/^\s*#{1,6}\s*/m', '', $clean) ?? $clean;
         $clean = str_replace(['**', '__', '`'], '', $clean);
         $clean = preg_replace('/^\s*[-*•]+\s+/m', '', $clean) ?? $clean;
+        $clean = preg_replace('/^\s*>+\s*/m', '', $clean) ?? $clean;
 
         $blockedPhrases = [
-            'revisão humana necessária',
-            'resumo indisponível',
-            'não foram fornecidos',
-            'não foram indicadas fontes',
+            'Revisão humana necessária',
+            'Resumo indisponível',
+            'requer revisão manual',
             'sujeito a revisão humana',
+            'não foram fornecidos',
+            'não foi previamente definido',
+            'não foram indicadas',
             'não foram disponibilizados',
+            'não foram especificados',
+            'não devem ser interpretados como conclusões empíricas',
         ];
 
         foreach ($blockedPhrases as $phrase) {
@@ -230,6 +246,7 @@ final class DocxAssemblyService
     private function cmToTwip(mixed $cm): int
     {
         $val = $this->safeFloat($cm, 2.5);
+
         return (int) round($val * 567.0);
     }
 }
