@@ -137,7 +137,10 @@ final class GenerateOrderDocumentJob
 
         $queueId = null;
         $db = Database::connect();
-        $db->beginTransaction();
+        $ownsTransaction = !$db->inTransaction();
+        if ($ownsTransaction) {
+            $db->beginTransaction();
+        }
         try {
             $lockedOrder = $orders->lockByIdForUpdate($orderId);
             if (!is_array($lockedOrder)) {
@@ -151,7 +154,9 @@ final class GenerateOrderDocumentJob
                 && in_array((string) ($lockedOrder['status'] ?? ''), ['ready', 'under_human_review'], true)
                 && $this->documentFileExists((string) ($lockedLatest['file_path'] ?? ''))
             ) {
-                $db->commit();
+                if ($ownsTransaction && $db->inTransaction()) {
+                    $db->commit();
+                }
                 $this->cleanupGeneratedFile($path);
 
                 return [
@@ -173,10 +178,12 @@ final class GenerateOrderDocumentJob
             if ($requiresReview) {
                 $queueId = (new HumanReviewQueueService())->enqueue($orderId, $documentId, $effectiveVersion);
             }
-            $db->commit();
+            if ($ownsTransaction && $db->inTransaction()) {
+                $db->commit();
+            }
             $nextVersion = $effectiveVersion;
         } catch (\Throwable $e) {
-            if ($db->inTransaction()) {
+            if ($ownsTransaction && $db->inTransaction()) {
                 $db->rollBack();
             }
             $this->cleanupGeneratedFile($path);

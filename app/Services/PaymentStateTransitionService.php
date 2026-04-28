@@ -33,7 +33,10 @@ final class PaymentStateTransitionService
         }
 
         $db = Database::connect();
-        $db->beginTransaction();
+        $ownsTransaction = !$db->inTransaction();
+        if ($ownsTransaction) {
+            $db->beginTransaction();
+        }
 
         try {
             $lockedPayment = $this->payments->lockByIdForUpdate($paymentId);
@@ -44,7 +47,9 @@ final class PaymentStateTransitionService
             $currentStatus = (string) ($lockedPayment['status'] ?? 'pending');
             if ($this->shouldIgnoreStatusChange($currentStatus, $internalStatus)) {
                 $this->paymentStatusLogs->create($paymentId, $currentStatus, $providerStatus, $rawPayload, $source . ':ignored');
-                $db->commit();
+                if ($ownsTransaction && $db->inTransaction()) {
+                    $db->commit();
+                }
                 return false;
             }
 
@@ -78,11 +83,13 @@ final class PaymentStateTransitionService
                 }
             }
 
-            $db->commit();
+            if ($ownsTransaction && $db->inTransaction()) {
+                $db->commit();
+            }
             $this->logger->info('payment.transition.updated', ['payment_id' => $paymentId, 'from' => $currentStatus, 'to' => $internalStatus, 'source' => $source]);
             return true;
         } catch (Throwable $e) {
-            if ($db->inTransaction()) {
+            if ($ownsTransaction && $db->inTransaction()) {
                 $db->rollBack();
             }
             throw $e;
