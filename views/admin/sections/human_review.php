@@ -10,7 +10,7 @@
   <h2 class="h5">Fila de revisão humana</h2>
   <div class="table-responsive">
     <table class="table table-sm align-middle">
-      <thead><tr><th>ID</th><th>Pedido</th><th>Documento</th><th>Status</th><th>Revisor</th><th>Decisão</th><th>Ações</th></tr></thead>
+      <thead><tr><th>ID</th><th>Pedido</th><th>Documento</th><th>Status</th><th>Checklist</th><th>Revisor</th><th>Decisão</th><th>Ações</th></tr></thead>
       <tbody>
       <?php foreach (($humanReviewQueue ?? []) as $row): ?>
         <tr>
@@ -22,6 +22,12 @@
           </td>
           <td>Doc #<?= (int) ($row['generated_document_id'] ?? 0) ?> · v<?= (int) ($row['generated_document_version'] ?? 0) ?></td>
           <td><?= $badge((string) ($row['status'] ?? 'pending')) ?><div class="muted-meta">Order: <?= htmlspecialchars((string) ($row['order_status'] ?? '-')) ?></div></td>
+          <td>
+            <?php $checked = (int) ($row['checklist_checked_items'] ?? 0); $total = (int) ($row['checklist_total_items'] ?? 0); $blocking = (int) ($row['checklist_blocking_items'] ?? 0); ?>
+            <div class="muted-meta">Progresso: <?= $checked ?>/<?= $total ?></div>
+            <div class="muted-meta">Aprovados: <?= (int) ($row['checklist_approved_items'] ?? 0) ?></div>
+            <div class="muted-meta text-<?= $blocking > 0 ? 'danger' : 'success' ?>">Pendências impeditivas: <?= $blocking ?></div>
+          </td>
           <td><?= !empty($row['reviewer_id']) ? '#'.(int)$row['reviewer_id'] : 'Não atribuído' ?></td>
           <td><?= htmlspecialchars((string) ($row['decision'] ?? '-')) ?><div class="muted-meta"><?= htmlspecialchars((string) ($row['comments'] ?? '-')) ?></div></td>
           <td>
