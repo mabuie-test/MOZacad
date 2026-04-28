@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Repositories\AcademicLevelRepository;
+use App\Repositories\AIJobRepository;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\CourseRepository;
 use App\Repositories\DisciplineRepository;
@@ -166,13 +167,14 @@ final class OrderController extends BaseController
         $paymentHistory = array_values(array_filter($paymentRepo->listRecentByUser($userId, 50), static fn (array $row): bool => (int) ($row['order_id'] ?? 0) === $id));
         $documents = array_values(array_filter((new GeneratedDocumentRepository())->listByUser($userId, 50), static fn(array $doc): bool => (int) $doc['order_id'] === $id));
         $revision = (new RevisionRepository())->findLatestByOrderId($id);
+        $aiJob = (new AIJobRepository())->findLatestByOrderAndStage($id, 'document_generation');
 
         if ($this->isHtmlRequest()) {
-            $this->view('orders/show', compact('order', 'attachments', 'invoice', 'payment', 'paymentHistory', 'documents', 'revision'));
+            $this->view('orders/show', compact('order', 'attachments', 'invoice', 'payment', 'paymentHistory', 'documents', 'revision', 'aiJob'));
             return;
         }
 
-        $this->json(['order' => $order, 'attachments' => $attachments, 'invoice' => $invoice, 'payment' => $payment, 'payment_history' => $paymentHistory, 'documents' => $documents, 'revision' => $revision]);
+        $this->json(['order' => $order, 'attachments' => $attachments, 'invoice' => $invoice, 'payment' => $payment, 'payment_history' => $paymentHistory, 'documents' => $documents, 'revision' => $revision, 'ai_job' => $aiJob]);
     }
 
     public function pay(int $id): void
