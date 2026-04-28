@@ -35,6 +35,6 @@ final class AdminHumanReviewService
             throw new RuntimeException("decision deve ser 'approve' ou 'reject'.");
         }
 
-        $this->audit->log($actorId, 'admin.human_review.decision', 'human_review_queue', $queueId, ['decision' => $decision, 'enforce_assigned_reviewer' => $enforceAssignedReviewer]);
+        $this->audit->log($actorId, 'admin.human_review.decision', 'human_review_queue', $queueId, ['decision' => $decision, 'enforce_assigned_reviewer' => $enforceAssignedReviewer, 'decision_timestamp' => date('c'), 'internal_signature_actor_id' => $actorId]);
     }
 }

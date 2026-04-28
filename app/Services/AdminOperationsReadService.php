@@ -9,6 +9,7 @@ use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
 use App\Repositories\UserRepository;
 use App\Repositories\AuditLogRepository;
+use App\Repositories\DeliveryChecklistRepository;
 
 final class AdminOperationsReadService
 {
@@ -17,6 +18,20 @@ final class AdminOperationsReadService
         $orders = in_array($section, ['overview', 'orders', 'payments'], true) ? (new OrderRepository())->listAll(300) : [];
         $payments = in_array($section, ['overview', 'payments', 'orders'], true) ? (new PaymentRepository())->listAll(300) : [];
         $queueRows = in_array($section, ['overview', 'human-review'], true) ? (new HumanReviewQueueRepository())->listQueue(300) : [];
+        $checklistSummaryRows = in_array($section, ['overview', 'human-review'], true) ? (new DeliveryChecklistRepository())->summarizeByQueue(500) : [];
+        $checklistSummaryMap = [];
+        foreach ($checklistSummaryRows as $row) {
+            $checklistSummaryMap[((int) $row['generated_document_id']) . ':' . ((int) $row['generated_document_version'])] = $row;
+        }
+        foreach ($queueRows as &$queueRow) {
+            $key = ((int) ($queueRow['generated_document_id'] ?? 0)) . ':' . ((int) ($queueRow['generated_document_version'] ?? 0));
+            $summary = $checklistSummaryMap[$key] ?? null;
+            $queueRow['checklist_total_items'] = (int) ($summary['total_items'] ?? 0);
+            $queueRow['checklist_checked_items'] = (int) ($summary['checked_items'] ?? 0);
+            $queueRow['checklist_approved_items'] = (int) ($summary['approved_items'] ?? 0);
+            $queueRow['checklist_blocking_items'] = (int) ($summary['blocking_items'] ?? 0);
+        }
+        unset($queueRow);
 
         $orderStatusFilter = trim((string) ($filters['order_status'] ?? ''));
         $paymentStatusFilter = trim((string) ($filters['payment_status'] ?? ''));
