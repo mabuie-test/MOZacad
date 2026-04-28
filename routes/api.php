@@ -11,6 +11,7 @@ use App\Controllers\AdminHumanReviewController;
 use App\Controllers\AdminPaymentController;
 use App\Controllers\AdminPermissionController;
 use App\Controllers\AdminPricingController;
+use App\Controllers\AdminOrderActionController;
 use App\Helpers\Router;
 use App\Services\HttpRoutePolicyService;
 
@@ -48,6 +49,11 @@ return static function (Router $router): void {
         $router->post('/human-review/{queueId}/decision', [AdminHumanReviewController::class, 'decideHumanReview']);
         $router->post('/payments/{id}/confirm-manual', [AdminPaymentController::class, 'confirmManual']);
         $router->post('/operations/process-ai-queue', [AdminPaymentController::class, 'processAiQueueNow']);
+        $router->post('/orders/{id}/pause', [AdminOrderActionController::class, 'pause']);
+        $router->post('/orders/{id}/resume', [AdminOrderActionController::class, 'resume']);
+        $router->post('/orders/{id}/escalate', [AdminOrderActionController::class, 'escalate']);
+        $router->post('/orders/{id}/block-delivery', [AdminOrderActionController::class, 'blockDelivery']);
+        $router->post('/orders/{id}/reopen-review', [AdminOrderActionController::class, 'reopenReview']);
         $router->post('/pricing/rules', [AdminPricingController::class, 'upsertPricingRule']);
         $router->post('/pricing/extras', [AdminPricingController::class, 'upsertPricingExtra']);
         $router->post('/permissions/matrix', [AdminPermissionController::class, 'updateMatrix']);
