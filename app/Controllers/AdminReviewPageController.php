@@ -10,7 +10,7 @@ final class AdminReviewPageController extends BaseController
 {
     public function humanReviewQueue(): void
     {
-        if (!$this->requireAdminAccess()) return;
+        if (!$this->requireAdminPermission('human_review.queue.view', '/admin')) return;
         $payload = (new AdminOverviewService())->payload('human-review', $_GET);
         if ($this->wantsJson()) {
             $this->json($payload);

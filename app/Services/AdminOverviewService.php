@@ -11,6 +11,7 @@ final class AdminOverviewService
         private readonly AdminCatalogReadService $catalog = new AdminCatalogReadService(),
         private readonly AdminCommercialReadService $commercial = new AdminCommercialReadService(),
         private readonly AdminGovernanceReadService $governance = new AdminGovernanceReadService(),
+        private readonly AdminPermissionMatrixService $permissionMatrix = new AdminPermissionMatrixService(),
     ) {}
 
     public function payload(string $section, array $filters = []): array
@@ -19,6 +20,11 @@ final class AdminOverviewService
         $operations = $this->operations->load($section, $filters);
         $commercial = $this->commercial->load($section);
         $governance = $this->governance->load($section, $catalog['institutions'], $catalog['workTypes']);
+        $permissions = in_array($section, ['overview', 'permissions'], true) ? $this->permissionMatrix->matrix() : [
+            'roles' => [],
+            'permissions' => [],
+            'rolePermissionMap' => [],
+        ];
 
         return array_merge(
             ['activeSection' => $section],
@@ -26,6 +32,7 @@ final class AdminOverviewService
             $catalog,
             $commercial,
             $governance,
+            $permissions,
         );
     }
 }

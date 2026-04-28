@@ -145,6 +145,25 @@ abstract class BaseController
         return $this->requireAdminAccess() && $this->requireCsrfToken();
     }
 
+    protected function requireAdminPermission(string $permissionCode, string $redirectPath = '/admin'): bool
+    {
+        if (!$this->requireAdminAccess()) {
+            return false;
+        }
+
+        if ((new AdminAccessService())->canCurrentAdmin($permissionCode)) {
+            return true;
+        }
+
+        $this->errorResponse('Sem permissão específica para esta operação.', 403, $redirectPath, ['required_permission' => $permissionCode]);
+        return false;
+    }
+
+    protected function guardAdminPermissionPost(string $permissionCode, string $redirectPath = '/admin'): bool
+    {
+        return $this->requireAdminPermission($permissionCode, $redirectPath) && $this->requireCsrfToken();
+    }
+
     protected function adminSuccess(string $message, string $redirectPath, array $payload = []): void
     {
         $this->successResponse($message, $redirectPath, $payload);
@@ -155,9 +174,9 @@ abstract class BaseController
         $this->errorResponse($message, $status, $redirectPath, $payload);
     }
 
-    protected function audit(string $action, string $subjectType, ?int $subjectId = null, array $payload = []): void
+    protected function audit(string $action, string $subjectType, ?int $subjectId = null, array $payload = [], ?string $permissionCode = null): void
     {
-        (new AuditLogRepository())->log((int) ($_SESSION['auth_user_id'] ?? 0), $action, $subjectType, $subjectId, $payload);
+        (new AuditLogRepository())->log((int) ($_SESSION['auth_user_id'] ?? 0), $action, $subjectType, $subjectId, $payload, $permissionCode);
     }
 
     protected function redirect(string $path): void

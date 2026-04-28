@@ -11,6 +11,7 @@ use App\Controllers\AdminCommercialPageController;
 use App\Controllers\AdminReviewPageController;
 use App\Controllers\AdminHumanReviewController;
 use App\Controllers\AdminPaymentController;
+use App\Controllers\AdminPermissionController;
 use App\Controllers\AdminPricingController;
 use App\Controllers\AuthController;
 use App\Controllers\BillingController;
@@ -79,6 +80,7 @@ return static function (Router $router): void {
         $router->get('/templates', [AdminGovernancePageController::class, 'templates']);
         $router->get('/coupons', [AdminCommercialPageController::class, 'coupons']);
         $router->get('/human-review', [AdminReviewPageController::class, 'humanReviewQueue']);
+        $router->get('/permissions', [AdminController::class, 'permissions']);
 
         $router->post('/institutions', [AdminCatalogController::class, 'createInstitution'], [$csrf]);
         $router->post('/institutions/{id}', [AdminCatalogController::class, 'updateInstitution'], [$csrf]);
@@ -104,5 +106,6 @@ return static function (Router $router): void {
         $router->post('/operations/process-ai-queue', [AdminPaymentController::class, 'processAiQueueNow'], [$csrf]);
         $router->post('/pricing/rules', [AdminPricingController::class, 'upsertPricingRule'], [$csrf]);
         $router->post('/pricing/extras', [AdminPricingController::class, 'upsertPricingExtra'], [$csrf]);
+        $router->post('/permissions/matrix', [AdminPermissionController::class, 'updateMatrix'], [$csrf]);
     });
 };

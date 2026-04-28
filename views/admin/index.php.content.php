@@ -40,6 +40,9 @@
     ] as $href => $label): ?>
       <a class="<?= (($currentPath ?? '') === $href) ? 'active' : '' ?>" href="<?= $href ?>"><?= $label ?></a>
     <?php endforeach; ?>
+    <div class="nav-label">Segurança</div>
+    <a class="<?= (($currentPath ?? '') === '/admin/permissions') ? 'active' : '' ?>" href="/admin/permissions">Permissões</a>
+
   </aside>
 
   <section>
