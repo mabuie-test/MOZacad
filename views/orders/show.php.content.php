@@ -17,7 +17,7 @@
       <div class="timeline mt-3">
         <?php foreach ([
           'pending_payment' => 'Pagamento pendente para iniciar execução.',
-          'queued' => 'Pedido em fila de produção técnica.',
+          'queued' => 'Pedido em fila de produção técnica. A geração automática está aguardando processamento pelo worker.',
           'under_human_review' => 'Documento em revisão humana especializada.',
           'ready' => 'Documento final disponível para download.',
           'revision_requested' => 'Revisão solicitada pelo utilizador.',
@@ -64,6 +64,24 @@
 
     <div class="card p-4">
       <h2 class="h5">Documentos e revisão</h2>
+      <?php
+        $jobStatus = (string) (($aiJob['status'] ?? ''));
+        $jobError = trim((string) ($aiJob['error_text'] ?? ''));
+        $jobMessage = match ($jobStatus) {
+          'queued' => 'Aguardando worker de geração documental.',
+          'reserved', 'processing' => 'Documento em geração.',
+          'retry_wait' => 'Tentativa de geração reagendada.',
+          'failed' => 'Falha na geração: ' . htmlspecialchars(mb_substr($jobError !== '' ? $jobError : 'Erro não detalhado.', 0, 160)),
+          'completed' => 'Geração concluída.',
+          default => 'Sem job técnico activo para este pedido.',
+        };
+      ?>
+      <div class="status-card mb-3">
+        <small>Produção técnica (AI Job)</small>
+        <div><?= $badge($jobStatus !== '' ? $jobStatus : 'pending') ?></div>
+        <p class="small mb-0 mt-2"><?= $jobMessage ?></p>
+      </div>
+
       <div class="row g-3">
         <div class="col-md-7">
           <h3 class="h6">Documentos gerados</h3>
@@ -105,6 +123,9 @@
       <?php elseif (($order['status'] ?? '') === 'ready'): ?>
         <p>Documento pronto. Faça download agora.</p>
         <a href="/downloads" class="btn btn-primary w-100">Abrir downloads</a>
+      <?php elseif (($order['status'] ?? '') === 'queued' && ($jobStatus ?? '') === 'completed' && !empty($documents)): ?>
+        <p>Documento concluído. Pode descarregar a versão mais recente.</p>
+        <a href="/downloads/<?= (int) ($documents[0]['id'] ?? 0) ?>" class="btn btn-primary w-100">Baixar documento</a>
       <?php else: ?>
         <p>Continue a monitorar o estado e use revisão se necessário.</p>
         <a href="/orders" class="btn btn-outline-primary w-100">Ver pedidos</a>

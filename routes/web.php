@@ -101,6 +101,7 @@ return static function (Router $router): void {
         $router->post('/human-review/{queueId}/assign', [AdminHumanReviewController::class, 'assignHumanReview'], [$csrf]);
         $router->post('/human-review/{queueId}/decision', [AdminHumanReviewController::class, 'decideHumanReview'], [$csrf]);
         $router->post('/payments/{id}/confirm-manual', [AdminPaymentController::class, 'confirmManual'], [$csrf]);
+        $router->post('/operations/process-ai-queue', [AdminPaymentController::class, 'processAiQueueNow'], [$csrf]);
         $router->post('/pricing/rules', [AdminPricingController::class, 'upsertPricingRule'], [$csrf]);
         $router->post('/pricing/extras', [AdminPricingController::class, 'upsertPricingExtra'], [$csrf]);
     });

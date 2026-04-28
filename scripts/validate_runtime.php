@@ -22,6 +22,10 @@ if ($env === 'production' && $allowUnsignedWebhook) {
     exit(1);
 }
 
+
+$staleQueuedMinutes = max(1, (int) ($_ENV['QUEUE_STALE_QUEUED_MINUTES'] ?? 10));
+$staleProcessingMinutes = max(1, (int) ($_ENV['QUEUE_STALE_PROCESSING_MINUTES'] ?? 30));
+
 $checks = [
     'payment_without_invoice' => (int) $db->query('SELECT COUNT(*) FROM payments p LEFT JOIN invoices i ON i.id = p.invoice_id WHERE i.id IS NULL')->fetchColumn(),
     'provider_successful_not_paid' => (int) $db->query("SELECT COUNT(*) FROM payments WHERE UPPER(TRIM(COALESCE(provider_status, ''))) = 'SUCCESSFUL' AND status <> 'paid'")->fetchColumn(),
@@ -43,8 +47,50 @@ $checks = [
     ) d")->fetchColumn(),
     'open_review_without_pending_document' => (int) $db->query("SELECT COUNT(*) FROM human_review_queue q INNER JOIN generated_documents gd ON gd.id = q.generated_document_id WHERE q.status IN ('pending','assigned') AND gd.status <> 'pending_human_review'")->fetchColumn(),
     'revision_requested_without_rejected_document' => (int) $db->query("SELECT COUNT(*) FROM orders o LEFT JOIN generated_documents gd ON gd.order_id=o.id AND gd.status='returned_for_revision' WHERE o.status='revision_requested' AND gd.id IS NULL")->fetchColumn(),
+
+    'queued_order_without_open_job_stale' => (int) $db->query("SELECT COUNT(*) FROM orders o
+        LEFT JOIN ai_jobs j ON j.order_id=o.id AND j.stage='document_generation' AND j.status IN ('queued','pending','reserved','processing','retry_wait')
+        WHERE o.status='queued' AND j.id IS NULL AND o.updated_at < DATE_SUB(NOW(), INTERVAL {$staleQueuedMinutes} MINUTE)")->fetchColumn(),
+    'queued_order_with_queued_job_stale' => (int) $db->query("SELECT COUNT(*) FROM orders o
+        INNER JOIN ai_jobs j ON j.order_id=o.id AND j.stage='document_generation' AND j.status='queued'
+        WHERE o.status='queued' AND j.updated_at < DATE_SUB(NOW(), INTERVAL {$staleQueuedMinutes} MINUTE)")->fetchColumn(),
+    'job_processing_stale' => (int) $db->query("SELECT COUNT(*) FROM ai_jobs WHERE status IN ('processing','reserved') AND COALESCE(processing_started_at, reserved_at, updated_at) < DATE_SUB(NOW(), INTERVAL {$staleProcessingMinutes} MINUTE)")->fetchColumn(),
+    'job_retry_wait_overdue' => (int) $db->query("SELECT COUNT(*) FROM ai_jobs WHERE status='retry_wait' AND next_retry_at IS NOT NULL AND next_retry_at <= NOW()")->fetchColumn(),
+    'job_completed_without_generated_document' => (int) $db->query("SELECT COUNT(*) FROM ai_jobs j LEFT JOIN generated_documents gd ON gd.order_id=j.order_id WHERE j.stage='document_generation' AND j.status='completed' AND gd.id IS NULL")->fetchColumn(),
+    'generated_document_file_missing' => 0,
+    'generated_document_file_zero_bytes' => 0,
     'coupon_usage_without_coupon' => (int) $db->query('SELECT COUNT(*) FROM coupon_usage_logs c LEFT JOIN coupons cp ON cp.id = c.coupon_id WHERE cp.id IS NULL')->fetchColumn(),
 ];
+
+
+$generatedRows = $db->query('SELECT id, file_path FROM generated_documents ORDER BY id DESC LIMIT 1000')->fetchAll();
+$missingFiles = 0;
+$zeroByteFiles = 0;
+$generatedBase = realpath(__DIR__ . '/../storage/generated') ?: (__DIR__ . '/../storage/generated');
+foreach ($generatedRows as $row) {
+    $relative = trim((string) ($row['file_path'] ?? ''));
+    if ($relative === '') {
+        $missingFiles++;
+        continue;
+    }
+
+    $candidate = $relative;
+    if (!str_starts_with($candidate, '/')) {
+        $candidate = $generatedBase . '/' . ltrim($candidate, '/');
+    }
+
+    $real = realpath($candidate);
+    if ($real === false || !is_file($real)) {
+        $missingFiles++;
+        continue;
+    }
+
+    if (filesize($real) <= 0) {
+        $zeroByteFiles++;
+    }
+}
+$checks['generated_document_file_missing'] = $missingFiles;
+$checks['generated_document_file_zero_bytes'] = $zeroByteFiles;
 
 $hasIssue = false;
 if ($schema['issues'] !== []) {

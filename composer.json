@@ -34,6 +34,15 @@
     ],
     "deploy:release": [
       "@php scripts/deploy_release.php"
+    ],
+    "workers:run": [
+      "@php scripts/run_workers.php"
+    ],
+    "workers:once": [
+      "@php scripts/run_workers.php --once"
+    ],
+    "queue:status": [
+      "@php scripts/queue_status.php"
     ]
   }
 }

@@ -57,14 +57,54 @@ A rota é configurável por `.env`:
 - `composer ops:validate`
 - verifica convergência de schema + consistência mínima de pagamentos, jobs, revisão humana, regeneração e cupões.
 
+
+## Workers locais
+No Termux/desenvolvimento, execute o worker em segundo terminal para não deixar pedidos pagos presos em `queued`:
+
+```bash
+composer workers:run
+```
+
+Para executar apenas uma rodada operacional:
+
+```bash
+composer workers:once
+```
+
+Fluxo recomendado local:
+
+Terminal 1:
+```bash
+php -S 0.0.0.0:8080 -t public
+```
+
+Terminal 2:
+```bash
+composer workers:run
+```
+
+Diagnóstico rápido da fila:
+
+```bash
+composer queue:status
+```
+
+
 ## Templates institucionais (estado explícito)
 - A montagem DOCX oficial é **programática** (`DocxAssemblyService`).
 - `InstitutionTemplateService` apenas resolve e audita candidato em `STORAGE_TEMPLATES_PATH` sem alterar o pipeline nesta versão.
 
 ## Cron jobs
+Rodada única unificada (recomendado):
+```bash
+* * * * * php /path/to/MOZacad/scripts/run_workers.php --once
+```
+
+Ou rotinas separadas:
 ```bash
 * * * * * php /path/to/MOZacad/scripts/poll_payments.php
 */2 * * * * php /path/to/MOZacad/scripts/process_ai_jobs.php
+*/5 * * * * php /path/to/MOZacad/scripts/reconcile_successful_payments.php
 ```
 
 Variáveis operacionais úteis:
