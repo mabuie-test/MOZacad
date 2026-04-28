@@ -37,11 +37,8 @@ final class AIJobRepository extends BaseRepository
 
         $this->db->beginTransaction();
         try {
-            $sql = "UPDATE ai_jobs
-                SET status = 'reserved',
-                    reservation_token = :token,
-                    reserved_at = NOW(),
-                    updated_at = NOW()
+            $sql = "SELECT id
+                FROM ai_jobs
                 WHERE (
                     status IN ('queued','pending')
                     OR (status = 'retry_wait' AND (next_retry_at IS NULL OR next_retry_at <= NOW()))
@@ -49,13 +46,33 @@ final class AIJobRepository extends BaseRepository
                     OR (status = 'reserved' AND reserved_at IS NOT NULL AND reserved_at < DATE_SUB(NOW(), INTERVAL 600 SECOND))
                 )
                 ORDER BY created_at ASC
-                LIMIT :limit";
+                LIMIT {$limit}";
 
             $stmt = $this->db->prepare($sql);
-            $stmt->bindValue('token', $token);
             $stmt->bindValue('stale_seconds', $staleProcessingSeconds, \PDO::PARAM_INT);
-            $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
             $stmt->execute();
+            $ids = array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+
+            if ($ids === []) {
+                $this->db->commit();
+                return [];
+            }
+
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $update = $this->db->prepare("UPDATE ai_jobs
+                SET status = 'reserved',
+                    reservation_token = ?,
+                    reserved_at = NOW(),
+                    updated_at = NOW()
+                WHERE id IN ({$placeholders})
+                  AND (
+                    status IN ('queued','pending')
+                    OR (status = 'retry_wait' AND (next_retry_at IS NULL OR next_retry_at <= NOW()))
+                    OR (status = 'processing' AND processing_started_at IS NOT NULL AND processing_started_at < DATE_SUB(NOW(), INTERVAL ? SECOND))
+                    OR (status = 'reserved' AND reserved_at IS NOT NULL AND reserved_at < DATE_SUB(NOW(), INTERVAL 600 SECOND))
+                  )");
+            $params = array_merge([$token], $ids, [$staleProcessingSeconds]);
+            $update->execute($params);
 
             $selected = $this->db->prepare('SELECT * FROM ai_jobs WHERE reservation_token = :token ORDER BY created_at ASC');
             $selected->execute(['token' => $token]);
