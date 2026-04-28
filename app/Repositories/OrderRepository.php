@@ -8,7 +8,12 @@ final class OrderRepository extends BaseRepository
 {
     public function listAll(int $limit = 200): array
     {
-        $stmt = $this->db->prepare('SELECT o.*, u.email AS user_email, wt.name AS work_type_name
+        $stmt = $this->db->prepare('SELECT o.*, u.email AS user_email, wt.name AS work_type_name,
+                CASE
+                    WHEN o.deadline_date < NOW() THEN "late"
+                    WHEN TIMESTAMPDIFF(HOUR, NOW(), o.deadline_date) <= 24 THEN "at_risk"
+                    ELSE "on_track"
+                END AS sla_state
             FROM orders o
             INNER JOIN users u ON u.id = o.user_id
             INNER JOIN work_types wt ON wt.id = o.work_type_id
@@ -96,5 +101,20 @@ final class OrderRepository extends BaseRepository
     {
         $stmt = $this->db->prepare('UPDATE orders SET final_price = :final_price, updated_at = NOW() WHERE id = :id');
         $stmt->execute(['final_price' => $finalPrice, 'id' => $id]);
+    }
+
+    public function updateAdminState(int $id, string $status, string $priority): void
+    {
+        $stmt = $this->db->prepare('UPDATE orders
+            SET status = :status,
+                admin_priority = :admin_priority,
+                admin_sla_due_at = DATE_ADD(NOW(), INTERVAL 24 HOUR),
+                updated_at = NOW()
+            WHERE id = :id');
+        $stmt->execute([
+            'status' => $status,
+            'admin_priority' => $priority,
+            'id' => $id,
+        ]);
     }
 }

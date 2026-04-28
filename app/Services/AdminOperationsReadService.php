@@ -8,6 +8,7 @@ use App\Repositories\HumanReviewQueueRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
 use App\Repositories\UserRepository;
+use App\Repositories\AuditLogRepository;
 
 final class AdminOperationsReadService
 {
@@ -20,6 +21,9 @@ final class AdminOperationsReadService
         $orderStatusFilter = trim((string) ($filters['order_status'] ?? ''));
         $paymentStatusFilter = trim((string) ($filters['payment_status'] ?? ''));
         $reviewStatusFilter = trim((string) ($filters['review_status'] ?? ''));
+        $riskFilter = trim((string) ($filters['risk'] ?? ''));
+        $delayFilter = trim((string) ($filters['delay'] ?? ''));
+        $selectedOrderId = (int) ($filters['order_id'] ?? 0);
 
         if ($orderStatusFilter !== '') {
             $orders = array_values(array_filter($orders, static fn (array $row): bool => (string) ($row['status'] ?? '') === $orderStatusFilter));
@@ -29,6 +33,18 @@ final class AdminOperationsReadService
         }
         if ($reviewStatusFilter !== '') {
             $queueRows = array_values(array_filter($queueRows, static fn (array $row): bool => (string) ($row['status'] ?? '') === $reviewStatusFilter));
+        }
+        if ($riskFilter !== '') {
+            $orders = array_values(array_filter($orders, static function (array $row) use ($riskFilter): bool {
+                $priority = (string) ($row['admin_priority'] ?? 'normal');
+                return $priority === $riskFilter;
+            }));
+        }
+        if ($delayFilter !== '') {
+            $orders = array_values(array_filter($orders, static function (array $row) use ($delayFilter): bool {
+                $sla = (string) ($row['sla_state'] ?? 'on_track');
+                return $sla === $delayFilter;
+            }));
         }
 
         return [
@@ -41,8 +57,12 @@ final class AdminOperationsReadService
             'orderStatusFilter' => $orderStatusFilter,
             'paymentStatusFilter' => $paymentStatusFilter,
             'reviewStatusFilter' => $reviewStatusFilter,
+            'riskFilter' => $riskFilter,
+            'delayFilter' => $delayFilter,
             'users' => in_array($section, ['overview', 'users', 'discounts'], true) ? (new UserRepository())->all(300) : [],
             'orders' => $orders,
+            'selectedOrderId' => $selectedOrderId,
+            'orderAuditTrail' => $selectedOrderId > 0 ? (new AuditLogRepository())->listBySubject('order', $selectedOrderId, 80) : [],
             'payments' => $payments,
             'humanReviewQueue' => $queueRows,
             'reviewers' => in_array($section, ['overview', 'human-review'], true) ? (new UserRepository())->listByRole('human_reviewer', 80) : [],

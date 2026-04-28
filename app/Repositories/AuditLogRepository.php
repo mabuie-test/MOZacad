@@ -15,4 +15,17 @@ final class AuditLogRepository extends BaseRepository
             'permission_code'=>$permissionCode,
         ]);
     }
+
+    public function listBySubject(string $subjectType, int $subjectId, int $limit = 100): array
+    {
+        $s = $this->db->prepare('SELECT * FROM audit_logs
+            WHERE subject_type = :subject_type AND subject_id = :subject_id
+            ORDER BY created_at DESC
+            LIMIT :limit');
+        $s->bindValue('subject_type', $subjectType);
+        $s->bindValue('subject_id', $subjectId, \PDO::PARAM_INT);
+        $s->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $s->execute();
+        return $s->fetchAll();
+    }
 }
