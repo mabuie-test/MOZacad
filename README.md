@@ -58,20 +58,8 @@ A rota é configurável por `.env`:
 - verifica convergência de schema + consistência mínima de pagamentos, jobs, revisão humana, regeneração e cupões.
 
 
-## Workers locais
-No Termux/desenvolvimento, execute o worker em segundo terminal para não deixar pedidos pagos presos em `queued`:
-
-```bash
-composer workers:run
-```
-
-Para executar apenas uma rodada operacional:
-
-```bash
-composer workers:once
-```
-
-Fluxo recomendado local:
+## Workers em desenvolvimento/Termux
+Em ambiente local (Termux/dev), o worker deve ficar activo em terminal dedicado. Se o worker não estiver activo, pedidos pagos podem permanecer em `queued` (estado que significa “aguarda worker de geração documental”).
 
 Terminal 1:
 ```bash
@@ -83,16 +71,39 @@ Terminal 2:
 composer workers:run
 ```
 
-Diagnóstico rápido da fila:
+Rodada única (diagnóstico/manual):
+```bash
+composer workers:once
+```
 
+Diagnóstico da fila:
 ```bash
 composer queue:status
 ```
 
+## Workers em produção (`public_html`/hosting clássico)
+Em produção com hosting clássico, **não** depender de terminal aberto com `composer workers:run`. O recomendado é cron executando rodada única:
 
-## Templates institucionais (estado explícito)
-- A montagem DOCX oficial é **programática** (`DocxAssemblyService`).
-- `InstitutionTemplateService` apenas resolve e audita candidato em `STORAGE_TEMPLATES_PATH` sem alterar o pipeline nesta versão.
+```bash
+* * * * * /usr/bin/php /home/USUARIO/mozacad/scripts/run_workers.php --once >> /home/USUARIO/mozacad/storage/logs/worker-cron.log 2>&1
+```
+
+Em alguns ambientes (ex.: cPanel), pode ser necessário:
+
+```bash
+* * * * * /usr/local/bin/php /home/USUARIO/mozacad/scripts/run_workers.php --once >> /home/USUARIO/mozacad/storage/logs/worker-cron.log 2>&1
+```
+
+Substitua `/home/USUARIO/mozacad` pelo caminho real do projecto.
+
+Boas práticas de deploy em host com `public_html`:
+- Servir apenas o directório `public/` como document root.
+- Manter `app`, `vendor`, `storage`, `scripts` e `.env` fora do acesso público, sempre que possível.
+- Se não for possível, proteger ficheiros sensíveis com regras adequadas em `.htaccess`.
+
+Alternativas de contingência (apenas emergência):
+- Botão admin “Processar fila agora”.
+- Endpoint interno protegido (somente se não houver cron), nunca público sem token forte.
 
 ## Cron jobs
 Rodada única unificada (recomendado):
@@ -108,8 +119,14 @@ Ou rotinas separadas:
 ```
 
 Variáveis operacionais úteis:
+- `WORKER_RUN_ONCE`
+- `WORKER_LOOP_INTERVAL_SECONDS`
 - `AI_JOB_BATCH_LIMIT` (default: 5)
 - `AI_JOB_STALE_PROCESSING_TIMEOUT` (default: 1800s)
+
+## Templates institucionais (estado explícito)
+- A montagem DOCX oficial é **programática** (`DocxAssemblyService`).
+- `InstitutionTemplateService` apenas resolve e audita candidato em `STORAGE_TEMPLATES_PATH` sem alterar o pipeline nesta versão.
 
 ## Normas institucionais por directório
 Estrutura suportada:
