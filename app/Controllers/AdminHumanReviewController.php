@@ -36,7 +36,8 @@ final class AdminHumanReviewController extends BaseController
 
         $decision = trim((string) ($_POST['decision'] ?? ''));
         try {
-            (new AdminHumanReviewService())->decide((int) ($_SESSION['auth_user_id'] ?? 0), $queueId, $decision, trim((string) ($_POST['notes'] ?? '')) ?: null);
+            $enforceAssignedReviewer = !isset($_POST['enforce_assigned_reviewer']) || (string) $_POST['enforce_assigned_reviewer'] !== '0';
+            (new AdminHumanReviewService())->decide((int) ($_SESSION['auth_user_id'] ?? 0), $queueId, $decision, trim((string) ($_POST['notes'] ?? '')) ?: null, $enforceAssignedReviewer);
             $this->audit('admin.human_review.decided', 'human_review_queue', $queueId, ['decision' => $decision], $permission);
             $this->adminSuccess('Decisão de revisão humana guardada.', '/admin/human-review');
         } catch (RuntimeException $e) {
