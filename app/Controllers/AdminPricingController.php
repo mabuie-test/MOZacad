@@ -10,7 +10,8 @@ final class AdminPricingController extends BaseController
 {
     public function upsertPricingRule(): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'pricing.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/pricing')) return;
 
         $ruleCode = trim((string) ($_POST['rule_code'] ?? ''));
         $ruleValue = trim((string) ($_POST['rule_value'] ?? ''));
@@ -28,13 +29,14 @@ final class AdminPricingController extends BaseController
         }
 
         (new AdminPricingService())->upsertRule((int) ($_SESSION['auth_user_id'] ?? 0), $ruleCode, $ruleValue, $description, $isActive);
-        $this->audit('admin.pricing_rule.saved', 'pricing_rule', null, ['rule_code' => $ruleCode]);
+        $this->audit('admin.pricing_rule.saved', 'pricing_rule', null, ['rule_code' => $ruleCode], $permission);
         $this->adminSuccess('Regra de pricing guardada.', '/admin/pricing', ['rule_code' => $ruleCode]);
     }
 
     public function upsertPricingExtra(): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'pricing.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/pricing')) return;
 
         $extraCode = trim((string) ($_POST['extra_code'] ?? ''));
         $name = trim((string) ($_POST['name'] ?? ''));
@@ -55,7 +57,7 @@ final class AdminPricingController extends BaseController
         }
 
         (new AdminPricingService())->upsertExtra((int) ($_SESSION['auth_user_id'] ?? 0), $extraCode, $name, $amount, $isActive);
-        $this->audit('admin.pricing_extra.saved', 'pricing_extra', null, ['extra_code' => $extraCode]);
+        $this->audit('admin.pricing_extra.saved', 'pricing_extra', null, ['extra_code' => $extraCode], $permission);
         $this->adminSuccess('Extra de pricing guardado.', '/admin/pricing', ['extra_code' => $extraCode]);
     }
 }

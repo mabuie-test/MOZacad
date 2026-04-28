@@ -11,7 +11,8 @@ final class AdminCommercialController extends BaseController
 {
     public function createCoupon(): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'commercial.coupons.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/coupons')) return;
 
         $service = new AdminCommercialService();
         $payload = $service->couponPayloadFromRequest($_POST);
@@ -26,13 +27,14 @@ final class AdminCommercialController extends BaseController
             return;
         }
 
-        $this->audit('admin.coupon.created', 'coupon', $id, ['code' => $payload['code']]);
+        $this->audit('admin.coupon.created', 'coupon', $id, ['code' => $payload['code']], $permission);
         $this->adminSuccess('Cupão criado com sucesso.', '/admin/coupons', ['coupon_id' => $id]);
     }
 
     public function updateCoupon(int $id): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'commercial.coupons.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/coupons')) return;
 
         $service = new AdminCommercialService();
         $payload = $service->couponPayloadFromRequest($_POST);
@@ -46,13 +48,14 @@ final class AdminCommercialController extends BaseController
             return;
         }
 
-        $this->audit('admin.coupon.updated', 'coupon', $id, ['code' => $payload['code']]);
+        $this->audit('admin.coupon.updated', 'coupon', $id, ['code' => $payload['code']], $permission);
         $this->adminSuccess('Cupão actualizado.', '/admin/coupons', ['coupon_id' => $id]);
     }
 
     public function toggleCoupon(int $id): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'commercial.coupons.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/coupons')) return;
 
         $active = !empty($_POST['is_active']);
         $updated = (new CouponRepository())->setActive($id, $active);
@@ -61,13 +64,14 @@ final class AdminCommercialController extends BaseController
             return;
         }
 
-        $this->audit('admin.coupon.toggled', 'coupon', $id, ['is_active' => $active]);
+        $this->audit('admin.coupon.toggled', 'coupon', $id, ['is_active' => $active], $permission);
         $this->adminSuccess($active ? 'Cupão activado.' : 'Cupão inactivado.', '/admin/coupons', ['coupon_id' => $id, 'is_active' => $active]);
     }
 
     public function createDiscount(): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'commercial.discounts.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/discounts')) return;
 
         $service = new AdminCommercialService();
         $id = $service->createDiscount($_POST, (int) ($_SESSION['auth_user_id'] ?? 1));
@@ -77,19 +81,20 @@ final class AdminCommercialController extends BaseController
             return;
         }
 
-        $this->audit('admin.discount.created', 'user_discount', $id, ['user_id' => $userId]);
+        $this->audit('admin.discount.created', 'user_discount', $id, ['user_id' => $userId], $permission);
         $this->adminSuccess('Desconto criado.', '/admin/discounts', ['discount_id' => $id]);
     }
 
     public function updateDiscount(int $id): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'commercial.discounts.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/discounts')) return;
 
         if (!(new AdminCommercialService())->updateDiscount($id, $_POST)) {
             $this->adminError('Dados inválidos para atualizar desconto.', 422, '/admin/discounts');
             return;
         }
-        $this->audit('admin.discount.updated', 'user_discount', $id);
+        $this->audit('admin.discount.updated', 'user_discount', $id, [], $permission);
         $this->adminSuccess('Desconto atualizado.', '/admin/discounts', ['discount_id' => $id]);
     }
 }

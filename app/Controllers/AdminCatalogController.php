@@ -19,7 +19,8 @@ final class AdminCatalogController extends BaseController
 
     private function upsertInstitution(int $id): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'catalog.institutions.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/institutions')) return;
 
         $savedId = (new AdminAcademicCatalogService())->upsertInstitution($id, $_POST);
         if ($savedId === null) {
@@ -27,13 +28,14 @@ final class AdminCatalogController extends BaseController
             return;
         }
 
-        $this->audit($id > 0 ? 'admin.institution.updated' : 'admin.institution.created', 'institution', $savedId);
+        $this->audit($id > 0 ? 'admin.institution.updated' : 'admin.institution.created', 'institution', $savedId, [], $permission);
         $this->adminSuccess($id > 0 ? 'Instituição atualizada.' : 'Instituição criada.', '/admin/institutions', ['institution_id' => $savedId]);
     }
 
     private function upsertCourse(int $id): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'catalog.courses.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/courses')) return;
 
         $savedId = (new AdminAcademicCatalogService())->upsertCourse($id, $_POST);
         if ($savedId === null) {
@@ -41,13 +43,14 @@ final class AdminCatalogController extends BaseController
             return;
         }
 
-        $this->audit($id > 0 ? 'admin.course.updated' : 'admin.course.created', 'course', $savedId);
+        $this->audit($id > 0 ? 'admin.course.updated' : 'admin.course.created', 'course', $savedId, [], $permission);
         $this->adminSuccess($id > 0 ? 'Curso atualizado.' : 'Curso criado.', '/admin/courses', ['course_id' => $savedId]);
     }
 
     private function upsertDiscipline(int $id): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'catalog.disciplines.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/disciplines')) return;
 
         $savedId = (new AdminAcademicCatalogService())->upsertDiscipline($id, $_POST);
         if ($savedId === null) {
@@ -55,13 +58,14 @@ final class AdminCatalogController extends BaseController
             return;
         }
 
-        $this->audit($id > 0 ? 'admin.discipline.updated' : 'admin.discipline.created', 'discipline', $savedId);
+        $this->audit($id > 0 ? 'admin.discipline.updated' : 'admin.discipline.created', 'discipline', $savedId, [], $permission);
         $this->adminSuccess($id > 0 ? 'Disciplina atualizada.' : 'Disciplina criada.', '/admin/disciplines', ['discipline_id' => $savedId]);
     }
 
     private function upsertWorkType(int $id): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'catalog.work_types.manage';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/work-types')) return;
 
         $savedId = (new AdminAcademicCatalogService())->upsertWorkType($id, $_POST);
         if ($savedId === null) {
@@ -69,7 +73,7 @@ final class AdminCatalogController extends BaseController
             return;
         }
 
-        $this->audit($id > 0 ? 'admin.work_type.updated' : 'admin.work_type.created', 'work_type', $savedId);
+        $this->audit($id > 0 ? 'admin.work_type.updated' : 'admin.work_type.created', 'work_type', $savedId, [], $permission);
         $this->adminSuccess($id > 0 ? 'Tipo de trabalho atualizado.' : 'Tipo de trabalho criado.', '/admin/work-types', ['work_type_id' => $savedId]);
     }
 }

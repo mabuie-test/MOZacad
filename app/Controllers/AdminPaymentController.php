@@ -14,12 +14,13 @@ final class AdminPaymentController extends BaseController
 
     public function processAiQueueNow(): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'operations.process_ai_queue';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/orders')) return;
 
         try {
             $summary = (new AdminWorkerActionService())->processAiQueueNow();
             (new ApplicationLoggerService())->info('admin.ai_queue.process_now', $summary + ['admin_user_id' => (int) ($_SESSION['auth_user_id'] ?? 0)]);
-            $this->audit('admin.ai_queue.process_now', 'ai_job', null, $summary);
+            $this->audit('admin.ai_queue.process_now', 'ai_job', null, $summary, $permission);
 
             if ($this->wantsJson()) {
                 $this->json(['message' => 'Fila processada.', 'summary' => $summary]);
@@ -37,7 +38,8 @@ final class AdminPaymentController extends BaseController
 
     public function confirmManual(int $id): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'payments.confirm_manual';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/payments')) return;
 
         $providerStatus = trim((string) ($_POST['provider_status'] ?? 'SUCCESSFUL'));
         $note = trim((string) ($_POST['note'] ?? ''));
@@ -47,7 +49,7 @@ final class AdminPaymentController extends BaseController
             $this->audit('admin.payment.confirm_manual', 'payment', $id, [
                 'provider_status' => $providerStatus,
                 'note' => $note,
-            ]);
+            ], $permission);
             $this->adminSuccess('Pagamento confirmado manualmente com sucesso.', '/admin/payments');
         } catch (RuntimeException $e) {
             $this->adminError($e->getMessage(), 422, '/admin/payments');
@@ -56,4 +58,3 @@ final class AdminPaymentController extends BaseController
         }
     }
 }
-

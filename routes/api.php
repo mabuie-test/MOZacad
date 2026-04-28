@@ -9,6 +9,7 @@ use App\Controllers\AdminCommercialController;
 use App\Controllers\AdminGovernanceController;
 use App\Controllers\AdminHumanReviewController;
 use App\Controllers\AdminPaymentController;
+use App\Controllers\AdminPermissionController;
 use App\Controllers\AdminPricingController;
 use App\Helpers\Router;
 use App\Services\HttpRoutePolicyService;
@@ -49,5 +50,6 @@ return static function (Router $router): void {
         $router->post('/operations/process-ai-queue', [AdminPaymentController::class, 'processAiQueueNow']);
         $router->post('/pricing/rules', [AdminPricingController::class, 'upsertPricingRule']);
         $router->post('/pricing/extras', [AdminPricingController::class, 'upsertPricingExtra']);
+        $router->post('/permissions/matrix', [AdminPermissionController::class, 'updateMatrix']);
     });
 };

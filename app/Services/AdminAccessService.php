@@ -20,4 +20,14 @@ final class AdminAccessService
 
         return $this->authorization->isAdmin($userId) ? $userId : -1;
     }
+
+    public function canCurrentAdmin(string $permissionCode): bool
+    {
+        $adminId = $this->currentAdminId();
+        if ($adminId <= 0) {
+            return false;
+        }
+
+        return $this->authorization->can($adminId, $permissionCode);
+    }
 }

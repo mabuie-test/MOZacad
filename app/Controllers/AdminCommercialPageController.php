@@ -8,13 +8,13 @@ use App\Services\AdminOverviewService;
 
 final class AdminCommercialPageController extends BaseController
 {
-    public function pricing(): void { $this->render('pricing'); }
-    public function discounts(): void { $this->render('discounts'); }
-    public function coupons(): void { $this->render('coupons'); }
+    public function pricing(): void { $this->render('pricing', 'pricing.view'); }
+    public function discounts(): void { $this->render('discounts', 'commercial.discounts.view'); }
+    public function coupons(): void { $this->render('coupons', 'commercial.coupons.view'); }
 
-    private function render(string $section): void
+    private function render(string $section, string $permission): void
     {
-        if (!$this->requireAdminAccess()) return;
+        if (!$this->requireAdminPermission($permission, '/admin')) return;
         $payload = (new AdminOverviewService())->payload($section, $_GET);
         if ($this->wantsJson()) {
             $this->json($payload);

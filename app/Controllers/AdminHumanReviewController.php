@@ -11,7 +11,8 @@ final class AdminHumanReviewController extends BaseController
 {
     public function assignHumanReview(int $queueId): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'human_review.assign';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/human-review')) return;
 
         $reviewerId = (int) ($_POST['reviewer_id'] ?? 0);
         if ($reviewerId <= 0) {
@@ -21,7 +22,7 @@ final class AdminHumanReviewController extends BaseController
 
         try {
             (new AdminHumanReviewService())->assign((int) ($_SESSION['auth_user_id'] ?? 0), $queueId, $reviewerId);
-            $this->audit('admin.human_review.assigned', 'human_review_queue', $queueId, ['reviewer_id' => $reviewerId]);
+            $this->audit('admin.human_review.assigned', 'human_review_queue', $queueId, ['reviewer_id' => $reviewerId], $permission);
             $this->adminSuccess('Revisor atribuído com sucesso.', '/admin/human-review');
         } catch (RuntimeException $e) {
             $this->adminError($e->getMessage(), 422, '/admin/human-review');
@@ -30,12 +31,13 @@ final class AdminHumanReviewController extends BaseController
 
     public function decideHumanReview(int $queueId): void
     {
-        if (!$this->guardAdminPost()) return;
+        $permission = 'human_review.approve';
+        if (!$this->guardAdminPermissionPost($permission, '/admin/human-review')) return;
 
         $decision = trim((string) ($_POST['decision'] ?? ''));
         try {
             (new AdminHumanReviewService())->decide((int) ($_SESSION['auth_user_id'] ?? 0), $queueId, $decision, trim((string) ($_POST['notes'] ?? '')) ?: null);
-            $this->audit('admin.human_review.decided', 'human_review_queue', $queueId, ['decision' => $decision]);
+            $this->audit('admin.human_review.decided', 'human_review_queue', $queueId, ['decision' => $decision], $permission);
             $this->adminSuccess('Decisão de revisão humana guardada.', '/admin/human-review');
         } catch (RuntimeException $e) {
             $this->adminError($e->getMessage(), 422, '/admin/human-review');

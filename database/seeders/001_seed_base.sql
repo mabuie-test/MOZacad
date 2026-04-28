@@ -4,6 +4,68 @@ INSERT INTO roles (name, description, created_at, updated_at) VALUES
 ('human_reviewer','Revisor humano',NOW(),NOW()),
 ('superadmin','Administrador global',NOW(),NOW());
 
+
+INSERT INTO permissions (code, name, description, category, is_active, created_at, updated_at) VALUES
+('admin.overview.view','Ver overview admin','Acesso ao centro operacional','admin_view',1,NOW(),NOW()),
+('admin.users.view','Ver utilizadores','Acesso à secção de utilizadores','admin_view',1,NOW(),NOW()),
+('admin.orders.view','Ver pedidos','Acesso à secção de pedidos','admin_view',1,NOW(),NOW()),
+('admin.payments.view','Ver pagamentos','Acesso à secção de pagamentos','admin_view',1,NOW(),NOW()),
+('catalog.institutions.view','Ver instituições','Leitura de instituições','catalog',1,NOW(),NOW()),
+('catalog.institutions.manage','Gerir instituições','Criar/editar instituições','catalog',1,NOW(),NOW()),
+('catalog.courses.view','Ver cursos','Leitura de cursos','catalog',1,NOW(),NOW()),
+('catalog.courses.manage','Gerir cursos','Criar/editar cursos','catalog',1,NOW(),NOW()),
+('catalog.disciplines.view','Ver disciplinas','Leitura de disciplinas','catalog',1,NOW(),NOW()),
+('catalog.disciplines.manage','Gerir disciplinas','Criar/editar disciplinas','catalog',1,NOW(),NOW()),
+('catalog.work_types.view','Ver tipos de trabalho','Leitura de tipos de trabalho','catalog',1,NOW(),NOW()),
+('catalog.work_types.manage','Gerir tipos de trabalho','Criar/editar tipos de trabalho','catalog',1,NOW(),NOW()),
+('human_review.queue.view','Ver fila humana','Acesso à fila de revisão','human_review',1,NOW(),NOW()),
+('human_review.assign','Atribuir revisão humana','Atribuir revisor para fila humana','human_review',1,NOW(),NOW()),
+('human_review.approve','Decidir revisão humana','Aprovar/rejeitar revisão humana','human_review',1,NOW(),NOW()),
+('payments.confirm_manual','Confirmar pagamento manual','Confirmação manual de pagamento','payments',1,NOW(),NOW()),
+('operations.process_ai_queue','Processar fila AI','Execução manual da fila de IA','operations',1,NOW(),NOW()),
+('pricing.view','Ver pricing','Leitura de regras e extras','pricing',1,NOW(),NOW()),
+('pricing.manage','Gerir pricing','Editar regras e extras de pricing','pricing',1,NOW(),NOW()),
+('commercial.discounts.view','Ver descontos','Leitura de descontos','commercial',1,NOW(),NOW()),
+('commercial.discounts.manage','Gerir descontos','Criar/editar descontos','commercial',1,NOW(),NOW()),
+('commercial.coupons.view','Ver cupões','Leitura de cupões','commercial',1,NOW(),NOW()),
+('commercial.coupons.manage','Gerir cupões','Criar/editar/activar cupões','commercial',1,NOW(),NOW()),
+('governance.rules.view','Ver regras institucionais','Leitura das regras institucionais','governance',1,NOW(),NOW()),
+('governance.rules.manage','Gerir regras institucionais','Editar regras institucionais','governance',1,NOW(),NOW()),
+('governance.templates.view','Ver templates','Leitura de templates e artefactos','governance',1,NOW(),NOW()),
+('governance.templates.manage','Gerir templates','Publicação e activação de templates','governance',1,NOW(),NOW()),
+('permissions.manage','Gerir permissões','Gestão da matriz de permissões por papel','security',1,NOW(),NOW());
+
+INSERT IGNORE INTO role_permissions (role_id, permission_id, created_at, updated_at)
+SELECT r.id, p.id, NOW(), NOW()
+FROM roles r
+INNER JOIN permissions p ON 1=1
+WHERE r.name = 'superadmin';
+
+INSERT IGNORE INTO role_permissions (role_id, permission_id, created_at, updated_at)
+SELECT r.id, p.id, NOW(), NOW()
+FROM roles r
+INNER JOIN permissions p ON p.code IN (
+  'admin.overview.view','admin.users.view','admin.orders.view','admin.payments.view',
+  'catalog.institutions.view','catalog.institutions.manage',
+  'catalog.courses.view','catalog.courses.manage',
+  'catalog.disciplines.view','catalog.disciplines.manage',
+  'catalog.work_types.view','catalog.work_types.manage',
+  'human_review.queue.view','human_review.assign','human_review.approve',
+  'payments.confirm_manual','operations.process_ai_queue',
+  'pricing.view','pricing.manage',
+  'commercial.discounts.view','commercial.discounts.manage',
+  'commercial.coupons.view','commercial.coupons.manage',
+  'governance.rules.view','governance.rules.manage',
+  'governance.templates.view','governance.templates.manage'
+)
+WHERE r.name = 'admin';
+
+INSERT IGNORE INTO role_permissions (role_id, permission_id, created_at, updated_at)
+SELECT r.id, p.id, NOW(), NOW()
+FROM roles r
+INNER JOIN permissions p ON p.code IN ('human_review.queue.view','human_review.assign','human_review.approve')
+WHERE r.name = 'human_reviewer';
+
 INSERT INTO institutions (name, short_name, slug, city, country, is_active, created_at, updated_at) VALUES
 ('Universidade Eduardo Mondlane','UEM','uem','Maputo','Moçambique',1,NOW(),NOW()),
 ('Universidade Pedagógica de Maputo','UP Maputo','up-maputo','Maputo','Moçambique',1,NOW(),NOW()),

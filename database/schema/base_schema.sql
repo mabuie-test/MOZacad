@@ -46,6 +46,31 @@ CREATE TABLE user_roles (
   CONSTRAINT fk_user_roles_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE permissions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(120) NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  description VARCHAR(255) NULL,
+  category VARCHAR(80) NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NULL,
+  updated_at TIMESTAMP NULL,
+  UNIQUE KEY uq_permissions_code (code),
+  INDEX idx_permissions_category_code (category, code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE role_permissions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  role_id BIGINT UNSIGNED NOT NULL,
+  permission_id BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NULL,
+  updated_at TIMESTAMP NULL,
+  UNIQUE KEY uq_role_permission (role_id, permission_id),
+  INDEX idx_role_permissions_permission_id (permission_id),
+  CONSTRAINT fk_role_permissions_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+  CONSTRAINT fk_role_permissions_permission FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE admin_users (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT UNSIGNED NOT NULL,
@@ -454,7 +479,9 @@ CREATE TABLE audit_logs (
   subject_type VARCHAR(80) NOT NULL,
   subject_id BIGINT UNSIGNED NULL,
   payload_json JSON NULL,
-  created_at TIMESTAMP NULL
+  permission_code VARCHAR(120) NULL,
+  created_at TIMESTAMP NULL,
+  INDEX idx_audit_logs_permission_code (permission_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE webhook_replay_events (
