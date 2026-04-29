@@ -12,6 +12,7 @@ use App\Repositories\UserRepository;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\DeliveryChecklistRepository;
 use App\Repositories\PostPaymentExceptionRepository;
+use App\Repositories\DocumentComplianceValidationRepository;
 
 final class AdminOperationsReadService
 {
@@ -37,6 +38,9 @@ final class AdminOperationsReadService
             $queueRow['checklist_items'] = $documentId > 0 && $version > 0
                 ? (new DeliveryChecklistRepository())->listByDocument($documentId, $version)
                 : [];
+            $queueRow['compliance_validation'] = $documentId > 0 && $version > 0
+                ? (new DocumentComplianceValidationRepository())->findByDocument($documentId, $version)
+                : null;
         }
         unset($queueRow);
 
