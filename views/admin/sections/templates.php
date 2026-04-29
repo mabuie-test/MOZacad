@@ -70,6 +70,9 @@
       <div>
         <h3 class="h6 mb-1"><?= htmlspecialchars((string) $inst['name']) ?></h3>
         <small class="text-secondary">Origem activa: <?= htmlspecialchars((string) ($norm['source'] ?? 'none')) ?> · Referência: <?= htmlspecialchars((string) ($norm['reference_style'] ?? '-')) ?></small>
+        <?php if ((string) ($norm['source'] ?? '') === 'pdf_unparsed' || trim((string) ($norm['content'] ?? '')) === ''): ?>
+          <div class="alert alert-warning py-1 px-2 mt-2 mb-0 small">⚠️ norma ativa sem texto parseado</div>
+        <?php endif; ?>
       </div>
       <div class="d-flex gap-2">
         <span class="badge text-bg-<?= $norm['txt_path'] ? 'success' : 'secondary' ?>">norma.txt</span>
