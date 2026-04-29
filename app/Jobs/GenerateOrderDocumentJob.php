@@ -30,6 +30,7 @@ use App\Services\RequirementInterpreterService;
 use App\Services\RuleResolverService;
 use App\Services\StoragePathService;
 use App\Services\StructureBuilderService;
+use App\Services\VisualIdentityComplianceService;
 use App\Repositories\AuditLogRepository;
 use RuntimeException;
 
@@ -91,6 +92,16 @@ final class GenerateOrderDocumentJob
         $normContext = (new InstitutionNormDocumentService())->resolveForInstitution($institution);
 
         $templateResolution = (new InstitutionTemplateService())->resolve($institution, (int) $order['work_type_id']);
+        $validTemplateModes = ['template_published_tracked', 'drift_filesystem_only', 'drift_path_mismatch'];
+        if (!in_array((string) ($templateResolution['mode'] ?? ''), $validTemplateModes, true)) {
+            $templateResolution = [
+                'mode' => 'programmatic_fallback',
+                'selected_template' => null,
+                'reason' => 'Template ausente/inválido. Aplicado fallback explícito de montagem programática.',
+                'candidate_path' => $templateResolution['candidate_path'] ?? null,
+                'traceability' => $templateResolution['traceability'] ?? [],
+            ];
+        }
         $resolvedRulesDto = (new RuleResolverService())->resolve($institutionRules, $institutionWorkTypeRules, $academicLevel, $normContext, $templateResolution);
         $resolvedRules = [
             'visualRules' => $resolvedRulesDto->visualRules,
@@ -131,7 +142,9 @@ final class GenerateOrderDocumentJob
         $this->assertObjectivePresenceInSections($cited, $briefing, $orderId, $requiresObjectives);
 
         $formatted = (new InstitutionFormattingService())->apply($cited, $resolvedRules);
-        $doc = (new DocxAssemblyService())->assemble($formatted, (string) $briefing['title']);
+        $docxAssembly = new DocxAssemblyService();
+        $doc = $docxAssembly->assemble($formatted, (string) $briefing['title'], $templateResolution);
+        $templateApplication = $docxAssembly->buildTemplateApplicationRecord($templateResolution);
 
         $documents = new GeneratedDocumentRepository();
         $latest = $documents->findLatestByOrderId($orderId);
@@ -182,9 +195,20 @@ final class GenerateOrderDocumentJob
             }
 
             $effectiveVersion = ((int) ($lockedLatest['version'] ?? 0)) + 1;
-            $documentId = $documents->create($orderId, $path, $documentStatus, $effectiveVersion);
+            $documentId = $documents->create($orderId, $path, $documentStatus, $effectiveVersion, $templateApplication);
 
             $validation = (new DocumentComplianceValidationService())->validate($cited, $blueprint, $resolvedRules);
+            $visualIssues = (new VisualIdentityComplianceService())->validate($resolvedRules);
+            if ($visualIssues !== []) {
+                $validation['non_conformities'] = array_merge($validation['non_conformities'] ?? [], $visualIssues);
+                foreach ($visualIssues as $issue) {
+                    $severity = (string) ($issue['severity'] ?? 'minor');
+                    if (isset($validation['summary'][$severity])) {
+                        $validation['summary'][$severity] = ((int) $validation['summary'][$severity]) + 1;
+                    }
+                }
+                $validation['is_compliant'] = ((int) ($validation['summary']['critical'] ?? 0)) === 0;
+            }
             (new DocumentComplianceValidationRepository())->create($documentId, $effectiveVersion, $validation);
             (new DeliveryChecklistRepository())->ensureDefaults($documentId, $effectiveVersion);
             (new DeliveryChecklistRepository())->syncComplianceItemFromValidation($documentId, $effectiveVersion, $validation);

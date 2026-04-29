@@ -85,6 +85,7 @@ final class AdminOperationsReadService
         }
         foreach ($orders as &$orderRow) {
             $orderRow['latest_compliance_validation'] = (new DocumentComplianceValidationRepository())->findLatestByOrderId((int) ($orderRow['id'] ?? 0));
+            $orderRow['latest_template_application'] = json_decode((string) ($orderRow['latest_template_application_json'] ?? 'null'), true);
         }
         unset($orderRow);
 

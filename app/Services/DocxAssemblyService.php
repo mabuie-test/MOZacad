@@ -10,10 +10,11 @@ use PhpOffice\PhpWord\SimpleType\Jc;
 
 final class DocxAssemblyService
 {
-    public function assemble(array $formatted, string $title): PhpWord
+    public function assemble(array $formatted, string $title, array $templateResolution = []): PhpWord
     {
         $phpWord = new PhpWord();
         $rules = is_array($formatted['rules'] ?? null) ? $formatted['rules'] : [];
+        $templateMeta = $this->normalizeTemplateMeta($templateResolution);
 
         $phpWord->setDefaultFontName((string) ($rules['font_family'] ?? 'Times New Roman'));
         $phpWord->setDefaultFontSize($this->safeInt($rules['font_size'] ?? 12, 12));
@@ -39,7 +40,7 @@ final class DocxAssemblyService
         $sections = is_array($formatted['sections'] ?? null) ? $formatted['sections'] : [];
 
         $this->addHeaderFooter($section, $frontPage);
-        $this->addCoverPage($section, $title, $frontPage);
+        $this->addCoverPage($section, $title, $frontPage, $templateMeta);
         $this->addTitlePage($section, $title, $frontPage);
         $this->addPreTextSections($section, $sections, ['resumo', 'abstract']);
         $this->addTableOfContentsPlaceholder($section);
@@ -50,6 +51,11 @@ final class DocxAssemblyService
         return $phpWord;
     }
 
+    public function buildTemplateApplicationRecord(array $templateResolution): array
+    {
+        return $this->normalizeTemplateMeta($templateResolution);
+    }
+
     private function addHeaderFooter(Section $section, array $frontPage): void
     {
         $headerText = $this->cleanText((string) ($frontPage['institution_name'] ?? 'MOZacad'));
@@ -57,7 +63,7 @@ final class DocxAssemblyService
         $section->addFooter()->addPreserveText('Página {PAGE}', ['size' => 10], ['alignment' => Jc::RIGHT]);
     }
 
-    private function addCoverPage(Section $section, string $title, array $frontPage): void
+    private function addCoverPage(Section $section, string $title, array $frontPage, array $templateMeta): void
     {
         $section->addText($this->cleanText((string) ($frontPage['institution_name'] ?? 'Instituição Académica')), ['bold' => true, 'size' => 14], ['alignment' => Jc::CENTER]);
 
@@ -82,7 +88,31 @@ final class DocxAssemblyService
         $city = $this->cleanText((string) ($frontPage['city'] ?? 'Maputo'));
         $year = $this->cleanText((string) ($frontPage['year'] ?? date('Y')));
         $section->addText($city . ', ' . $year, ['size' => 12], ['alignment' => Jc::CENTER]);
+        $section->addText(
+            'Template aplicado: ' . $this->cleanText((string) ($templateMeta['template_file'] ?? 'programmatic_fallback'))
+            . ' | ID: ' . $this->cleanText((string) ($templateMeta['template_artifact_id'] ?? 'n/a'))
+            . ' | HASH: ' . $this->cleanText((string) ($templateMeta['template_sha256'] ?? 'n/a')),
+            ['size' => 8],
+            ['alignment' => Jc::CENTER]
+        );
         $section->addPageBreak();
+    }
+
+    private function normalizeTemplateMeta(array $templateResolution): array
+    {
+        $traceability = is_array($templateResolution['traceability'] ?? null) ? $templateResolution['traceability'] : [];
+        $file = (string) ($templateResolution['selected_template'] ?? basename((string) ($templateResolution['candidate_path'] ?? '')));
+        if ($file === '') {
+            $file = 'programmatic_fallback';
+        }
+
+        return [
+            'mode' => (string) ($templateResolution['mode'] ?? 'programmatic_fallback'),
+            'template_file' => $file,
+            'template_artifact_id' => $traceability['artifact_id'] ?? null,
+            'template_sha256' => $traceability['tracked_checksum'] ?? null,
+            'reason' => (string) ($templateResolution['reason'] ?? ''),
+        ];
     }
 
     private function addTitlePage(Section $section, string $title, array $frontPage): void

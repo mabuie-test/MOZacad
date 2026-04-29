@@ -23,6 +23,7 @@ final class InstitutionTemplateService
 
         $tracking = $this->artifacts->findActive((int) ($institution['id'] ?? 0), $workTypeId, 'work_type_template');
         $traceability = [
+            'artifact_id' => isset($tracking['id']) ? (int) $tracking['id'] : null,
             'tracked_in_sql' => $tracking !== null,
             'tracked_path' => $tracking['file_path'] ?? null,
             'tracked_checksum' => $tracking['checksum_sha256'] ?? null,
