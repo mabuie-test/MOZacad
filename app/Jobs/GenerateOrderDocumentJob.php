@@ -30,6 +30,7 @@ use App\Services\RequirementInterpreterService;
 use App\Services\RuleResolverService;
 use App\Services\StoragePathService;
 use App\Services\StructureBuilderService;
+use App\Repositories\AuditLogRepository;
 use RuntimeException;
 
 final class GenerateOrderDocumentJob
@@ -181,15 +182,40 @@ final class GenerateOrderDocumentJob
             }
 
             $effectiveVersion = ((int) ($lockedLatest['version'] ?? 0)) + 1;
-            $orders->updateStatus($orderId, $requiresReview ? 'under_human_review' : 'ready');
-
             $documentId = $documents->create($orderId, $path, $documentStatus, $effectiveVersion);
 
             $validation = (new DocumentComplianceValidationService())->validate($cited, $blueprint, $resolvedRules);
             (new DocumentComplianceValidationRepository())->create($documentId, $effectiveVersion, $validation);
             (new DeliveryChecklistRepository())->ensureDefaults($documentId, $effectiveVersion);
             (new DeliveryChecklistRepository())->syncComplianceItemFromValidation($documentId, $effectiveVersion, $validation);
-            if ($requiresReview) {
+            $hasComplianceBlocker = ((int) ($validation['summary']['critical'] ?? 0) > 0)
+                || (($validation['is_compliant'] ?? true) === false);
+
+            if ($hasComplianceBlocker) {
+                $orders->updateStatus($orderId, 'delivery_blocked');
+                $documents->updateLatestStatusByOrderId($orderId, 'rejected');
+                (new AuditLogRepository())->log(
+                    null,
+                    'compliance.delivery_blocked',
+                    'order',
+                    $orderId,
+                    [
+                        'document_id' => $documentId,
+                        'version' => $effectiveVersion,
+                        'is_compliant' => (bool) ($validation['is_compliant'] ?? false),
+                        'summary' => $validation['summary'] ?? [],
+                        'critical_non_conformities' => array_values(array_filter(
+                            (array) ($validation['non_conformities'] ?? []),
+                            static fn (array $item): bool => (string) ($item['severity'] ?? '') === 'critical'
+                        )),
+                        'action' => 'regenerar_ou_corrigir',
+                    ]
+                );
+            } else {
+                $orders->updateStatus($orderId, $requiresReview ? 'under_human_review' : 'ready');
+            }
+
+            if ($requiresReview && !$hasComplianceBlocker) {
                 $queueId = (new HumanReviewQueueService())->enqueue($orderId, $documentId, $effectiveVersion);
             }
             if ($ownsTransaction && $db->inTransaction()) {
@@ -212,7 +238,7 @@ final class GenerateOrderDocumentJob
             'generated_document_id' => $documentId,
             'version' => $nextVersion,
             'file_path' => $path,
-            'queued_for_human_review' => $requiresReview,
+            'queued_for_human_review' => $requiresReview && ($queueId !== null),
             'human_review_queue_id' => $queueId,
             'regeneration_cycle' => (string) ($order['status'] ?? '') === 'revision_requested',
         ];
