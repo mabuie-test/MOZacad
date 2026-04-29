@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\GeneratedDocumentRepository;
 use App\Repositories\DeliveryChecklistRepository;
+use App\Repositories\DocumentComplianceValidationRepository;
 use RuntimeException;
 
 final class DocumentDownloadService
@@ -17,6 +18,7 @@ final class DocumentDownloadService
         private readonly AuthorizationService $authorization = new AuthorizationService(),
         private readonly StoragePathService $paths = new StoragePathService(),
         private readonly DeliveryChecklistRepository $deliveryChecklist = new DeliveryChecklistRepository(),
+        private readonly DocumentComplianceValidationRepository $complianceValidations = new DocumentComplianceValidationRepository(),
     ) {}
 
     public function resolve(int $documentId, int $actorUserId): array
@@ -47,6 +49,20 @@ final class DocumentDownloadService
                 'allowed_document_statuses' => $allowedDocumentStatuses,
             ]);
             throw new RuntimeException('Sem permissão para descarregar este documento.');
+        }
+
+        $validation = $this->complianceValidations->findByDocument((int) $doc['id'], (int) ($doc['version'] ?? 1));
+        $hasComplianceBlocker = is_array($validation)
+            && (((int) ($validation['critical_count'] ?? 0) > 0) || ((int) ($validation['is_compliant'] ?? 1) === 0));
+        if ($hasComplianceBlocker) {
+            $this->auditLogs->log($actorUserId, 'document.download.blocked', 'generated_document', $documentId, [
+                'reason' => 'compliance_blocked',
+                'order_id' => (int) $doc['order_id'],
+                'version' => (int) ($doc['version'] ?? 1),
+                'critical_count' => (int) ($validation['critical_count'] ?? 0),
+                'is_compliant' => (int) ($validation['is_compliant'] ?? 0),
+            ]);
+            throw new RuntimeException('Download bloqueado: o documento possui não conformidades críticas.');
         }
 
         if (!$own && !$this->authorization->isAdmin($actorUserId)) {

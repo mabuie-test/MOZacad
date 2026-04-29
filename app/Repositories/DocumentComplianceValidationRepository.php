@@ -29,4 +29,18 @@ final class DocumentComplianceValidationRepository extends BaseRepository
         $row = $stmt->fetch();
         return is_array($row) ? $row : null;
     }
+
+    public function findLatestByOrderId(int $orderId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT dcv.*
+            FROM document_compliance_validations dcv
+            INNER JOIN generated_documents gd ON gd.id = dcv.generated_document_id
+            WHERE gd.order_id = :order_id
+            ORDER BY dcv.id DESC
+            LIMIT 1');
+        $stmt->execute(['order_id' => $orderId]);
+        $row = $stmt->fetch();
+
+        return is_array($row) ? $row : null;
+    }
 }

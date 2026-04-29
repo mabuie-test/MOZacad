@@ -81,6 +81,10 @@ final class AdminOperationsReadService
                 return $sla === $delayFilter;
             }));
         }
+        foreach ($orders as &$orderRow) {
+            $orderRow['latest_compliance_validation'] = (new DocumentComplianceValidationRepository())->findLatestByOrderId((int) ($orderRow['id'] ?? 0));
+        }
+        unset($orderRow);
 
         return [
             'overview' => [
