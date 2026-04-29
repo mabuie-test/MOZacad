@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domain\StatusCatalog;
 use App\Repositories\HumanReviewQueueRepository;
 use App\Repositories\OrderRepository;
 use App\Repositories\PaymentRepository;
@@ -80,9 +81,9 @@ final class AdminOperationsReadService
         return [
             'overview' => [
                 'orders_pending_payment' => count(array_filter($orders, static fn (array $o): bool => (string) ($o['status'] ?? '') === 'pending_payment')),
-                'orders_under_review' => count(array_filter($orders, static fn (array $o): bool => in_array((string) ($o['status'] ?? ''), ['under_human_review', 'revision_requested', 'returned_for_revision'], true))),
+                'orders_under_review' => count(array_filter($orders, static fn (array $o): bool => in_array((string) ($o['status'] ?? ''), ['under_human_review', 'delivery_blocked', 'revision_requested', 'returned_for_revision'], true))),
                 'payments_failed' => count(array_filter($payments, static fn (array $p): bool => in_array((string) ($p['status'] ?? ''), ['failed', 'cancelled', 'expired'], true))),
-                'queue_unassigned' => count(array_filter($queueRows, static fn (array $q): bool => empty($q['reviewer_id']) && in_array((string) ($q['status'] ?? ''), ['pending', 'assigned'], true))),
+                'queue_unassigned' => count(array_filter($queueRows, static fn (array $q): bool => empty($q['reviewer_id']) && in_array((string) ($q['status'] ?? ''), ['pending', 'assigned', 'qa_approved'], true))),
                 'exceptions_active' => (int) ($exceptionSummary['active_total'] ?? 0),
                 'exceptions_blocking_delivery' => (int) ($exceptionSummary['blocked_delivery_total'] ?? 0),
                 'exceptions_overdue' => (int) ($exceptionSummary['overdue_total'] ?? 0),
@@ -94,6 +95,9 @@ final class AdminOperationsReadService
             'reviewStatusFilter' => $reviewStatusFilter,
             'riskFilter' => $riskFilter,
             'delayFilter' => $delayFilter,
+            'orderStatuses' => StatusCatalog::orderStatuses(),
+            'reviewStatuses' => StatusCatalog::humanReviewQueueStatuses(),
+            'documentStatuses' => StatusCatalog::documentStatuses(),
             'users' => in_array($section, ['overview', 'users', 'discounts'], true) ? (new UserRepository())->all(300) : [],
             'orders' => $orders,
             'selectedOrderId' => $selectedOrderId,
