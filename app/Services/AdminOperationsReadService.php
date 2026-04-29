@@ -21,7 +21,9 @@ final class AdminOperationsReadService
         $orders = in_array($section, ['overview', 'orders', 'payments'], true) ? (new OrderRepository())->listAll(300) : [];
         $payments = in_array($section, ['overview', 'payments', 'orders'], true) ? (new PaymentRepository())->listAll(300) : [];
         $queueRows = in_array($section, ['overview', 'human-review'], true) ? (new HumanReviewQueueRepository())->listQueue(300) : [];
-        $checklistSummaryRows = in_array($section, ['overview', 'human-review'], true) ? (new DeliveryChecklistRepository())->summarizeByQueue(500) : [];
+        $deliveryChecklistRepo = new DeliveryChecklistRepository();
+        $checklistSummaryRows = in_array($section, ['overview', 'human-review'], true) ? $deliveryChecklistRepo->summarizeByQueue(500) : [];
+        $referenceRateRows = in_array($section, ['overview', 'human-review', 'orders'], true) ? $deliveryChecklistRepo->incompleteReferencesRateByOrder(500) : [];
         $checklistSummaryMap = [];
         foreach ($checklistSummaryRows as $row) {
             $checklistSummaryMap[((int) $row['generated_document_id']) . ':' . ((int) $row['generated_document_version'])] = $row;
@@ -97,6 +99,7 @@ final class AdminOperationsReadService
                 'exceptions_overdue' => (int) ($exceptionSummary['overdue_total'] ?? 0),
                 'exceptions_escalated' => (int) ($exceptionSummary['escalated_total'] ?? 0),
                 'exceptions_auto_reconciled' => (int) ($exceptionSummary['auto_reconciled_total'] ?? 0),
+                'references_incomplete_rate_per_order' => $referenceRateRows,
             ],
             'orderStatusFilter' => $orderStatusFilter,
             'paymentStatusFilter' => $paymentStatusFilter,

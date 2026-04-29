@@ -53,6 +53,44 @@ final class DeliveryChecklistRepository extends BaseRepository
         ]);
     }
 
+
+    public function syncReferencesCompletenessFromSections(int $documentId, int $version, array $sections): void
+    {
+        $this->ensureDefaults($documentId, $version);
+        $references = null;
+        foreach ($sections as $section) {
+            if ((string) ($section['code'] ?? '') === 'references') {
+                $references = $section;
+                break;
+            }
+        }
+        if (!is_array($references)) {
+            return;
+        }
+
+        $hasIncomplete = (bool) ($references['requires_manual_completion'] ?? false);
+        $status = $hasIncomplete ? 'rejected' : 'approved';
+        $notes = $hasIncomplete
+            ? 'Pendências bibliográficas identificadas: completar autor, ano, título, veículo/editora, URL/DOI e acesso web.'
+            : 'Referências completas e validadas para entrega final.';
+
+        $stmt = $this->db->prepare('UPDATE delivery_readiness_checklists
+            SET is_checked = 1,
+                status = :status,
+                notes = :notes,
+                updated_at = NOW()
+            WHERE generated_document_id = :document_id
+              AND generated_document_version = :version
+              AND checklist_item = :checklist_item');
+        $stmt->execute([
+            'status' => $status,
+            'notes' => $notes,
+            'document_id' => $documentId,
+            'version' => $version,
+            'checklist_item' => 'referencias_completas',
+        ]);
+    }
+
     public function updateItemStatus(int $documentId, int $version, string $item, bool $isChecked, string $status, int $actorId, ?string $notes): void
     {
         $this->ensureDefaults($documentId, $version);
@@ -61,6 +99,9 @@ final class DeliveryChecklistRepository extends BaseRepository
         }
 
         $allowedStatuses = ['pending', 'approved', 'rejected'];
+        if ($item === 'referencias_completas' && $status === 'approved' && (!is_string($notes) || trim((string) $notes) === '')) {
+            throw new \RuntimeException('Para aprovar referencias_completas, registe a resolução explícita das pendências bibliográficas em notes.');
+        }
         if (!in_array($status, $allowedStatuses, true)) {
             throw new \RuntimeException('Status de checklist inválido.');
         }
@@ -152,4 +193,30 @@ final class DeliveryChecklistRepository extends BaseRepository
         $stmt->execute();
         return $stmt->fetchAll();
     }
+
+    public function incompleteReferencesRateByOrder(int $limit = 300): array
+    {
+        $stmt = $this->db->prepare("SELECT gd.order_id,
+                COUNT(*) AS total_docs,
+                SUM(CASE WHEN drc.status <> 'approved' OR drc.is_checked = 0 THEN 1 ELSE 0 END) AS incomplete_docs
+            FROM delivery_readiness_checklists drc
+            INNER JOIN generated_documents gd ON gd.id = drc.generated_document_id
+            WHERE drc.checklist_item = 'referencias_completas'
+            GROUP BY gd.order_id
+            ORDER BY gd.order_id DESC
+            LIMIT :limit");
+        $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+
+        $rows = $stmt->fetchAll();
+        foreach ($rows as &$row) {
+            $total = max(1, (int) ($row['total_docs'] ?? 0));
+            $incomplete = (int) ($row['incomplete_docs'] ?? 0);
+            $row['incomplete_references_rate'] = round($incomplete / $total, 4);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
 }
