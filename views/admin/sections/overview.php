@@ -9,6 +9,7 @@
 
 
 <?php $workerHealth = (array) ($overview['worker_health'] ?? []); ?>
+<?php $aiFallbackRates = (array) ($overview['ai_provider_fallback_rates'] ?? []); ?>
 <div class="card p-3 mb-3">
   <h2 class="h6">Saúde da fila assíncrona</h2>
   <div class="row g-3">
@@ -17,6 +18,29 @@
     <div class="col-md-2"><small>Jobs queued</small><div><?= (int) ($workerHealth['queued_jobs'] ?? 0) ?></div></div>
     <div class="col-md-2"><small>Atraso da fila (min)</small><div><?= (int) ($workerHealth['queue_lag_minutes'] ?? 0) ?></div></div>
     <div class="col-md-2"><small>Alerta</small><div><?= !empty($workerHealth['stale_alert']) ? '<span class="badge bg-danger">STALE</span>' : '<span class="badge bg-success">OK</span>' ?></div></div>
+  </div>
+</div>
+
+<div class="card p-3 mb-3">
+  <h2 class="h6">Taxa de fallback por provider (IA)</h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Provider</th><th>Usos totais</th><th>Usos via fallback</th><th>Taxa fallback</th></tr></thead>
+      <tbody>
+      <?php if ($aiFallbackRates === []): ?>
+        <tr><td colspan="4" class="text-secondary">Sem dados de fallback registados.</td></tr>
+      <?php else: ?>
+        <?php foreach ($aiFallbackRates as $metric): ?>
+          <tr>
+            <td><?= htmlspecialchars((string) ($metric['provider'] ?? 'unknown')) ?></td>
+            <td><?= (int) ($metric['total_used'] ?? 0) ?></td>
+            <td><?= (int) ($metric['fallback_used'] ?? 0) ?></td>
+            <td><?= number_format((float) ($metric['fallback_rate_pct'] ?? 0), 2) ?>%</td>
+          </tr>
+        <?php endforeach; ?>
+      <?php endif; ?>
+      </tbody>
+    </table>
   </div>
 </div>
 

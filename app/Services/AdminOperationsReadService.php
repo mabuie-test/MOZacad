@@ -90,6 +90,7 @@ final class AdminOperationsReadService
         unset($orderRow);
 
         $workerHealth = in_array($section, ['overview'], true) ? (new WorkerHealthService())->snapshot() : [];
+        $aiProviderFallbackRates = in_array($section, ['overview'], true) ? (new AIProviderAdminMetricsService())->fallbackRateByProvider() : [];
 
         return [
             'overview' => [
@@ -104,6 +105,7 @@ final class AdminOperationsReadService
                 'exceptions_auto_reconciled' => (int) ($exceptionSummary['auto_reconciled_total'] ?? 0),
                 'references_incomplete_rate_per_order' => $referenceRateRows,
                 'worker_health' => $workerHealth,
+                'ai_provider_fallback_rates' => $aiProviderFallbackRates,
             ],
             'orderStatusFilter' => $orderStatusFilter,
             'paymentStatusFilter' => $paymentStatusFilter,
