@@ -20,3 +20,13 @@
 
 ## Rotação mínima
 - `storage/logs/debito.log` e `storage/logs/application.log` rodam automaticamente ao atingir `LOG_MAX_FILE_SIZE_MB`.
+
+## Compliance da trilha de auditoria
+- **Pesquisa Admin/API**: suporta filtros por `actor_id`, `action`, período (`from`/`to`), pedido (`order_id`) e entidade (`subject_type` + `subject_id`).
+- **Exportação externa**: endpoint `/api/admin/audit-logs/export` com `format=json|csv`.
+- **Alertas críticos**: eventos `admin.payment.confirm_manual`, `admin.human_review.decided` e `admin.template_artifact.activated` geram entrada `audit.critical_event` no `application.log`.
+- **Integridade anti-adulteração**: cada evento grava `previous_hash` + `event_hash` (SHA-256 encadeado).
+- **Retenção**:
+  - Hot storage: 180 dias na tabela `audit_logs`.
+  - Arquivo: até 5 anos em armazenamento externo com checksum SHA-256 em `audit_log_archives`.
+  - Purga: após 5 anos, conforme calendário legal/contratual aplicável.
