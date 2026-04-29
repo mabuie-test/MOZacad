@@ -9,7 +9,7 @@ use RuntimeException;
 
 final class AIConfigBootstrapValidator
 {
-    public static function assertValid(): void
+    public static function validate(): void
     {
         $config = Config::get('ai');
         $provider = strtolower(trim((string) ($config['provider']['default'] ?? 'openai')));
@@ -36,6 +36,12 @@ final class AIConfigBootstrapValidator
                 self::assertProviderKey($config, (string) $chainProvider);
             }
         }
+    }
+
+
+    public static function assertValid(): void
+    {
+        self::validate();
     }
 
     private static function assertProviderKey(array $config, string $provider): void
