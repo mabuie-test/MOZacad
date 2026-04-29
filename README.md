@@ -1,6 +1,6 @@
 # MOZacad
 
-Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento Débito M-Pesa C2B, geração DOCX, revisão humana e entrega segura, com autorização centralizada e observabilidade operacional.
+Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento DebitoPay Payments API v2 (M-Pesa), geração DOCX, revisão humana e entrega segura, com autorização centralizada e observabilidade operacional.
 
 ## Setup rápido (instalação nova)
 1. `composer install`
@@ -33,7 +33,7 @@ Para ambientes já existentes, manter caminho incremental:
 1. Utilizador cria pedido (`orders`).
 2. Sistema calcula pricing (regras + extras + descontos).
 3. Gera/reaproveita invoice aberta.
-4. Inicia pagamento Débito C2B (idempotente por pedido com lock).
+4. Inicia pagamento em POST /payment-orchestrator action=process (idempotente por pedido com lock).
 5. Confirmação principal por polling (`scripts/poll_payments.php`).
 6. Webhook Débito é complementar (não regressa estado `paid`).
 7. Ao transitar para `paid`, sistema enfileira `ai_jobs` (`stage=document_generation`) sem duplicação de job aberto.
@@ -42,8 +42,8 @@ Para ambientes já existentes, manter caminho incremental:
 10. Documento aprovado (ou `generated` sem revisão obrigatória) pode ser descarregado por rota segura.
 
 ## Pagamentos Débito (robustez)
-- Polling continua como fonte primária.
-- Webhook com validação defensiva opcional por HMAC (`DEBITO_WEBHOOK_SECRET`).
+- Polling via POST /payment-orchestrator action=check-status usando payment_id.
+- Webhook payment.completed/payment.failed com HMAC-SHA256 (`x-webhook-signature`).
 - Cliente HTTP com timeout, retry e backoff simples (`DEBITO_HTTP_RETRIES`, `DEBITO_HTTP_BACKOFF_MS`).
 - Batch de polling configurável (`DEBITO_POLLING_BATCH_LIMIT`).
 - Tratamento de respostas não-JSON e erros transitórios.

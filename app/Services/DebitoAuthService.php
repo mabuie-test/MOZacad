@@ -13,7 +13,7 @@ final class DebitoAuthService
     {
         $token = trim((string) Env::get('DEBITO_TOKEN', ''));
         if ($token === '') {
-            throw new RuntimeException('DEBITO_TOKEN não configurado para autenticação no gateway Débito.');
+            throw new RuntimeException('DEBITO_TOKEN não configurado para DebitoPay Payments API v2.');
         }
 
         return $token;

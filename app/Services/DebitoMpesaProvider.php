@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Helpers\Env;
 use RuntimeException;
 
 final class DebitoMpesaProvider implements PaymentProviderInterface
@@ -13,112 +12,81 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
 
     public function initiate(array $payload): array
     {
-        $wallet = trim((string) Env::get('DEBITO_WALLET_ID', ''));
-        if ($wallet === '') {
-            throw new RuntimeException('DEBITO_WALLET_ID não configurado.');
+        $idempotencyKey = trim((string) ($payload['source_id'] ?? ''));
+        if ($idempotencyKey === '') {
+            $idempotencyKey = bin2hex(random_bytes(16));
         }
 
-        $response = $this->client->post("/api/v1/wallets/{$wallet}/c2b/mpesa", $payload);
+        $response = $this->client->post('/payment-orchestrator', $payload, true, [
+            'X-Idempotency-Key' => $idempotencyKey,
+        ]);
+
+        if (($response['success'] ?? null) === false) {
+            throw new RuntimeException((string) ($response['error'] ?? 'DebitoPay v2 recusou a operação.'));
+        }
+
+        $paymentId = $this->extractPaymentId($response);
+        if ($paymentId === '') {
+            throw new RuntimeException('DebitoPay v2 não retornou payment_id.');
+        }
 
         return [
             'raw' => $response,
-            'debito_reference' => $this->extractReference($response),
+            'debito_reference' => $paymentId,
             'provider_status' => $this->extractProviderStatus($response),
             'provider_message' => $this->extractProviderMessage($response),
             'provider_transaction_id' => $this->extractProviderTransactionId($response),
-            'provider_code' => (string) ($response['code'] ?? $response['error']['code'] ?? ''),
+            'provider_code' => $this->extractProviderCode($response),
         ];
     }
 
     public function checkStatus(string $reference): array
     {
-        $debitoReference = trim($reference);
-        if ($debitoReference === '') {
-            throw new RuntimeException('Referência Débito inválida para consulta de status.');
+        $paymentId = trim($reference);
+        if ($paymentId === '') {
+            throw new RuntimeException('Referência DebitoPay payment_id inválida para consulta de status.');
         }
 
-        $response = $this->client->get("/api/v1/transactions/{$debitoReference}/status");
+        $response = $this->client->post('/payment-orchestrator', [
+            'action' => 'check-status',
+            'payment_id' => $paymentId,
+        ]);
+
+        if (($response['success'] ?? null) === false) {
+            throw new RuntimeException((string) ($response['error'] ?? 'DebitoPay v2 recusou consulta de status.'));
+        }
 
         return [
             'raw' => $response,
             'provider_status' => $this->extractProviderStatus($response),
             'provider_message' => $this->extractProviderMessage($response),
-            'provider_code' => (string) ($response['code'] ?? $response['error']['code'] ?? ''),
+            'provider_code' => $this->extractProviderCode($response),
+            'provider_transaction_id' => $this->extractProviderTransactionId($response),
         ];
     }
 
-    private function extractReference(array $response): string
+    private function extractPaymentId(array $response): string
     {
-        return trim((string) ($this->findFirstScalar($response, [
-            'reference',
-            'debito_reference',
-            'transaction_reference',
-            'checkout_reference',
-            'request_id',
-            'operation_id',
-        ]) ?? ''));
+        return trim((string) ($response['payment_id'] ?? $response['payment']['id'] ?? ''));
     }
 
     private function extractProviderStatus(array $response): string
     {
-        return (string) ($this->findFirstScalar($response, [
-            'transaction_status',
-            'payment_status',
-            'status',
-            'state',
-        ]) ?? 'PENDING');
-    }
-
-    private function extractProviderMessage(array $response): string
-    {
-        return (string) ($this->findFirstScalar($response, [
-            'message',
-            'description',
-            'details',
-            'reason',
-        ]) ?? '');
+        return (string) ($response['payment']['status'] ?? $response['status'] ?? 'pending');
     }
 
     private function extractProviderTransactionId(array $response): string
     {
-        return trim((string) ($this->findFirstScalar($response, [
-            'transaction_id',
-            'id',
-            'provider_transaction_id',
-            'checkout_id',
-        ]) ?? ''));
+        return trim((string) ($response['payment']['provider_reference'] ?? $response['payment']['reference'] ?? $response['transactionId'] ?? $response['reference'] ?? ''));
     }
 
-    private function findFirstScalar(array $payload, array $preferredKeys): string|int|float|bool|null
+    private function extractProviderMessage(array $response): string
     {
-        foreach ($preferredKeys as $key) {
-            $found = $this->findScalarByKeyRecursive($payload, $key);
-            if ($found !== null) {
-                return $found;
-            }
-        }
-
-        return null;
+        return (string) ($response['message'] ?? $response['error'] ?? '');
     }
 
-    private function findScalarByKeyRecursive(array $payload, string $key): string|int|float|bool|null
+    private function extractProviderCode(array $response): string
     {
-        if (array_key_exists($key, $payload) && is_scalar($payload[$key])) {
-            return $payload[$key];
-        }
-
-        foreach ($payload as $value) {
-            if (!is_array($value)) {
-                continue;
-            }
-
-            $found = $this->findScalarByKeyRecursive($value, $key);
-            if ($found !== null) {
-                return $found;
-            }
-        }
-
-        return null;
+        return (string) ($response['error'] ?? $response['code'] ?? '');
     }
-
 }

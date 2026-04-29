@@ -80,7 +80,7 @@ final class PaymentService
 
             $debitoReference = (string) ($providerResponse['debito_reference'] ?? '');
             if ($debitoReference === '') {
-                throw new RuntimeException('Débito não retornou referência da transação.');
+                throw new RuntimeException('DebitoPay v2 não retornou payment_id da transação.');
             }
 
             $providerStatus = (string) ($providerResponse['provider_status'] ?? 'PENDING');
@@ -91,7 +91,11 @@ final class PaymentService
 
             $this->debitoTransactions->create([
                 'payment_id' => $paymentId,
-                'wallet_id' => (string) Env::get('DEBITO_WALLET_ID', ''),
+                'wallet_id' => (string) Env::get('DEBITO_WALLET_CODE', ''),
+                'api_version' => 'v2',
+                'wallet_code' => (string) Env::get('DEBITO_WALLET_CODE', ''),
+                'provider_payment_id' => $debitoReference,
+                'provider_reference' => (string) ($providerResponse['provider_transaction_id'] ?? ''),
                 'debito_reference' => $debitoReference,
                 'request_payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE),
                 'response_payload_json' => json_encode($providerResponse['raw'] ?? [], JSON_UNESCAPED_UNICODE),

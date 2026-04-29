@@ -11,76 +11,72 @@ final class DebitoMpesaPayloadBuilder
 {
     public function __construct(private readonly MpesaMsisdnValidator $validator = new MpesaMsisdnValidator()) {}
 
-    public function build(
-        float|int|string $amount,
-        string $msisdn,
-        string $referenceDescription,
-        ?string $callbackUrl = null,
-        ?string $internalNotes = null
-    ): array {
-        $normalizedAmount = $this->normalizeAmount($amount);
-        if ($normalizedAmount <= 0) {
-            throw new InvalidArgumentException('Montante de pagamento inválido para M-Pesa C2B.');
+    public function build(float|int|string $amount, string $msisdn, string $referenceDescription, ?string $callbackUrl = null, ?string $internalNotes = null): array
+    {
+        $normalizedAmount = round($this->normalizeAmount($amount), 2);
+        if ($normalizedAmount < 10) {
+            throw new InvalidArgumentException('Montante mínimo M-Pesa é 10 MZN.');
         }
 
-        $formattedAmount = round($normalizedAmount, 2);
+        $merchantId = trim((string) Env::get('DEBITO_MERCHANT_ID', ''));
+        if ($merchantId === '') {
+            throw new InvalidArgumentException('DEBITO_MERCHANT_ID obrigatório para DebitoPay v2.');
+        }
 
-        $payload = [
-            'msisdn' => $this->validator->validate($msisdn),
-            'amount' => $formattedAmount,
-            'reference_description' => trim($referenceDescription),
+        $walletCode = trim((string) Env::get('DEBITO_WALLET_CODE', ''));
+        if ($walletCode === '') {
+            throw new InvalidArgumentException('DEBITO_WALLET_CODE obrigatório para DebitoPay v2.');
+        }
+
+        $currency = strtoupper(trim((string) Env::get('DEBITO_CURRENCY', 'MZN')));
+        if ($currency !== 'MZN') {
+            throw new InvalidArgumentException('DEBITO_CURRENCY deve ser MZN para DebitoPay v2 M-Pesa.');
+        }
+
+        $phone = $this->normalizeMsisdn($msisdn);
+
+        return [
+            'action' => 'process',
+            'payment_method' => 'mpesa',
+            'merchant_id' => $merchantId,
+            'wallet_code' => $walletCode,
+            'amount' => $normalizedAmount,
+            'currency' => $currency,
+            'phone' => $phone,
+            'source' => 'gateway',
+            'source_id' => trim($referenceDescription),
+            'customer_phone' => $phone,
         ];
-
-        $effectiveCallbackUrl = $this->resolveCallbackUrl($callbackUrl);
-        if ($effectiveCallbackUrl !== '') {
-            $payload['callback_url'] = $effectiveCallbackUrl;
-        }
-
-        if ($internalNotes !== null && trim($internalNotes) !== '') {
-            $payload['internal_notes'] = trim($internalNotes);
-        }
-
-        return $payload;
     }
 
-    private function normalizeAmount(float|int|string $amount): float
-    {
-        if (is_int($amount) || is_float($amount)) {
-            return (float) $amount;
-        }
-
-        $raw = trim($amount);
-        if ($raw === '') {
-            throw new InvalidArgumentException('Montante de pagamento inválido para M-Pesa C2B.');
-        }
-
-        $raw = str_replace(' ', '', $raw);
-        if (str_contains($raw, ',') && str_contains($raw, '.')) {
-            $raw = str_replace('.', '', $raw);
-            $raw = str_replace(',', '.', $raw);
-        } elseif (str_contains($raw, ',')) {
-            $raw = str_replace(',', '.', $raw);
-        }
-
-        if (!is_numeric($raw)) {
-            throw new InvalidArgumentException('Montante de pagamento inválido para M-Pesa C2B.');
-        }
-
+    private function normalizeAmount(float|int|string $amount): float { /* unchanged */
+        if (is_int($amount) || is_float($amount)) return (float) $amount;
+        $raw = str_replace(' ', '', trim((string) $amount));
+        if ($raw === '') throw new InvalidArgumentException('Montante inválido.');
+        if (str_contains($raw, ',') && str_contains($raw, '.')) { $raw = str_replace('.', '', $raw); $raw = str_replace(',', '.', $raw); }
+        elseif (str_contains($raw, ',')) { $raw = str_replace(',', '.', $raw); }
+        if (!is_numeric($raw)) throw new InvalidArgumentException('Montante inválido.');
         return (float) $raw;
     }
 
-    private function resolveCallbackUrl(?string $callbackUrl): string
+    private function normalizeMsisdn(string $msisdn): string
     {
-        $direct = trim((string) ($callbackUrl ?? ''));
-        if ($direct !== '') {
-            return filter_var($direct, FILTER_VALIDATE_URL) !== false ? $direct : '';
+        $input = trim($msisdn);
+        if ($input === '') {
+            throw new InvalidArgumentException('Telefone M-Pesa obrigatório.');
         }
 
-        $envCallback = trim((string) Env::get('DEBITO_CALLBACK_URL', ''));
-        if ($envCallback !== '' && filter_var($envCallback, FILTER_VALIDATE_URL) !== false) {
-            return $envCallback;
+        $digits = preg_replace('/\D+/', '', $input) ?? '';
+        if (strlen($digits) === 12 && str_starts_with($digits, '258')) {
+            $digits = substr($digits, 3);
         }
 
-        return '';
+        if (strlen($digits) !== 9 || !preg_match('/^(84|85)\d{7}$/', $digits)) {
+            throw new InvalidArgumentException('Número M-Pesa inválido. Use 84xxxxxxx ou 85xxxxxxx.');
+        }
+
+        $this->validator->validate($digits);
+
+        return '+258' . $digits;
     }
 }
