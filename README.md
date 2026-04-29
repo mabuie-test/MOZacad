@@ -61,6 +61,11 @@ A rota é configurável por `.env`:
 - A aplicação centraliza defaults, modelos por tarefa, limites e política de failover em `config/ai.php`.
 - Variáveis `.env` são apenas **override** dos valores dessa configuração (sem duplicar lógica nos providers).
 
+
+### Fail-fast de configuração de IA
+- O bootstrap HTTP (`public/index.php`) e o bootstrap CLI/workers (`bootstrap/app.php` + `scripts/run_workers.php`) executam `AIConfigBootstrapValidator::validate()` antes de aceitar requests/processar jobs.
+- Em configuração inválida, o sistema regista erro explícito no log (`error_log`) e aborta o arranque imediatamente com mensagem acionável para corrigir `.env`.
+
 Parâmetros críticos obrigatórios (falha no bootstrap quando ausentes):
 - `AI_PROVIDER` (`openai` ou `gemini`)
 - `AI_PROVIDER_MODE` (`single` ou `failover`)

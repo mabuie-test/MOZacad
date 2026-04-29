@@ -5,10 +5,23 @@ declare(strict_types=1);
 use App\Helpers\Env;
 use App\Helpers\Router;
 use App\Services\TraceContextService;
+use App\Services\AIConfigBootstrapValidator;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
 Env::boot(__DIR__ . '/../.env');
+
+try {
+    AIConfigBootstrapValidator::validate();
+} catch (\Throwable $exception) {
+    $message = 'Falha crítica de configuração de IA no bootstrap. Verifique AI_PROVIDER, AI_PROVIDER_MODE e chaves OPENAI_API_KEY/GEMINI_API_KEY no .env.';
+    error_log($message . ' Detalhe: ' . $exception->getMessage());
+
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=UTF-8');
+    echo $message . PHP_EOL . 'Detalhe técnico: ' . $exception->getMessage();
+    exit(1);
+}
 $traceId = (new TraceContextService())->currentTraceId($_SERVER);
 header('X-Request-ID: ' . $traceId);
 
