@@ -83,6 +83,7 @@ return static function (Router $router): void {
         $router->get('/coupons', [AdminCommercialPageController::class, 'coupons']);
         $router->get('/human-review', [AdminReviewPageController::class, 'humanReviewQueue']);
         $router->get('/permissions', [AdminController::class, 'permissions']);
+        $router->get('/exceptions', [AdminController::class, 'exceptions']);
 
         $router->post('/institutions', [AdminCatalogController::class, 'createInstitution'], [$csrf]);
         $router->post('/institutions/{id}', [AdminCatalogController::class, 'updateInstitution'], [$csrf]);

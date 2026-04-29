@@ -45,7 +45,15 @@ final class AdminOperationsReadService
         $riskFilter = trim((string) ($filters['risk'] ?? ''));
         $delayFilter = trim((string) ($filters['delay'] ?? ''));
         $selectedOrderId = (int) ($filters['order_id'] ?? 0);
-        $exceptionSummary = (new PostPaymentExceptionRepository())->summarize();
+        $exceptionRepo = new PostPaymentExceptionRepository();
+        $exceptionSummary = $exceptionRepo->summarize();
+        $exceptionStateFilter = trim((string) ($filters['exception_state'] ?? ''));
+        $exceptionSlaFilter = trim((string) ($filters['exception_sla'] ?? ''));
+        $exceptionOwnerFilter = (int) ($filters['exception_owner'] ?? 0);
+        $exceptionEscalatedFilter = trim((string) ($filters['exception_escalated'] ?? ''));
+        $exceptions = in_array($section, ['overview', 'exceptions'], true)
+            ? $exceptionRepo->listWithFilters($filters, 300)
+            : [];
 
         if ($orderStatusFilter !== '') {
             $orders = array_values(array_filter($orders, static fn (array $row): bool => (string) ($row['status'] ?? '') === $orderStatusFilter));
@@ -93,6 +101,11 @@ final class AdminOperationsReadService
             'payments' => $payments,
             'humanReviewQueue' => $queueRows,
             'reviewers' => in_array($section, ['overview', 'human-review'], true) ? (new UserRepository())->listByRole('human_reviewer', 80) : [],
+            'exceptions' => $exceptions,
+            'exceptionStateFilter' => $exceptionStateFilter,
+            'exceptionSlaFilter' => $exceptionSlaFilter,
+            'exceptionOwnerFilter' => $exceptionOwnerFilter,
+            'exceptionEscalatedFilter' => $exceptionEscalatedFilter,
         ];
     }
 }

@@ -19,7 +19,7 @@ final class AdminOrderActionController extends BaseController
 
     private function transition(int $id, string $action): void
     {
-        if (!$this->guardAdminPermissionPost('admin.orders.manage', '/admin/orders')) {
+        if (!$this->guardAdminPermissionPost('exceptions.manage', '/admin/exceptions')) {
             return;
         }
 
