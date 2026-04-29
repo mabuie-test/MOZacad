@@ -1,7 +1,10 @@
+<?php
+use App\Domain\StatusCatalog;
+?>
 <div class="card p-3 mb-3">
   <h2 class="h5">Filtro de pedidos</h2>
   <form method="get" action="/admin/orders" class="row g-2 align-items-end">
-    <div class="col-md-2"><label class="form-label">Status</label><select name="order_status" class="form-select"><option value="">Todos</option><?php foreach (['pending_payment','queued','paused_admin','under_human_review','delivery_blocked','ready','revision_requested','returned_for_revision','approved'] as $status): ?><option value="<?= $status ?>" <?= (($orderStatusFilter ?? '') === $status) ? 'selected' : '' ?>><?= $status ?></option><?php endforeach; ?></select></div>
+    <div class="col-md-2"><label class="form-label">Status</label><select name="order_status" class="form-select"><option value="">Todos</option><?php foreach (StatusCatalog::orderStatuses() as $status): ?><option value="<?= $status ?>" <?= (($orderStatusFilter ?? '') === $status) ? 'selected' : '' ?>><?= $status ?></option><?php endforeach; ?></select></div>
     <div class="col-md-2"><label class="form-label">Risco</label><select name="risk" class="form-select"><option value="">Todos</option><option value="high" <?= (($riskFilter ?? '')==='high')?'selected':'' ?>>Alta prioridade</option><option value="normal" <?= (($riskFilter ?? '')==='normal')?'selected':'' ?>>Normal</option></select></div>
     <div class="col-md-2"><label class="form-label">SLA</label><select name="delay" class="form-select"><option value="">Todos</option><option value="late" <?= (($delayFilter ?? '')==='late')?'selected':'' ?>>Atrasado</option><option value="at_risk" <?= (($delayFilter ?? '')==='at_risk')?'selected':'' ?>>Em risco</option><option value="on_track" <?= (($delayFilter ?? '')==='on_track')?'selected':'' ?>>No prazo</option></select></div>
     <div class="col-md-2"><button class="btn btn-outline-primary w-100">Aplicar</button></div>

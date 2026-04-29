@@ -1,7 +1,10 @@
+<?php
+use App\Domain\StatusCatalog;
+?>
 <div class="card p-3 mb-3">
   <h2 class="h5">Filtro da fila humana</h2>
   <form method="get" action="/admin/human-review" class="row g-2 align-items-end">
-    <div class="col-md-3"><label class="form-label">Status</label><select name="review_status" class="form-select"><option value="">Todos</option><?php foreach (['pending','assigned','approved','rejected'] as $status): ?><option value="<?= $status ?>" <?= (($reviewStatusFilter ?? '') === $status) ? 'selected' : '' ?>><?= $status ?></option><?php endforeach; ?></select></div>
+    <div class="col-md-3"><label class="form-label">Status</label><select name="review_status" class="form-select"><option value="">Todos</option><?php foreach (StatusCatalog::humanReviewQueueStatuses() as $status): ?><option value="<?= $status ?>" <?= (($reviewStatusFilter ?? '') === $status) ? 'selected' : '' ?>><?= $status ?></option><?php endforeach; ?></select></div>
     <div class="col-md-2"><button class="btn btn-outline-primary w-100">Aplicar</button></div>
   </form>
 </div>

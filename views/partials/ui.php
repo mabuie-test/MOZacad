@@ -1,12 +1,16 @@
 <?php
 
+use App\Domain\StatusCatalog;
+
 $statusMap = static function (string $status): array {
     return match ($status) {
         'draft' => ['Rascunho', 'secondary', 'Pedido iniciado e ainda não submetido.'],
         'pending_payment', 'pending', 'issued' => ['Pendente', 'warning', 'Aguardando pagamento ou confirmação inicial.'],
         'processing', 'queued', 'pending_confirmation' => ['Em processamento', 'info', 'Equipa e motor estão a processar este passo.'],
         'under_human_review', 'pending_human_review', 'assigned' => ['Revisão humana', 'primary', 'Documento sob validação especializada.'],
-        'ready', 'paid', 'approved' => ['Concluído', 'success', 'Etapa concluída com sucesso.'],
+        'qa_approved' => ['QA aprovado', 'info', 'Primeira aprovação concluída, aguardando aprovação final.'],
+        'final_approved', 'ready', 'paid', 'approved' => ['Concluído', 'success', 'Etapa concluída com sucesso.'],
+        'delivery_blocked' => ['Entrega bloqueada', 'danger', 'Existem bloqueios operacionais antes da entrega.'],
         'revision_requested', 'returned_for_revision' => ['Revisão solicitada', 'warning', 'Existe uma iteração de revisão activa.'],
         'failed', 'rejected', 'cancelled', 'expired' => ['Falhou', 'danger', 'Fluxo interrompido, requer intervenção.'],
         default => [ucfirst(str_replace('_', ' ', $status)), 'secondary', 'Estado registado no sistema.'],
