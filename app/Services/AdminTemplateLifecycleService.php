@@ -22,6 +22,18 @@ final class AdminTemplateLifecycleService
             throw new RuntimeException('Artefacto não encontrado.');
         }
 
+
+        $artifactType = (string) ($artifact['artifact_type'] ?? '');
+        if (in_array($artifactType, ['norm_pdf', 'norm_txt', 'norm_metadata'], true)) {
+            $institutionId = (int) ($artifact['institution_id'] ?? 0);
+            if ($institutionId > 0) {
+                $norm = (new InstitutionNormDocumentService())->resolveForInstitution(['id' => $institutionId]);
+                if (($norm['source'] ?? '') === 'pdf_unparsed' || trim((string) ($norm['content'] ?? '')) === '') {
+                    throw new RuntimeException('Não é possível activar a norma: parsing de texto falhou (pdf_unparsed). Corrija o conteúdo antes de produção.');
+                }
+            }
+        }
+
         if (!$this->artifacts->activateArtifact($artifactId)) {
             throw new RuntimeException('Falha ao activar versão do artefacto.');
         }

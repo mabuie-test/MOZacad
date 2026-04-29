@@ -7,7 +7,10 @@ namespace App\Services;
 
 final class InstitutionNormDocumentService
 {
-    public function __construct(private readonly \App\Repositories\TemplateArtifactRepository $artifacts = new \App\Repositories\TemplateArtifactRepository()) {}
+    public function __construct(
+        private readonly \App\Repositories\TemplateArtifactRepository $artifacts = new \App\Repositories\TemplateArtifactRepository(),
+        private readonly ApplicationLoggerService $logger = new ApplicationLoggerService(),
+    ) {}
     /**
      * @return array{slug:string,base_path:string,txt_path:?string,pdf_path:?string,metadata_path:?string,content:string,source:string,metadata:array<string,mixed>,notes:array<int,string>,reference_style:?string,visual_overrides:array<string,mixed>,front_page_overrides:array<string,mixed>,structure_overrides:array<string,mixed>}
      */
@@ -36,10 +39,14 @@ final class InstitutionNormDocumentService
             $content = $this->cleanText($metadata['normalized_text']);
             $source = 'metadata';
         } elseif ($pdfPath !== null) {
-            $extracted = $this->extractTextFromPdf($pdfPath);
-            if ($extracted !== '') {
-                $content = $extracted;
-                $source = 'pdf_extracted';
+            $extraction = $this->extractTextFromPdf($pdfPath);
+            $this->recordParsingMetrics((int) ($institution['id'] ?? 0), $pdfPath, $extraction);
+            if ($extraction['text'] !== '') {
+                $content = $extraction['text'];
+                $source = $extraction['method'];
+                $metadata = $this->persistNormalizedText($basePath, $metadata, $content);
+                $txtPath = $this->resolveExisting($basePath . '/norma.txt');
+                $metadataPath = $this->resolveExisting($basePath . '/metadata.json');
             } else {
                 $source = 'pdf_unparsed';
             }
@@ -141,33 +148,118 @@ final class InstitutionNormDocumentService
         return trim($normalized);
     }
 
-    private function extractTextFromPdf(string $pdfPath): string
+    /**
+     * @return array{text:string,method:string,pages:int,size:int,status:string}
+     */
+    private function extractTextFromPdf(string $pdfPath): array
+    {
+        $directText = $this->runPdftotext($pdfPath);
+        if ($directText !== '') {
+            return [
+                'text' => $directText,
+                'method' => 'pdf_extracted',
+                'pages' => $this->countPdfPages($pdfPath),
+                'size' => strlen($directText),
+                'status' => 'success',
+            ];
+        }
+
+        $ocrText = $this->runOcrFallback($pdfPath);
+        if ($ocrText !== '') {
+            return [
+                'text' => $ocrText,
+                'method' => 'pdf_ocr_fallback',
+                'pages' => $this->countPdfPages($pdfPath),
+                'size' => strlen($ocrText),
+                'status' => 'success',
+            ];
+        }
+
+        return ['text' => '', 'method' => 'pdf_unparsed', 'pages' => $this->countPdfPages($pdfPath), 'size' => 0, 'status' => 'failure'];
+    }
+
+    private function runPdftotext(string $pdfPath): string
     {
         $binary = trim((string) shell_exec('command -v pdftotext 2>/dev/null'));
         if ($binary === '') {
             return '';
         }
-
         $outputPath = tempnam(sys_get_temp_dir(), 'norm_txt_');
         if (!is_string($outputPath) || $outputPath === '') {
             return '';
         }
-
-        $command = sprintf(
-            '%s -layout %s %s 2>/dev/null',
-            escapeshellarg($binary),
-            escapeshellarg($pdfPath),
-            escapeshellarg($outputPath)
-        );
+        $command = sprintf('%s -layout %s %s 2>/dev/null', escapeshellarg($binary), escapeshellarg($pdfPath), escapeshellarg($outputPath));
         exec($command, $unusedOutput, $statusCode);
-        if ($statusCode !== 0 || !is_file($outputPath)) {
-            @unlink($outputPath);
-            return '';
-        }
-
+        if ($statusCode !== 0 || !is_file($outputPath)) { @unlink($outputPath); return ''; }
         $raw = (string) file_get_contents($outputPath);
         @unlink($outputPath);
         return $this->cleanText($raw);
+    }
+
+    private function runOcrFallback(string $pdfPath): string
+    {
+        $ocrmypdf = trim((string) shell_exec('command -v ocrmypdf 2>/dev/null'));
+        if ($ocrmypdf !== '') {
+            $ocrPdf = tempnam(sys_get_temp_dir(), 'norm_ocr_');
+            if (is_string($ocrPdf) && $ocrPdf !== '') {
+                $ocrPdfWithExt = $ocrPdf . '.pdf';
+                $cmd = sprintf('%s --skip-text %s %s 2>/dev/null', escapeshellarg($ocrmypdf), escapeshellarg($pdfPath), escapeshellarg($ocrPdfWithExt));
+                exec($cmd, $o, $status);
+                if ($status === 0 && is_file($ocrPdfWithExt)) {
+                    $text = $this->runPdftotext($ocrPdfWithExt);
+                    @unlink($ocrPdfWithExt);
+                    if ($text !== '') {
+                        return $text;
+                    }
+                }
+            }
+        }
+
+        $internal = getenv('NORM_OCR_PIPELINE_ENDPOINT');
+        if (is_string($internal) && trim($internal) !== '') {
+            $this->logger->alert('norm.parsing.ocr_pipeline_configured_but_not_implemented', ['endpoint' => $internal]);
+        }
+        return '';
+    }
+
+    private function countPdfPages(string $pdfPath): int
+    {
+        $pdfinfo = trim((string) shell_exec('command -v pdfinfo 2>/dev/null'));
+        if ($pdfinfo === '') {
+            return 0;
+        }
+        $output = shell_exec(sprintf('%s %s 2>/dev/null', escapeshellarg($pdfinfo), escapeshellarg($pdfPath)));
+        if (!is_string($output) || $output === '') {
+            return 0;
+        }
+        if (preg_match('/Pages:\s+(\d+)/', $output, $m) === 1) {
+            return (int) $m[1];
+        }
+        return 0;
+    }
+
+    private function persistNormalizedText(string $basePath, array $metadata, string $content): array
+    {
+        $normalized = $this->cleanText($content);
+        if ($normalized === '') {
+            return $metadata;
+        }
+        @file_put_contents($basePath . '/norma.txt', $normalized . PHP_EOL);
+        $metadata['normalized_text'] = $normalized;
+        @file_put_contents($basePath . '/metadata.json', (string) json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        return $metadata;
+    }
+
+    private function recordParsingMetrics(int $institutionId, string $pdfPath, array $extraction): void
+    {
+        $this->logger->info('norm.parsing.metrics', [
+            'institution_id' => $institutionId,
+            'pdf_path' => $pdfPath,
+            'status' => $extraction['status'] ?? 'failure',
+            'method' => $extraction['method'] ?? 'pdf_unparsed',
+            'pages_processed' => (int) ($extraction['pages'] ?? 0),
+            'extracted_size' => (int) ($extraction['size'] ?? 0),
+        ]);
     }
 
     /**
