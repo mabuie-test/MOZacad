@@ -57,6 +57,56 @@ A rota é configurável por `.env`:
 - `composer ops:validate`
 - verifica convergência de schema + consistência mínima de pagamentos, jobs, revisão humana, regeneração e cupões.
 
+## Configuração única de IA (`config/ai.php`)
+- A aplicação centraliza defaults, modelos por tarefa, limites e política de failover em `config/ai.php`.
+- Variáveis `.env` são apenas **override** dos valores dessa configuração (sem duplicar lógica nos providers).
+
+Parâmetros críticos obrigatórios (falha no bootstrap quando ausentes):
+- `AI_PROVIDER` (`openai` ou `gemini`)
+- `AI_PROVIDER_MODE` (`single` ou `failover`)
+- `OPENAI_API_KEY` (obrigatória quando OpenAI estiver ativa no modo selecionado)
+- `GEMINI_API_KEY` (obrigatória quando Gemini estiver ativa no modo selecionado)
+
+Exemplo `.env` (desenvolvimento com OpenAI principal e failover Gemini):
+```dotenv
+AI_PROVIDER=openai
+AI_PROVIDER_MODE=failover
+AI_FAILOVER_ENABLED=true
+
+OPENAI_API_KEY=sk-xxx
+OPENAI_MODEL=gpt-5
+OPENAI_MODEL_CONTENT=gpt-5
+OPENAI_MODEL_REFINEMENT=gpt-5
+OPENAI_MODEL_HUMANIZER=gpt-5
+OPENAI_MODEL_STRUCTURE=gpt-5
+OPENAI_TIMEOUT=60
+OPENAI_MAX_OUTPUT_TOKENS=4000
+OPENAI_TEMPERATURE=0.7
+
+GEMINI_API_KEY=AIza-xxx
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL_CONTENT=gemini-2.5-flash
+GEMINI_MODEL_REFINEMENT=gemini-2.5-flash
+GEMINI_MODEL_HUMANIZER=gemini-2.5-flash
+GEMINI_MODEL_STRUCTURE=gemini-2.5-flash
+GEMINI_TIMEOUT=60
+GEMINI_MAX_OUTPUT_TOKENS=4000
+GEMINI_TEMPERATURE=0.7
+```
+
+Exemplo `.env` (produção single provider Gemini):
+```dotenv
+AI_PROVIDER=gemini
+AI_PROVIDER_MODE=single
+AI_FAILOVER_ENABLED=false
+
+GEMINI_API_KEY=AIza-prod-xxx
+GEMINI_MODEL=gemini-2.5-pro
+GEMINI_TIMEOUT=45
+GEMINI_MAX_OUTPUT_TOKENS=3000
+GEMINI_TEMPERATURE=0.5
+```
+
 
 ## Workers em desenvolvimento/Termux
 Em ambiente local (Termux/dev), o worker deve ficar activo em terminal dedicado. Se o worker não estiver activo, pedidos pagos podem permanecer em `queued` (estado que significa “aguarda worker de geração documental”).

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Helpers\Env;
+use App\Helpers\Config;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
@@ -14,13 +14,17 @@ final class OpenAIProvider implements AIProviderInterface
 {
     private Client $http;
     private string $apiKey;
+    /** @var array<string,mixed> */
+    private array $config;
 
     public function __construct()
     {
-        $this->apiKey = trim((string) Env::get('OPENAI_API_KEY', ''));
+        $this->config = Config::get('ai');
+        $openAI = (array) ($this->config['openai'] ?? []);
+        $this->apiKey = trim((string) ($openAI['api_key'] ?? ''));
         $this->http = new Client([
-            'base_uri' => rtrim((string) Env::get('OPENAI_BASE_URL', 'https://api.openai.com/v1'), '/') . '/',
-            'timeout' => (int) Env::get('OPENAI_TIMEOUT', 60),
+            'base_uri' => rtrim((string) ($openAI['base_url'] ?? 'https://api.openai.com/v1'), '/') . '/',
+            'timeout' => (int) ($openAI['timeout'] ?? 60),
         ]);
     }
 
@@ -89,7 +93,7 @@ PROMPT;
     {
         $payload = $this->buildBasePayload($model, $input);
 
-        if (filter_var((string) Env::get('OPENAI_ENABLE_STRUCTURED_OUTPUT', false), FILTER_VALIDATE_BOOL)) {
+        if ((bool) (($this->config['openai']['enable_structured_output'] ?? false))) {
             $payload['text'] = ['format' => ['type' => 'text']];
         }
 
@@ -107,11 +111,11 @@ PROMPT;
         $payload = [
             'model' => $model,
             'input' => $input,
-            'max_output_tokens' => (int) Env::get('OPENAI_MAX_OUTPUT_TOKENS', 4000),
+            'max_output_tokens' => (int) ($this->config['openai']['max_output_tokens'] ?? 4000),
         ];
 
         if ($this->supportsTemperature($model)) {
-            $payload['temperature'] = (float) Env::get('OPENAI_TEMPERATURE', 0.7);
+            $payload['temperature'] = (float) ($this->config['openai']['temperature'] ?? 0.7);
         }
 
         return $payload;
@@ -146,7 +150,7 @@ PROMPT;
     private function extractOutputText(array $decoded): string
     {
         if ((string) ($decoded['status'] ?? '') === 'incomplete') {
-            throw new RuntimeException('OpenAI retornou resposta incompleta; aumente OPENAI_MAX_OUTPUT_TOKENS.');
+            throw new RuntimeException('OpenAI retornou resposta incompleta; aumente ai.openai.max_output_tokens.');
         }
 
         $outputText = $decoded['output_text'] ?? null;
@@ -180,15 +184,19 @@ PROMPT;
 
     private function resolveModel(string $useCase): string
     {
-        $baseModel = (string) Env::get('OPENAI_MODEL', 'gpt-5');
+        $defaults = (array) ($this->config['models']['openai'] ?? []);
+        $baseModel = (string) ($defaults['default'] ?? 'gpt-5');
+        $tasks = (array) ($defaults['tasks'] ?? []);
 
-        return match ($useCase) {
-            'structure' => (string) Env::get('OPENAI_MODEL_STRUCTURE', $baseModel),
-            'content' => (string) Env::get('OPENAI_MODEL_CONTENT', $baseModel),
-            'refinement' => (string) Env::get('OPENAI_MODEL_REFINEMENT', $baseModel),
-            'humanizer' => (string) Env::get('OPENAI_MODEL_HUMANIZER', $baseModel),
-            default => $baseModel,
+        $resolved = match ($useCase) {
+            'structure' => (string) ($tasks['structure'] ?? ''),
+            'content' => (string) ($tasks['content'] ?? ''),
+            'refinement' => (string) ($tasks['refinement'] ?? ''),
+            'humanizer' => (string) ($tasks['humanizer'] ?? ''),
+            default => '',
         };
+
+        return trim($resolved) !== '' ? $resolved : $baseModel;
     }
 
 
