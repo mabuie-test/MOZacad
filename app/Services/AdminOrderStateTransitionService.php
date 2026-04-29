@@ -15,6 +15,9 @@ final class AdminOrderStateTransitionService
         'escalate' => ['status' => 'under_human_review', 'critical' => true],
         'block_delivery' => ['status' => 'delivery_blocked', 'critical' => true],
         'reopen_review' => ['status' => 'under_human_review', 'critical' => true],
+        'payment_dispute' => ['status' => 'payment_dispute', 'critical' => true],
+        'payment_refund' => ['status' => 'refund_pending', 'critical' => true],
+        'payment_cancel' => ['status' => 'cancelled_post_payment', 'critical' => true],
     ];
 
     public function execute(int $orderId, string $action, int $actorId, string $reason, bool $confirmed): array
@@ -69,11 +72,16 @@ final class AdminOrderStateTransitionService
         if ($action === 'resume' && $currentStatus !== 'paused_admin') {
             throw new \InvalidArgumentException('Só é possível retomar pedidos pausados.');
         }
+
+        if (in_array($action, ['payment_dispute', 'payment_refund', 'payment_cancel'], true)
+            && !in_array($currentStatus, ['queued', 'in_progress', 'under_human_review', 'ready', 'approved', 'delivery_blocked'], true)) {
+            throw new \InvalidArgumentException('Fluxo pós-pagamento só pode ser iniciado após confirmação operacional.');
+        }
     }
 
     private function priorityForAction(string $action): string
     {
-        return in_array($action, ['escalate', 'block_delivery', 'reopen_review'], true) ? 'high' : 'normal';
+        return in_array($action, ['escalate', 'block_delivery', 'reopen_review', 'payment_dispute', 'payment_refund', 'payment_cancel'], true) ? 'high' : 'normal';
     }
 }
 

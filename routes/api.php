@@ -56,6 +56,9 @@ return static function (Router $router): void {
         $router->post('/orders/{id}/escalate', [AdminOrderActionController::class, 'escalate']);
         $router->post('/orders/{id}/block-delivery', [AdminOrderActionController::class, 'blockDelivery']);
         $router->post('/orders/{id}/reopen-review', [AdminOrderActionController::class, 'reopenReview']);
+        $router->post('/orders/{id}/payment-dispute', [AdminOrderActionController::class, 'paymentDispute']);
+        $router->post('/orders/{id}/payment-refund', [AdminOrderActionController::class, 'paymentRefund']);
+        $router->post('/orders/{id}/payment-cancel', [AdminOrderActionController::class, 'paymentCancel']);
         $router->post('/pricing/rules', [AdminPricingController::class, 'upsertPricingRule']);
         $router->post('/pricing/extras', [AdminPricingController::class, 'upsertPricingExtra']);
         $router->post('/permissions/matrix', [AdminPermissionController::class, 'updateMatrix']);
