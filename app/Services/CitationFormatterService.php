@@ -15,7 +15,8 @@ final class CitationFormatterService
         $style = strtoupper(trim($style)) !== '' ? strtoupper(trim($style)) : 'APA';
         $detectedSignals = $this->signals->parse($sections);
         $sources = $this->collectSources($detectedSignals);
-        $references = $this->buildReferences($sources, $style);
+        $enrichedSources = array_map(fn (array $source): array => $this->enrichSource($source), $sources);
+        $references = $this->buildReferences($enrichedSources, $style);
 
         foreach ($sections as $index => &$section) {
             $text = trim((string) ($section['content'] ?? ''));
@@ -35,10 +36,11 @@ final class CitationFormatterService
             'content' => implode("\n", array_map(static fn (ReferenceEntryDTO $r): string => $r->formatted, $references)),
             'citation_style' => $style,
             'signals_detected' => $detectedSignals,
-            'collected_sources' => $sources,
+            'collected_sources' => $enrichedSources,
             'requires_manual_completion' => $hasIncomplete,
             'qa_checklist' => [
                 'referencias_completas' => !$hasIncomplete,
+                'referencias_completas_blocking' => $hasIncomplete,
             ],
             'reference_entries' => $referenceArrays,
         ];
@@ -101,6 +103,33 @@ final class CitationFormatterService
         }
 
         return $sources;
+    }
+
+
+    private function enrichSource(array $source): array
+    {
+        $raw = $source['raw_signal'] ?? [];
+        if (!is_array($raw)) {
+            $raw = [];
+        }
+
+        $source['title'] = $this->firstNonEmpty((string) ($source['title'] ?? ''), (string) ($raw['title'] ?? ''), (string) ($raw['work'] ?? ''), (string) ($raw['source'] ?? ''));
+        $source['publisher_or_venue'] = $this->firstNonEmpty((string) ($source['publisher_or_venue'] ?? ''), (string) ($raw['venue'] ?? ''), (string) ($raw['publisher'] ?? ''), (string) ($raw['journal'] ?? ''));
+        $source['author'] = $this->firstNonEmpty((string) ($source['author'] ?? ''), (string) ($raw['author'] ?? ''), (string) ($raw['organization'] ?? ''));
+        if (($source['author'] ?? '') !== '') {
+            $source['author'] = $this->normalizeAuthor((string) $source['author']);
+        }
+        $source['year'] = $this->normalizeYear($this->firstNonEmpty((string) ($source['year'] ?? ''), (string) ($raw['year'] ?? ''), (string) ($raw['published_at'] ?? '')));
+
+        $source['url_or_doi'] = $this->normalizeLocator($this->firstNonEmpty((string) ($source['url_or_doi'] ?? ''), (string) ($raw['url'] ?? ''), (string) ($raw['doi'] ?? '')));
+
+        if (($source['source_type'] ?? '') === 'website' && trim((string) ($source['accessed_at'] ?? '')) === '') {
+            $source['accessed_at'] = date('Y-m-d');
+        }
+
+        $source['is_complete'] = $this->isSourceComplete($source);
+
+        return $source;
     }
 
     /** @return array<int,ReferenceEntryDTO> */
@@ -194,6 +223,45 @@ final class CitationFormatterService
         };
     }
 
+
+    private function firstNonEmpty(string ...$values): ?string
+    {
+        foreach ($values as $value) {
+            $trimmed = trim($value);
+            if ($trimmed !== '') {
+                return $trimmed;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeYear(?string $value): ?string
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        if (preg_match('/\b(19|20)\d{2}\b/', $value, $m) === 1) {
+            return $m[0];
+        }
+
+        return trim($value);
+    }
+
+    private function normalizeLocator(?string $value): ?string
+    {
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        $value = trim($value);
+        if (str_starts_with(strtolower($value), '10.')) {
+            return 'https://doi.org/' . $value;
+        }
+
+        return $value;
+    }
     private function normalizeAuthor(string $author): string
     {
         $author = preg_replace('/\s+/', ' ', trim($author)) ?? trim($author);

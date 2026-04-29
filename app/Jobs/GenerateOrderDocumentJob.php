@@ -188,6 +188,7 @@ final class GenerateOrderDocumentJob
             (new DocumentComplianceValidationRepository())->create($documentId, $effectiveVersion, $validation);
             (new DeliveryChecklistRepository())->ensureDefaults($documentId, $effectiveVersion);
             (new DeliveryChecklistRepository())->syncComplianceItemFromValidation($documentId, $effectiveVersion, $validation);
+            (new DeliveryChecklistRepository())->syncReferencesCompletenessFromSections($documentId, $effectiveVersion, $cited);
             $hasComplianceBlocker = ((int) ($validation['summary']['critical'] ?? 0) > 0)
                 || (($validation['is_compliant'] ?? true) === false);
 
