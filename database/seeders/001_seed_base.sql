@@ -33,7 +33,8 @@ INSERT INTO permissions (code, name, description, category, is_active, created_a
 ('governance.rules.manage','Gerir regras institucionais','Editar regras institucionais','governance',1,NOW(),NOW()),
 ('governance.templates.view','Ver templates','Leitura de templates e artefactos','governance',1,NOW(),NOW()),
 ('governance.templates.manage','Gerir templates','Publicação e activação de templates','governance',1,NOW(),NOW()),
-('permissions.manage','Gerir permissões','Gestão da matriz de permissões por papel','security',1,NOW(),NOW());
+('permissions.manage','Gerir permissões','Gestão da matriz de permissões por papel','security',1,NOW(),NOW()),
+('exceptions.manage','Gerir exceções pós-pagamento','Operar fluxo de exceções administrativas e compliance','operations',1,NOW(),NOW());
 
 INSERT IGNORE INTO role_permissions (role_id, permission_id, created_at, updated_at)
 SELECT r.id, p.id, NOW(), NOW()
@@ -56,7 +57,8 @@ INNER JOIN permissions p ON p.code IN (
   'commercial.discounts.view','commercial.discounts.manage',
   'commercial.coupons.view','commercial.coupons.manage',
   'governance.rules.view','governance.rules.manage',
-  'governance.templates.view','governance.templates.manage'
+  'governance.templates.view','governance.templates.manage',
+  'exceptions.manage'
 )
 WHERE r.name = 'admin';
 

@@ -26,6 +26,7 @@ final class AdminApiController extends BaseController
         'human-review' => 'human_review.queue.view',
         'permissions' => 'permissions.manage',
         'audit-logs' => 'audit.logs.view',
+        'exceptions' => 'exceptions.manage',
     ];
 
     public function section(string $section): void

@@ -9,7 +9,8 @@
       '/admin/users' => 'Utilizadores',
       '/admin/orders' => 'Pedidos',
       '/admin/payments' => 'Pagamentos',
-      '/admin/human-review' => 'Revisão humana'
+      '/admin/human-review' => 'Revisão humana',
+      '/admin/exceptions' => 'Exceções pós-pagamento'
     ] as $href => $label): ?>
       <a class="<?= (($currentPath ?? '') === $href) ? 'active' : '' ?>" href="<?= $href ?>"><?= $label ?></a>
     <?php endforeach; ?>

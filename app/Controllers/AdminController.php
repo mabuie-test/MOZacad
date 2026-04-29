@@ -24,6 +24,7 @@ final class AdminController extends BaseController
         'templates' => 'governance.templates.view',
         'coupons' => 'commercial.coupons.view',
         'permissions' => 'permissions.manage',
+        'exceptions' => 'exceptions.manage',
     ];
 
     public function index(): void { $this->renderSection('overview'); }
@@ -41,6 +42,7 @@ final class AdminController extends BaseController
     public function templates(): void { $this->renderSection('templates'); }
     public function coupons(): void { $this->renderSection('coupons'); }
     public function permissions(): void { $this->renderSection('permissions'); }
+    public function exceptions(): void { $this->renderSection('exceptions'); }
 
     private function renderSection(string $section): void
     {
