@@ -113,21 +113,48 @@ INSERT INTO pricing_extras (extra_code, name, amount, is_active, created_at, upd
 ('needs_slides','Apresentação de slides',800,1,NOW(),NOW()),
 ('needs_defense_summary','Resumo de defesa',450,1,NOW(),NOW());
 
--- Credenciais seed admin adicional: teste@teste.com / admin123
+-- Credenciais seed:
+-- vip@mozacad.test / admin123
+-- teste@admin.com / admin123
+-- teste@teste.com / admin123 (admin operacional)
 INSERT INTO users (name, email, phone, password_hash, is_active, created_at, updated_at) VALUES
 ('VIP Student','vip@mozacad.test','841111111','$2y$12$FKAVAGTDq8h//J9Kba80gOVGeJUhKWQjnBqVQ7ZPuJEQXWtOuqiLa',1,NOW(),NOW()),
-('Super Admin','superadmin@mozacad.test','851111111','$2y$12$FKAVAGTDq8h//J9Kba80gOVGeJUhKWQjnBqVQ7ZPuJEQXWtOuqiLa',1,NOW(),NOW()),
-('Admin Teste','teste@teste.com','852222222','$2y$12$bsviR6u36PvtaV8TJr1y6.0wJtstYuqhu5SMVEQLsdxNmx9iaLhI2',1,NOW(),NOW());
+('Super Admin','teste@admin.com','851111111','$2y$12$FKAVAGTDq8h//J9Kba80gOVGeJUhKWQjnBqVQ7ZPuJEQXWtOuqiLa',1,NOW(),NOW()),
+('Admin Teste','teste@teste.com','852222222','$2y$12$bsviR6u36PvtaV8TJr1y6.0wJtstYuqhu5SMVEQLsdxNmx9iaLhI2',1,NOW(),NOW())
+ON DUPLICATE KEY UPDATE
+name = VALUES(name),
+phone = VALUES(phone),
+password_hash = VALUES(password_hash),
+is_active = VALUES(is_active),
+updated_at = NOW();
 
 INSERT INTO user_discounts (user_id, name, discount_type, discount_value, usage_limit, used_count, starts_at, ends_at, is_active, created_by_admin_id, notes, created_at, updated_at) VALUES
 (1,'VIP 10%','percent',10,100,0,NOW(),DATE_ADD(NOW(), INTERVAL 30 DAY),1,2,'Benefício promocional VIP',NOW(),NOW());
 
 
-INSERT INTO user_roles (user_id, role_id) VALUES
-(1, 1),
-(2, 2),
-(2, 4),
-(3, 2);
+INSERT IGNORE INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u
+INNER JOIN roles r ON r.name = 'user'
+WHERE u.email = 'vip@mozacad.test';
+
+INSERT IGNORE INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u
+INNER JOIN roles r ON r.name = 'admin'
+WHERE u.email = 'teste@admin.com';
+
+INSERT IGNORE INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u
+INNER JOIN roles r ON r.name = 'superadmin'
+WHERE u.email = 'teste@admin.com';
+
+INSERT IGNORE INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u
+INNER JOIN roles r ON r.name = 'admin'
+WHERE u.email = 'teste@teste.com';
 
 INSERT INTO institution_rules (institution_id, font_family, font_size, heading_font_size, line_spacing, margin_top, margin_right, margin_bottom, margin_left, references_style, front_page_rules_json, notes, created_at, updated_at) VALUES
 (1, 'Times New Roman', 12, 14, 1.5, 2.5, 3, 2.5, 3, 'APA', '{"institution_name":"Universidade Eduardo Mondlane","city":"Maputo"}', 'Regras base UEM', NOW(), NOW()),
