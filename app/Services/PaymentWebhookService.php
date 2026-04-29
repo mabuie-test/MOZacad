@@ -149,6 +149,7 @@ final class PaymentWebhookService
     {
         $candidate = trim((string) (
             $payload['event_id']
+            ?? (($payload['event'] ?? '') !== '' && ($payload['data']['payment_id'] ?? '') !== '' ? ($payload['event'] . ':' . $payload['data']['payment_id'] . ':' . ($payload['timestamp'] ?? '')) : '')
             ?? $payload['idempotency_key']
             ?? $payload['id']
             ?? ''
@@ -205,7 +206,7 @@ final class PaymentWebhookService
             return false;
         }
 
-        $headerValue = trim((string) ($headers['x_debito_signature'] ?? $headers['x_webhook_signature'] ?? ''));
+        $headerValue = trim((string) ($headers['x_webhook_signature'] ?? $headers['x_debito_signature'] ?? ''));
         if ($headerValue === '') {
             $this->logger->error('Webhook sem header de assinatura com segredo configurado');
             return false;
@@ -252,10 +253,12 @@ final class PaymentWebhookService
     private function extractReference(array $payload): string
     {
         $reference = trim((string) (
-            $payload['reference']
-            ?? $payload['debito_reference']
-            ?? $payload['transaction_reference']
+            $payload['data']['payment_id']
+            ?? $payload['payment_id']
+            ?? $payload['payment']['id']
+            ?? $payload['id']
             ?? $payload['data']['reference']
+            ?? $payload['reference']
             ?? ''
         ));
 
@@ -273,14 +276,14 @@ final class PaymentWebhookService
     private function extractProviderStatus(array $payload): string
     {
         return (string) (
-            $payload['transaction_status']
+            ($payload['event'] ?? '') === 'payment.completed' ? 'success' : ((($payload['event'] ?? '') === 'payment.failed') ? 'failed' : ((($payload['event'] ?? '') === 'payment.refunded') ? 'refunded' : ((($payload['event'] ?? '') === 'payment.chargeback') ? 'chargeback' : ($payload['transaction_status']
             ?? $payload['payment_status']
             ?? $payload['data']['transaction_status']
             ?? $payload['data']['payment_status']
             ?? $payload['status']
             ?? $payload['state']
             ?? $payload['data']['status']
-            ?? 'PENDING'
+            ?? 'pending'))))
         );
     }
 

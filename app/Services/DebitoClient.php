@@ -26,9 +26,9 @@ final class DebitoClient
         ]);
     }
 
-    public function post(string $uri, array $payload, bool $auth = true): array
+    public function post(string $uri, array $payload, bool $auth = true, array $extraHeaders = []): array
     {
-        return $this->request('POST', $uri, $payload, $auth);
+        return $this->request('POST', $uri, $payload, $auth, $extraHeaders);
     }
 
     public function get(string $uri, bool $auth = true): array
@@ -36,7 +36,7 @@ final class DebitoClient
         return $this->request('GET', $uri, [], $auth);
     }
 
-    private function request(string $method, string $uri, array $payload = [], bool $auth = true): array
+    private function request(string $method, string $uri, array $payload = [], bool $auth = true, array $extraHeaders = []): array
     {
         $requestId = bin2hex(random_bytes(8));
         $retries = max(0, (int) Env::get('DEBITO_HTTP_RETRIES', 2));
@@ -46,12 +46,14 @@ final class DebitoClient
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
             'X-Request-ID' => $requestId,
-            'User-Agent' => 'MOZacad-DebitoClient/1.1',
+            'User-Agent' => 'MOZacad-DebitoPayClient/2.0',
         ];
 
         if ($auth) {
             $headers['Authorization'] = 'Bearer ' . $this->authService->bearerToken();
         }
+
+        $headers = array_merge($headers, $extraHeaders);
 
         $options = [
             'headers' => $headers,
@@ -142,10 +144,15 @@ final class DebitoClient
     {
         return [
             'keys' => array_keys($payload),
+            'action' => (string) ($payload['action'] ?? ''),
+            'payment_method' => (string) ($payload['payment_method'] ?? ''),
+            'source_id' => $this->clip((string) ($payload['source_id'] ?? '')),
             'reference' => $this->clip((string) ($payload['reference'] ?? $payload['external_reference'] ?? '')),
             'amount' => isset($payload['amount']) ? (float) $payload['amount'] : null,
             'currency' => (string) ($payload['currency'] ?? ''),
-            'msisdn_masked' => $this->maskMsisdn((string) ($payload['msisdn'] ?? $payload['phone'] ?? '')),
+            'msisdn_masked' => $this->maskMsisdn((string) ($payload['phone'] ?? $payload['customer_phone'] ?? $payload['msisdn'] ?? '')),
+            'merchant_id' => $this->clip($this->maskId((string) ($payload['merchant_id'] ?? ''))),
+            'wallet_code' => $this->clip((string) ($payload['wallet_code'] ?? '')),
         ];
     }
 
@@ -156,9 +163,11 @@ final class DebitoClient
     {
         return [
             'keys' => array_keys($response),
-            'status' => $response['status'] ?? $response['transaction_status'] ?? null,
-            'reference' => $this->clip((string) ($response['reference'] ?? $response['debito_reference'] ?? '')),
-            'message' => $this->clip((string) ($response['message'] ?? $response['error']['message'] ?? '')),
+            'status' => $response['status'] ?? $response['payment']['status'] ?? null,
+            'payment_id' => $this->clip($this->maskId((string) ($response['payment_id'] ?? $response['payment']['id'] ?? ''))),
+            'reference' => $this->clip((string) ($response['reference'] ?? $response['payment']['provider_reference'] ?? '')),
+            'transactionId' => $this->clip((string) ($response['transactionId'] ?? '')),
+            'message' => $this->clip((string) ($response['message'] ?? $response['error']['message'] ?? $response['error'] ?? '')),
         ];
     }
 
@@ -170,6 +179,20 @@ final class DebitoClient
         }
 
         return mb_substr($digits, 0, 2) . '*****' . mb_substr($digits, -2);
+    }
+
+    private function maskId(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        if (mb_strlen($trimmed) <= 8) {
+            return str_repeat('*', mb_strlen($trimmed));
+        }
+
+        return mb_substr($trimmed, 0, 4) . '***' . mb_substr($trimmed, -4);
     }
 
     private function clip(string $value, int $max = 120): ?string
