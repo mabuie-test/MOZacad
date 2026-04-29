@@ -26,6 +26,8 @@ return static function (Router $router): void {
 
     $router->get('/api/admin/{section}', [AdminApiController::class, 'section'], [$api, $auth, $admin]);
 
+    $router->get('/api/admin/audit-logs/export', [AdminApiController::class, 'exportAuditLogs'], [$api, $auth, $admin]);
+
     $router->group('/api/admin', [$api, $auth, $admin], static function (Router $router): void {
         $router->post('/institutions', [AdminCatalogController::class, 'createInstitution']);
         $router->post('/institutions/{id}', [AdminCatalogController::class, 'updateInstitution']);

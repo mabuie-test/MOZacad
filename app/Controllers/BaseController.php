@@ -8,6 +8,7 @@ use App\Repositories\AuditLogRepository;
 use App\Helpers\Csrf;
 use App\Helpers\View;
 use App\Services\AdminAccessService;
+use App\Services\ApplicationLoggerService;
 use App\Services\ApiAccessPolicyService;
 use App\Services\AuthContextService;
 
@@ -176,7 +177,23 @@ abstract class BaseController
 
     protected function audit(string $action, string $subjectType, ?int $subjectId = null, array $payload = [], ?string $permissionCode = null): void
     {
-        (new AuditLogRepository())->log((int) ($_SESSION['auth_user_id'] ?? 0), $action, $subjectType, $subjectId, $payload, $permissionCode);
+        $actorId = (int) ($_SESSION['auth_user_id'] ?? 0);
+        (new AuditLogRepository())->log($actorId, $action, $subjectType, $subjectId, $payload, $permissionCode);
+
+        $criticalActions = [
+            'admin.payment.confirm_manual',
+            'admin.human_review.decided',
+            'admin.template_artifact.activated',
+        ];
+        if (in_array($action, $criticalActions, true)) {
+            (new ApplicationLoggerService())->warning('audit.critical_event', [
+                'actor_id' => $actorId,
+                'action' => $action,
+                'subject_type' => $subjectType,
+                'subject_id' => $subjectId,
+                'permission_code' => $permissionCode,
+            ] + $payload);
+        }
     }
 
     protected function redirect(string $path): void
