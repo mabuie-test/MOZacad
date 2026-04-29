@@ -8,7 +8,7 @@ final class OrderRepository extends BaseRepository
 {
     public function listAll(int $limit = 200): array
     {
-        $stmt = $this->db->prepare('SELECT o.*, u.email AS user_email, wt.name AS work_type_name,
+        $stmt = $this->db->prepare('SELECT o.*, u.email AS user_email, wt.name AS work_type_name, gd.template_application_json AS latest_template_application_json,
                 CASE
                     WHEN o.deadline_date < NOW() THEN "late"
                     WHEN TIMESTAMPDIFF(HOUR, NOW(), o.deadline_date) <= 24 THEN "at_risk"
@@ -17,6 +17,9 @@ final class OrderRepository extends BaseRepository
             FROM orders o
             INNER JOIN users u ON u.id = o.user_id
             INNER JOIN work_types wt ON wt.id = o.work_type_id
+            LEFT JOIN generated_documents gd ON gd.id = (
+                SELECT gd2.id FROM generated_documents gd2 WHERE gd2.order_id = o.id ORDER BY gd2.version DESC LIMIT 1
+            )
             ORDER BY o.created_at DESC
             LIMIT :limit');
         $stmt->bindValue('limit', $limit, \PDO::PARAM_INT);
