@@ -12,16 +12,22 @@ use RuntimeException;
 
 final class GeminiProvider implements AIProviderInterface
 {
+    private const STRUCTURED_MAX_RETRIES = 2;
+
     private Client $http;
     private string $apiKey;
     /** @var array<string,mixed> */
     private array $config;
+    private ApplicationLoggerService $logger;
+    private LogSanitizerService $sanitizer;
 
     public function __construct()
     {
         $this->config = Config::get('ai');
         $gemini = (array) ($this->config['gemini'] ?? []);
         $this->apiKey = trim((string) ($gemini['api_key'] ?? ''));
+        $this->logger = new ApplicationLoggerService();
+        $this->sanitizer = new LogSanitizerService();
         $this->http = new Client([
             'base_uri' => rtrim((string) ($gemini['base_url'] ?? 'https://generativelanguage.googleapis.com/v1beta'), '/') . '/',
             'timeout' => (int) ($gemini['timeout'] ?? 60),
@@ -68,21 +74,126 @@ PROMPT;
             throw new RuntimeException('Schema estruturado inválido para generateStructured().');
         }
 
-        $schemaInstruction = "Responde exclusivamente com JSON válido, sem Markdown, sem ```json, sem explicações. "
+        $schemaInstruction = $this->buildStructuredInstruction($prompt, $schema);
+        $lastError = 'Falha desconhecida de structured output.';
+        $lastRawOutput = null;
+
+        for ($attempt = 1; $attempt <= self::STRUCTURED_MAX_RETRIES + 1; $attempt++) {
+            $outputText = $this->requestText($this->resolveModel('structure'), $schemaInstruction);
+            $lastRawOutput = $outputText;
+            $cleaned = $this->stripMarkdownFences($outputText);
+            $structured = json_decode($cleaned, true);
+
+            if (!is_array($structured)) {
+                $lastError = 'Gemini retornou structured output não-JSON válido.';
+            } else {
+                $schemaError = $this->validateSchema($structured, $schema);
+                if ($schemaError === null) {
+                    return $structured;
+                }
+                $lastError = 'Gemini retornou JSON fora do schema: ' . $schemaError;
+            }
+
+            $this->logger->error('ai.provider.gemini.structured_output.invalid', [
+                'attempt' => $attempt,
+                'max_attempts' => self::STRUCTURED_MAX_RETRIES + 1,
+                'reason' => $lastError,
+                'payload' => $this->sanitizer->sanitize([
+                    'model' => $this->resolveModel('structure'),
+                    'schema' => $schema,
+                    'output' => $cleaned,
+                ]),
+            ]);
+
+            if ($attempt <= self::STRUCTURED_MAX_RETRIES) {
+                $schemaInstruction = $this->buildSchemaCorrectionInstruction($prompt, $schema, $cleaned, $lastError);
+            }
+        }
+
+        throw new RuntimeException('Gemini structured output falhou definitivamente: ' . $lastError . ' (attempts=' . (self::STRUCTURED_MAX_RETRIES + 1) . ').');
+    }
+
+    private function buildStructuredInstruction(string $prompt, array $schema): string
+    {
+        return "Responde exclusivamente com JSON válido, sem Markdown, sem ```json, sem explicações. "
             . "O JSON deve obedecer ao seguinte schema:\n"
             . json_encode($schema, JSON_UNESCAPED_UNICODE)
             . "\n\nPedido:\n"
             . $prompt;
+    }
 
-        $outputText = $this->requestText($this->resolveModel('structure'), $schemaInstruction);
-        $cleaned = $this->stripMarkdownFences($outputText);
-        $structured = json_decode($cleaned, true);
+    private function buildSchemaCorrectionInstruction(string $prompt, array $schema, string $previousOutput, string $error): string
+    {
+        return "A resposta anterior não cumpriu o schema exigido.\n"
+            . "Erro de validação: {$error}\n"
+            . "Resposta anterior:\n{$previousOutput}\n\n"
+            . "Corrige automaticamente e responde APENAS com JSON válido, sem Markdown, sem explicações.\n"
+            . "Schema obrigatório:\n"
+            . json_encode($schema, JSON_UNESCAPED_UNICODE)
+            . "\n\nPedido original:\n{$prompt}";
+    }
 
-        if (!is_array($structured)) {
-            throw new RuntimeException('Gemini retornou structured output não-JSON válido.');
+    private function validateSchema(mixed $data, array $schema, string $path = '$'): ?string
+    {
+        $expectedType = is_string($schema['type'] ?? null) ? (string) $schema['type'] : null;
+        if ($expectedType !== null) {
+            $typeError = $this->assertType($data, $expectedType, $path);
+            if ($typeError !== null) {
+                return $typeError;
+            }
         }
 
-        return $structured;
+        if ($expectedType === 'object' && is_array($data)) {
+            $required = is_array($schema['required'] ?? null) ? $schema['required'] : [];
+            foreach ($required as $requiredKey) {
+                if (is_string($requiredKey) && !array_key_exists($requiredKey, $data)) {
+                    return sprintf('%s.%s ausente (campo obrigatório).', $path, $requiredKey);
+                }
+            }
+
+            $properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+            foreach ($properties as $key => $propertySchema) {
+                if (!is_string($key) || !is_array($propertySchema) || !array_key_exists($key, $data)) {
+                    continue;
+                }
+
+                $childError = $this->validateSchema($data[$key], $propertySchema, $path . '.' . $key);
+                if ($childError !== null) {
+                    return $childError;
+                }
+            }
+        }
+
+        if ($expectedType === 'array' && is_array($data) && is_array($schema['items'] ?? null)) {
+            foreach ($data as $index => $item) {
+                $childError = $this->validateSchema($item, $schema['items'], $path . '[' . $index . ']');
+                if ($childError !== null) {
+                    return $childError;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function assertType(mixed $value, string $expectedType, string $path): ?string
+    {
+        $matches = match ($expectedType) {
+            'object' => is_array($value) && array_is_list($value) === false,
+            'array' => is_array($value) && array_is_list($value),
+            'string' => is_string($value),
+            'number' => is_int($value) || is_float($value),
+            'integer' => is_int($value),
+            'boolean' => is_bool($value),
+            'null' => $value === null,
+            default => true,
+        };
+
+        if ($matches) {
+            return null;
+        }
+
+        return sprintf('%s deve ser %s, recebido %s.', $path, $expectedType, get_debug_type($value));
     }
 
     private function requestText(string $model, string $input): string
