@@ -27,6 +27,37 @@
             <div class="muted-meta">Progresso: <?= $checked ?>/<?= $total ?></div>
             <div class="muted-meta">Aprovados: <?= (int) ($row['checklist_approved_items'] ?? 0) ?></div>
             <div class="muted-meta text-<?= $blocking > 0 ? 'danger' : 'success' ?>">Pendências impeditivas: <?= $blocking ?></div>
+            <div class="mt-2">
+              <?php foreach (($row['checklist_items'] ?? []) as $checkItem): ?>
+                <form method="post" action="/admin/delivery-checklists/<?= (int) ($row['generated_document_id'] ?? 0) ?>/<?= (int) ($row['generated_document_version'] ?? 0) ?>/items" class="border rounded p-2 mb-1">
+                  <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+                  <input type="hidden" name="checklist_item" value="<?= htmlspecialchars((string) ($checkItem['checklist_item'] ?? '')) ?>">
+                  <div class="fw-semibold small mb-1"><?= htmlspecialchars((string) ($checkItem['checklist_item'] ?? '-')) ?></div>
+                  <div class="d-flex gap-1 mb-1">
+                    <select name="status" class="form-select form-select-sm">
+                      <?php foreach (['pending','approved','rejected'] as $statusOpt): ?>
+                        <option value="<?= $statusOpt ?>" <?= ((string) ($checkItem['status'] ?? '') === $statusOpt) ? 'selected' : '' ?>><?= $statusOpt ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                    <select name="is_checked" class="form-select form-select-sm">
+                      <option value="0" <?= ((int) ($checkItem['is_checked'] ?? 0) === 0) ? 'selected' : '' ?>>Não</option>
+                      <option value="1" <?= ((int) ($checkItem['is_checked'] ?? 0) === 1) ? 'selected' : '' ?>>Sim</option>
+                    </select>
+                  </div>
+                  <input class="form-control form-control-sm mb-1" name="notes" value="<?= htmlspecialchars((string) ($checkItem['notes'] ?? '')) ?>" placeholder="Notas">
+                  <div class="muted-meta">Revisor: <?= !empty($checkItem['reviewer_signed_by']) ? '#'.(int)$checkItem['reviewer_signed_by'] : '-' ?> | Aprovador: <?= !empty($checkItem['approver_signed_by']) ? '#'.(int)$checkItem['approver_signed_by'] : '-' ?></div>
+                  <button class="btn btn-sm btn-outline-secondary mt-1">Atualizar item</button>
+                </form>
+              <?php endforeach; ?>
+              <form method="post" action="/admin/delivery-checklists/<?= (int) ($row['generated_document_id'] ?? 0) ?>/<?= (int) ($row['generated_document_version'] ?? 0) ?>/sign-reviewer" class="d-inline-block me-1">
+                <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+                <button class="btn btn-sm btn-outline-primary">Assinar revisor</button>
+              </form>
+              <form method="post" action="/admin/delivery-checklists/<?= (int) ($row['generated_document_id'] ?? 0) ?>/<?= (int) ($row['generated_document_version'] ?? 0) ?>/sign-approver" class="d-inline-block">
+                <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+                <button class="btn btn-sm btn-primary">Assinar aprovador</button>
+              </form>
+            </div>
           </td>
           <td><?= !empty($row['reviewer_id']) ? '#'.(int)$row['reviewer_id'] : 'Não atribuído' ?></td>
           <td><?= htmlspecialchars((string) ($row['decision'] ?? '-')) ?><div class="muted-meta"><?= htmlspecialchars((string) ($row['comments'] ?? '-')) ?></div></td>

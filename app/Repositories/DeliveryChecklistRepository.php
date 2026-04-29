@@ -24,6 +24,73 @@ final class DeliveryChecklistRepository extends BaseRepository
         }
     }
 
+
+
+    public function updateItemStatus(int $documentId, int $version, string $item, bool $isChecked, string $status, int $actorId, ?string $notes): void
+    {
+        $this->ensureDefaults($documentId, $version);
+        if (!in_array($item, self::REQUIRED_ITEMS, true)) {
+            throw new \RuntimeException('Item de checklist inválido.');
+        }
+
+        $allowedStatuses = ['pending', 'approved', 'rejected'];
+        if (!in_array($status, $allowedStatuses, true)) {
+            throw new \RuntimeException('Status de checklist inválido.');
+        }
+
+        $stmt = $this->db->prepare('UPDATE delivery_readiness_checklists
+            SET is_checked = :is_checked,
+                status = :status,
+                checked_by = :checked_by,
+                checked_at = NOW(),
+                notes = :notes,
+                updated_at = NOW()
+            WHERE generated_document_id = :document_id
+              AND generated_document_version = :version
+              AND checklist_item = :checklist_item');
+        $stmt->execute([
+            'is_checked' => $isChecked ? 1 : 0,
+            'status' => $status,
+            'checked_by' => $actorId,
+            'notes' => $notes,
+            'document_id' => $documentId,
+            'version' => $version,
+            'checklist_item' => $item,
+        ]);
+    }
+
+    public function signReviewer(int $documentId, int $version, int $actorId): void
+    {
+        $this->ensureDefaults($documentId, $version);
+        $stmt = $this->db->prepare('UPDATE delivery_readiness_checklists
+            SET reviewer_signed_by = :actor_id,
+                reviewer_signed_at = NOW(),
+                updated_at = NOW()
+            WHERE generated_document_id = :document_id
+              AND generated_document_version = :version');
+        $stmt->execute([
+            'actor_id' => $actorId,
+            'document_id' => $documentId,
+            'version' => $version,
+        ]);
+    }
+
+    public function signApprover(int $documentId, int $version, int $actorId): void
+    {
+        $this->ensureDefaults($documentId, $version);
+        $stmt = $this->db->prepare('UPDATE delivery_readiness_checklists
+            SET approver_signed_by = :actor_id,
+                approver_signed_at = NOW(),
+                updated_at = NOW()
+            WHERE generated_document_id = :document_id
+              AND generated_document_version = :version');
+        $stmt->execute([
+            'actor_id' => $actorId,
+            'document_id' => $documentId,
+            'version' => $version,
+        ]);
+    }
+
     public function listByDocument(int $documentId, int $version): array
     {
         $stmt = $this->db->prepare('SELECT * FROM delivery_readiness_checklists WHERE generated_document_id = :document_id AND generated_document_version = :version ORDER BY checklist_item');

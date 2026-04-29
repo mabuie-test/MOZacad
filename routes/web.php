@@ -10,6 +10,7 @@ use App\Controllers\AdminGovernancePageController;
 use App\Controllers\AdminCommercialPageController;
 use App\Controllers\AdminReviewPageController;
 use App\Controllers\AdminHumanReviewController;
+use App\Controllers\AdminDeliveryChecklistController;
 use App\Controllers\AdminPaymentController;
 use App\Controllers\AdminPermissionController;
 use App\Controllers\AdminPricingController;
@@ -103,6 +104,9 @@ return static function (Router $router): void {
         $router->post('/coupons/{id}/toggle', [AdminCommercialController::class, 'toggleCoupon'], [$csrf]);
         $router->post('/human-review/{queueId}/assign', [AdminHumanReviewController::class, 'assignHumanReview'], [$csrf]);
         $router->post('/human-review/{queueId}/decision', [AdminHumanReviewController::class, 'decideHumanReview'], [$csrf]);
+        $router->post('/delivery-checklists/{documentId}/{version}/items', [AdminDeliveryChecklistController::class, 'updateItem'], [$csrf]);
+        $router->post('/delivery-checklists/{documentId}/{version}/sign-reviewer', [AdminDeliveryChecklistController::class, 'signAsReviewer'], [$csrf]);
+        $router->post('/delivery-checklists/{documentId}/{version}/sign-approver', [AdminDeliveryChecklistController::class, 'signAsApprover'], [$csrf]);
         $router->post('/payments/{id}/confirm-manual', [AdminPaymentController::class, 'confirmManual'], [$csrf]);
         $router->post('/operations/process-ai-queue', [AdminPaymentController::class, 'processAiQueueNow'], [$csrf]);
         $router->post('/orders/{id}/pause', [AdminOrderActionController::class, 'pause'], [$csrf]);
