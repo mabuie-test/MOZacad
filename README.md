@@ -177,3 +177,13 @@ Campos relevantes em `metadata.json`:
 - Validação criptográfica do webhook depende de o gateway enviar header de assinatura compatível.
 - Sem credenciais reais Débito/OpenAI não é possível validar integração externa end-to-end.
 - Formatação de referências gera entradas provisórias e marca necessidade de revisão manual quando metadados são incompletos.
+
+
+## Operação contínua dos workers (produção)
+
+- Configure cron por minuto para execução única do worker (ajuste o caminho do PHP conforme o host):
+  - `* * * * * /usr/bin/php /workspace/MOZacad/scripts/run_workers.php --once >> /workspace/MOZacad/storage/logs/worker-cron.log 2>&1`
+- Monitore saúde administrativa da fila em `/admin` (cartão **Saúde da fila assíncrona**), com heartbeat, jobs em fila e atraso estimado.
+- Para alerta automatizado, execute: `php scripts/worker_health_check.php` (retorna exit code 1 quando o heartbeat exceder `WORKER_ALERT_STALE_MINUTES`, padrão 5).
+- Garanta permissões de escrita para os diretórios: `storage/logs`, `storage/generated`, `storage/uploads`, `storage/norms`.
+- A rotação de `application.log` já é feita automaticamente por tamanho (`LOG_MAX_FILE_SIZE_MB`, `LOG_MAX_ROTATED_FILES`); aplique rotação de `worker-cron.log` via `logrotate` do host.
