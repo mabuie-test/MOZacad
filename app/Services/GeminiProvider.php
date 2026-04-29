@@ -151,7 +151,7 @@ PROMPT;
 
     private function resolveModel(string $useCase): string
     {
-        $baseModel = (string) Env::get('GEMINI_MODEL', 'gemini-1.5-flash');
+        $baseModel = (string) Env::get('GEMINI_MODEL', 'gemini-2.5-flash');
 
         return match ($useCase) {
             'structure' => (string) Env::get('GEMINI_MODEL_STRUCTURE', $baseModel),
