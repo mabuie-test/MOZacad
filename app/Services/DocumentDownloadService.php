@@ -27,6 +27,9 @@ final class DocumentDownloadService
         $status = (string) ($doc['status'] ?? '');
         $orderStatus = (string) ($doc['order_status'] ?? '');
         $isLatest = $this->documents->isLatestVersion((int) $doc['id'], (int) $doc['order_id']);
+        // Política de transição: `approved` é aceito apenas para retrocompatibilidade
+        // durante a migração para o fluxo final com `final_approved`.
+        // Janela de descontinuação alvo: remover `approved` após 2026-09-30.
         $allowedDocumentStatuses = ['final_approved', 'approved'];
         $allowedStatus = $isLatest
             && $orderStatus === 'ready'
@@ -61,6 +64,17 @@ final class DocumentDownloadService
                 'version' => (int) ($doc['version'] ?? 1),
             ]);
             throw new RuntimeException('Download final bloqueado: checklist de prontidão de entrega está incompleto ou sem assinaturas internas.');
+        }
+
+
+        if ($status === 'approved') {
+            $this->auditLogs->log($actorUserId, 'document.download.legacy_status_served', 'generated_document', $documentId, [
+                'reason' => 'legacy_status_approved',
+                'migration_target_status' => 'final_approved',
+                'deprecation_target_date' => '2026-09-30',
+                'order_id' => (int) $doc['order_id'],
+                'version' => (int) ($doc['version'] ?? 1),
+            ]);
         }
 
         $path = $this->paths->ensurePathInside((string) $doc['file_path'], $this->paths->generatedBase());

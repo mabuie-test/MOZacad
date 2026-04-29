@@ -60,12 +60,14 @@ final class GeneratedDocumentRepository extends BaseRepository
 
     public function listDeliverableByUser(int $userId, int $limit = 50): array
     {
+        // Mesma política do download final: `approved` permanece temporariamente
+        // para retrocompatibilidade até concluir a migração para `final_approved`.
         $stmt = $this->db->prepare("SELECT gd.*, o.user_id, o.title_or_theme
             FROM generated_documents gd
             INNER JOIN orders o ON o.id = gd.order_id
             WHERE o.user_id = :user_id
               AND o.status = 'ready'
-              AND gd.status IN ('approved', 'final_approved')
+              AND gd.status IN ('final_approved', 'approved')
             ORDER BY gd.created_at DESC
             LIMIT :limit");
         $stmt->bindValue('user_id', $userId, \PDO::PARAM_INT);
