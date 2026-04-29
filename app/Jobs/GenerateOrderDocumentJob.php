@@ -97,6 +97,9 @@ final class GenerateOrderDocumentJob
 
         $sections = $workTypeRepo->getStructureByWorkType((int) $order['work_type_id']);
         $blueprint = (new StructureBuilderService())->build($sections, $resolvedRulesDto->structureRules);
+        $workType = $workTypeRepo->findById((int) $order['work_type_id']) ?? [];
+        $requiresObjectives = $this->workTypeRequiresObjectives($workType, $blueprint, $briefing);
+        $this->assertObjectiveQualityOrFail($briefing, $orderId, $workType, $requiresObjectives);
         $prompts = (new PromptComposerService())->compose($blueprint, $resolvedRules, $briefing);
         $referenceStyle = (string) ($resolvedRules['referenceRules']['style'] ?? 'APA');
 
@@ -120,6 +123,9 @@ final class GenerateOrderDocumentJob
             $cited = $this->buildLocalFallbackSections($blueprint, $briefing, $referenceStyle);
         }
 
+        $cited = $this->enforceObjectivesSection($cited, $briefing, $orderId, $requiresObjectives, $logger);
+        $this->assertObjectivePresenceInSections($cited, $briefing, $orderId, $requiresObjectives);
+
         $formatted = (new InstitutionFormattingService())->apply($cited, $resolvedRules);
         $doc = (new DocxAssemblyService())->assemble($formatted, (string) $briefing['title']);
 
@@ -132,7 +138,7 @@ final class GenerateOrderDocumentJob
             throw new RuntimeException('Falha ao persistir documento DOCX no storage.');
         }
 
-        $requiresReview = (bool) ($order['work_type_id'] && ((new WorkTypeRepository())->findById((int) $order['work_type_id'])['requires_human_review'] ?? false));
+        $requiresReview = (bool) ($workType['requires_human_review'] ?? false);
         $documentStatus = $requiresReview ? 'pending_human_review' : 'generated';
 
         $queueId = null;
@@ -343,5 +349,114 @@ final class GenerateOrderDocumentJob
         if (is_file($fullPath)) {
             @unlink($fullPath);
         }
+    }
+
+    private function workTypeRequiresObjectives(array $workType, array $blueprint, array $briefing): bool
+    {
+        if (($briefing['extras']['needs_abstract'] ?? false) === true) {
+            return true;
+        }
+
+        $slug = mb_strtolower(trim((string) ($workType['slug'] ?? '')));
+        if (in_array($slug, ['monografia', 'tcc', 'dissertacao', 'tese', 'projecto', 'projeto'], true)) {
+            return true;
+        }
+
+        foreach ($blueprint as $section) {
+            $code = mb_strtolower((string) ($section['code'] ?? ''));
+            $title = mb_strtolower((string) ($section['title'] ?? ''));
+            if (str_contains($code, 'introdu') || str_contains($title, 'introdu') || str_contains($code, 'resumo') || str_contains($title, 'resumo')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function assertObjectiveQualityOrFail(array $briefing, int $orderId, array $workType, bool $requiresObjectives): void
+    {
+        if (!$requiresObjectives) {
+            return;
+        }
+
+        $generalObjective = trim((string) ($briefing['generalObjective'] ?? ''));
+        $specificObjectives = array_values(array_filter(array_map(static fn (mixed $item): string => trim((string) $item), is_array($briefing['specificObjectives'] ?? null) ? $briefing['specificObjectives'] : []), static fn (string $value): bool => $value !== ''));
+        if ($generalObjective !== '' && $specificObjectives !== []) {
+            return;
+        }
+
+        throw new RuntimeException(sprintf(
+            'Falha de qualidade pré-DOCX: objectivos obrigatórios ausentes no pedido (order_id=%d, work_type=%s).',
+            $orderId,
+            (string) ($workType['slug'] ?? $workType['name'] ?? 'unknown')
+        ));
+    }
+
+    private function enforceObjectivesSection(array $sections, array $briefing, int $orderId, bool $requiresObjectives, ApplicationLoggerService $logger): array
+    {
+        if (!$requiresObjectives) {
+            return $sections;
+        }
+
+        if ($this->containsObjectiveSection($sections, $briefing)) {
+            return $sections;
+        }
+
+        $generalObjective = trim((string) ($briefing['generalObjective'] ?? ''));
+        $specificObjectives = array_values(array_filter(array_map(static fn (mixed $item): string => trim((string) $item), is_array($briefing['specificObjectives'] ?? null) ? $briefing['specificObjectives'] : []), static fn (string $value): bool => $value !== ''));
+
+        $logger->warning('ai_job.document_generation.objectives_omitted_by_model', [
+            'order_id' => $orderId,
+            'reason' => 'objective_section_not_found_after_post_processing',
+            'specific_objectives_count' => count($specificObjectives),
+        ]);
+
+        $injected = [
+            'code' => 'objectivos',
+            'title' => 'Objectivos do Estudo',
+            'content' => "Objectivo geral: {$generalObjective}\nObjectivos específicos:\n- " . implode("\n- ", $specificObjectives),
+        ];
+
+        array_unshift($sections, $injected);
+
+        return $sections;
+    }
+
+    private function assertObjectivePresenceInSections(array $sections, array $briefing, int $orderId, bool $requiresObjectives): void
+    {
+        if (!$requiresObjectives || $this->containsObjectiveSection($sections, $briefing)) {
+            return;
+        }
+
+        throw new RuntimeException(sprintf('Falha de qualidade pré-DOCX: pós-processamento sem secção válida de objectivos (order_id=%d).', $orderId));
+    }
+
+    private function containsObjectiveSection(array $sections, array $briefing): bool
+    {
+        $generalObjective = mb_strtolower(trim((string) ($briefing['generalObjective'] ?? '')));
+        $specificObjectives = array_values(array_filter(array_map(static fn (mixed $item): string => mb_strtolower(trim((string) $item)), is_array($briefing['specificObjectives'] ?? null) ? $briefing['specificObjectives'] : []), static fn (string $value): bool => $value !== ''));
+
+        foreach ($sections as $section) {
+            $title = mb_strtolower(trim((string) ($section['title'] ?? '')));
+            $content = mb_strtolower(trim((string) ($section['content'] ?? '')));
+            $hasObjectiveSignals = str_contains($title, 'objectiv') || str_contains($content, 'objectivo geral');
+            if (!$hasObjectiveSignals) {
+                continue;
+            }
+
+            $hasGeneral = $generalObjective !== '' && str_contains($content, $generalObjective);
+            $specificHits = 0;
+            foreach ($specificObjectives as $objective) {
+                if (str_contains($content, $objective)) {
+                    $specificHits++;
+                }
+            }
+
+            if ($hasGeneral && $specificHits > 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

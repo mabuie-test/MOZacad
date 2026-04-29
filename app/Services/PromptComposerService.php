@@ -27,6 +27,8 @@ final class PromptComposerService
         ]);
         $keywords = $this->normalizeList($briefing['keywords'] ?? [], ['investigação académica', 'metodologia científica', 'contexto moçambicano']);
 
+        $mandatoryObjectivesBlock = "Secção mandatória de objectivos no texto final:\nObjectivo geral: {$generalObjective}\nObjectivos específicos:\n- " . implode("\n- ", $specificObjectives);
+
         foreach ($blueprint as $section) {
             $title = (string) ($section['title'] ?? 'Secção');
             $code = mb_strtolower((string) ($section['code'] ?? 'section'));
@@ -41,6 +43,7 @@ final class PromptComposerService
                 . "Problema orientador: {$problem}\n"
                 . "Objectivo geral orientador: {$generalObjective}\n"
                 . 'Objectivos específicos orientadores: ' . implode('; ', $specificObjectives) . "\n"
+                . $mandatoryObjectivesBlock . "\n"
                 . 'Palavras-chave orientadoras: ' . implode(', ', $keywords) . "\n"
                 . "Estilo de referências: {$referenceStyle}\n"
                 . "Regras visuais (JSON): {$visualRulesJson}\n"
