@@ -15,6 +15,13 @@
 <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrfToken ?? '')) ?>"><button class="btn btn-sm btn-outline-success">Retomar</button></form>
 <form method="post" action="/admin/orders/<?= (int)$o['id'] ?>/escalate" class="d-inline">
 <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrfToken ?? '')) ?>"><input type="hidden" name="confirm" value="1"><input type="text" name="reason" required placeholder="Motivo" class="form-control form-control-sm d-inline" style="width:120px"><button class="btn btn-sm btn-outline-warning">Escalar</button></form>
+
+<form method="post" action="/admin/orders/<?= (int)$o['id'] ?>/payment-dispute" class="d-inline">
+<input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrfToken ?? '')) ?>"><input type="hidden" name="confirm" value="1"><input type="text" name="reason" required placeholder="Motivo disputa" class="form-control form-control-sm d-inline" style="width:120px"><button class="btn btn-sm btn-outline-danger">Disputa</button></form>
+<form method="post" action="/admin/orders/<?= (int)$o['id'] ?>/payment-refund" class="d-inline">
+<input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrfToken ?? '')) ?>"><input type="hidden" name="confirm" value="1"><input type="text" name="reason" required placeholder="Motivo reembolso" class="form-control form-control-sm d-inline" style="width:130px"><button class="btn btn-sm btn-outline-info">Reembolso</button></form>
+<form method="post" action="/admin/orders/<?= (int)$o['id'] ?>/payment-cancel" class="d-inline">
+<input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrfToken ?? '')) ?>"><input type="hidden" name="confirm" value="1"><input type="text" name="reason" required placeholder="Motivo cancel." class="form-control form-control-sm d-inline" style="width:120px"><button class="btn btn-sm btn-outline-dark">Cancelar pós-pag.</button></form>
 </td></tr><?php endforeach; ?></tbody></table></div></div>
 
 <div class="card p-3">

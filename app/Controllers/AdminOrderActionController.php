@@ -13,6 +13,9 @@ final class AdminOrderActionController extends BaseController
     public function escalate(int $id): void { $this->transition($id, 'escalate'); }
     public function blockDelivery(int $id): void { $this->transition($id, 'block_delivery'); }
     public function reopenReview(int $id): void { $this->transition($id, 'reopen_review'); }
+    public function paymentDispute(int $id): void { $this->transition($id, 'payment_dispute'); }
+    public function paymentRefund(int $id): void { $this->transition($id, 'payment_refund'); }
+    public function paymentCancel(int $id): void { $this->transition($id, 'payment_cancel'); }
 
     private function transition(int $id, string $action): void
     {

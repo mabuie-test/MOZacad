@@ -10,6 +10,7 @@ use App\Repositories\PaymentRepository;
 use App\Repositories\UserRepository;
 use App\Repositories\AuditLogRepository;
 use App\Repositories\DeliveryChecklistRepository;
+use App\Repositories\PostPaymentExceptionRepository;
 
 final class AdminOperationsReadService
 {
@@ -39,6 +40,7 @@ final class AdminOperationsReadService
         $riskFilter = trim((string) ($filters['risk'] ?? ''));
         $delayFilter = trim((string) ($filters['delay'] ?? ''));
         $selectedOrderId = (int) ($filters['order_id'] ?? 0);
+        $exceptionSummary = (new PostPaymentExceptionRepository())->summarize();
 
         if ($orderStatusFilter !== '') {
             $orders = array_values(array_filter($orders, static fn (array $row): bool => (string) ($row['status'] ?? '') === $orderStatusFilter));
@@ -68,6 +70,11 @@ final class AdminOperationsReadService
                 'orders_under_review' => count(array_filter($orders, static fn (array $o): bool => in_array((string) ($o['status'] ?? ''), ['under_human_review', 'revision_requested', 'returned_for_revision'], true))),
                 'payments_failed' => count(array_filter($payments, static fn (array $p): bool => in_array((string) ($p['status'] ?? ''), ['failed', 'cancelled', 'expired'], true))),
                 'queue_unassigned' => count(array_filter($queueRows, static fn (array $q): bool => empty($q['reviewer_id']) && in_array((string) ($q['status'] ?? ''), ['pending', 'assigned'], true))),
+                'exceptions_active' => (int) ($exceptionSummary['active_total'] ?? 0),
+                'exceptions_blocking_delivery' => (int) ($exceptionSummary['blocked_delivery_total'] ?? 0),
+                'exceptions_overdue' => (int) ($exceptionSummary['overdue_total'] ?? 0),
+                'exceptions_escalated' => (int) ($exceptionSummary['escalated_total'] ?? 0),
+                'exceptions_auto_reconciled' => (int) ($exceptionSummary['auto_reconciled_total'] ?? 0),
             ],
             'orderStatusFilter' => $orderStatusFilter,
             'paymentStatusFilter' => $paymentStatusFilter,

@@ -3,6 +3,8 @@
   <div class="metric"><small>Pedidos em revisão</small><div class="value"><?= (int) ($overview['orders_under_review'] ?? 0) ?></div></div>
   <div class="metric"><small>Pagamentos com risco</small><div class="value"><?= (int) ($overview['payments_failed'] ?? 0) ?></div></div>
   <div class="metric"><small>Fila humana sem atribuição</small><div class="value"><?= (int) ($overview['queue_unassigned'] ?? 0) ?></div></div>
+  <div class="metric"><small>Exceções ativas</small><div class="value"><?= (int) ($overview['exceptions_active'] ?? 0) ?></div></div>
+  <div class="metric"><small>Bloqueios por risco/compliance</small><div class="value"><?= (int) ($overview['exceptions_blocking_delivery'] ?? 0) ?></div></div>
 </div>
 
 <div class="row g-3 mb-3">
