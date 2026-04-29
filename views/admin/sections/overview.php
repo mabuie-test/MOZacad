@@ -7,6 +7,19 @@
   <div class="metric"><small>Bloqueios por risco/compliance</small><div class="value"><?= (int) ($overview['exceptions_blocking_delivery'] ?? 0) ?></div></div>
 </div>
 
+
+<?php $workerHealth = (array) ($overview['worker_health'] ?? []); ?>
+<div class="card p-3 mb-3">
+  <h2 class="h6">Saúde da fila assíncrona</h2>
+  <div class="row g-3">
+    <div class="col-md-3"><small>Último heartbeat</small><div><?= htmlspecialchars((string) ($workerHealth['last_heartbeat_at'] ?? 'n/d')) ?></div></div>
+    <div class="col-md-3"><small>Minutos sem heartbeat</small><div><?= (int) ($workerHealth['minutes_since_last_heartbeat'] ?? 0) ?></div></div>
+    <div class="col-md-2"><small>Jobs queued</small><div><?= (int) ($workerHealth['queued_jobs'] ?? 0) ?></div></div>
+    <div class="col-md-2"><small>Atraso da fila (min)</small><div><?= (int) ($workerHealth['queue_lag_minutes'] ?? 0) ?></div></div>
+    <div class="col-md-2"><small>Alerta</small><div><?= !empty($workerHealth['stale_alert']) ? '<span class="badge bg-danger">STALE</span>' : '<span class="badge bg-success">OK</span>' ?></div></div>
+  </div>
+</div>
+
 <div class="row g-3 mb-3">
   <div class="col-lg-4"><div class="card p-3 h-100"><h2 class="h6">Ações rápidas</h2><div class="d-grid gap-2"><a class="btn btn-sm btn-outline-primary" href="/admin/human-review">Abrir fila humana</a><a class="btn btn-sm btn-outline-primary" href="/admin/orders?order_status=pending_payment">Ver pedidos pendentes</a><a class="btn btn-sm btn-outline-primary" href="/admin/pricing">Revisar pricing</a></div></div></div>
   <div class="col-lg-8"><div class="card p-3 h-100"><h2 class="h6">Sinais de risco operacional</h2><ul class="text-secondary mb-0"><li>Pagamentos falhados/cancelados exigem acção de suporte.</li><li>Fila de revisão humana sem revisor aumenta tempo de entrega.</li><li>Pedidos em revisão prolongada podem impactar satisfação e SLA.</li></ul></div></div>

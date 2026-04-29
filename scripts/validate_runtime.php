@@ -26,6 +26,15 @@ if ($env === 'production' && $allowUnsignedWebhook) {
 $staleQueuedMinutes = max(1, (int) ($_ENV['QUEUE_STALE_QUEUED_MINUTES'] ?? 10));
 $staleProcessingMinutes = max(1, (int) ($_ENV['QUEUE_STALE_PROCESSING_MINUTES'] ?? 30));
 
+
+$storagePaths = new App\Services\StoragePathService();
+$writableTargets = [
+    'storage_logs_writable' => $storagePaths->logsBase(),
+    'storage_generated_writable' => $storagePaths->generatedBase(),
+    'storage_uploads_writable' => $storagePaths->uploadsBase(),
+    'storage_norms_writable' => $storagePaths->normsBase(),
+];
+
 $checks = [
     'payment_without_invoice' => (int) $db->query('SELECT COUNT(*) FROM payments p LEFT JOIN invoices i ON i.id = p.invoice_id WHERE i.id IS NULL')->fetchColumn(),
     'provider_successful_not_paid' => (int) $db->query("SELECT COUNT(*) FROM payments WHERE UPPER(TRIM(COALESCE(provider_status, ''))) = 'SUCCESSFUL' AND status <> 'paid'")->fetchColumn(),
@@ -91,6 +100,30 @@ foreach ($generatedRows as $row) {
 }
 $checks['generated_document_file_missing'] = $missingFiles;
 $checks['generated_document_file_zero_bytes'] = $zeroByteFiles;
+
+
+foreach ($writableTargets as $checkName => $targetPath) {
+    try {
+        $storagePaths->ensureDirectory($targetPath);
+        $checks[$checkName] = is_writable($targetPath) ? 0 : 1;
+    } catch (Throwable) {
+        $checks[$checkName] = 1;
+    }
+}
+
+$logsBase = $storagePaths->logsBase();
+$logFiles = ['worker-cron.log', 'application.log'];
+$maxLogMb = max(5, (int) ($_ENV['RUNTIME_MAX_LOG_FILE_SIZE_MB'] ?? 100));
+foreach ($logFiles as $logFile) {
+    $fullPath = $logsBase . '/' . $logFile;
+    $checkKey = 'log_rotation_risk_' . str_replace('.', '_', $logFile);
+    if (!is_file($fullPath)) {
+        $checks[$checkKey] = 0;
+        continue;
+    }
+
+    $checks[$checkKey] = filesize($fullPath) > ($maxLogMb * 1024 * 1024) ? 1 : 0;
+}
 
 $hasIssue = false;
 if ($schema['issues'] !== []) {

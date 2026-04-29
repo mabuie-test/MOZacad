@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Services\ApplicationLoggerService;
 use App\Services\WorkerOrchestrationService;
+use App\Services\WorkerHealthService;
 
 require_once __DIR__ . '/../bootstrap/app.php';
 
@@ -15,6 +16,7 @@ $interval = max(1, (int) ($_ENV['WORKER_LOOP_INTERVAL_SECONDS'] ?? 30));
 
 $logger = new ApplicationLoggerService();
 $workers = new WorkerOrchestrationService();
+$health = new WorkerHealthService();
 
 $loop = 0;
 do {
@@ -28,6 +30,7 @@ do {
     $line = sprintf('[%s] Worker round #%d summary: %s', date('c'), $loop, json_encode($summary, JSON_UNESCAPED_UNICODE));
     echo $line . PHP_EOL;
     $logger->info('worker.round.finished', ['round' => $loop, 'summary' => $summary]);
+    $health->touchHeartbeat($summary, $startedAt);
 
     if ($runOnce) {
         break;
