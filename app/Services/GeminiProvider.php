@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Helpers\Env;
+use App\Helpers\Config;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
@@ -14,13 +14,17 @@ final class GeminiProvider implements AIProviderInterface
 {
     private Client $http;
     private string $apiKey;
+    /** @var array<string,mixed> */
+    private array $config;
 
     public function __construct()
     {
-        $this->apiKey = trim((string) Env::get('GEMINI_API_KEY', ''));
+        $this->config = Config::get('ai');
+        $gemini = (array) ($this->config['gemini'] ?? []);
+        $this->apiKey = trim((string) ($gemini['api_key'] ?? ''));
         $this->http = new Client([
-            'base_uri' => rtrim((string) Env::get('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'), '/') . '/',
-            'timeout' => (int) Env::get('GEMINI_TIMEOUT', 60),
+            'base_uri' => rtrim((string) ($gemini['base_url'] ?? 'https://generativelanguage.googleapis.com/v1beta'), '/') . '/',
+            'timeout' => (int) ($gemini['timeout'] ?? 60),
         ]);
     }
 
@@ -89,8 +93,8 @@ PROMPT;
                 'parts' => [['text' => $input]],
             ]],
             'generationConfig' => [
-                'temperature' => (float) Env::get('GEMINI_TEMPERATURE', 0.7),
-                'maxOutputTokens' => (int) Env::get('GEMINI_MAX_OUTPUT_TOKENS', 4000),
+                'temperature' => (float) ($this->config['gemini']['temperature'] ?? 0.7),
+                'maxOutputTokens' => (int) ($this->config['gemini']['max_output_tokens'] ?? 4000),
             ],
         ];
 
@@ -151,15 +155,19 @@ PROMPT;
 
     private function resolveModel(string $useCase): string
     {
-        $baseModel = (string) Env::get('GEMINI_MODEL', 'gemini-2.5-flash');
+        $defaults = (array) ($this->config['models']['gemini'] ?? []);
+        $baseModel = (string) ($defaults['default'] ?? 'gemini-2.5-flash');
+        $tasks = (array) ($defaults['tasks'] ?? []);
 
-        return match ($useCase) {
-            'structure' => (string) Env::get('GEMINI_MODEL_STRUCTURE', $baseModel),
-            'content' => (string) Env::get('GEMINI_MODEL_CONTENT', $baseModel),
-            'refinement' => (string) Env::get('GEMINI_MODEL_REFINEMENT', $baseModel),
-            'humanizer' => (string) Env::get('GEMINI_MODEL_HUMANIZER', $baseModel),
-            default => $baseModel,
+        $resolved = match ($useCase) {
+            'structure' => (string) ($tasks['structure'] ?? ''),
+            'content' => (string) ($tasks['content'] ?? ''),
+            'refinement' => (string) ($tasks['refinement'] ?? ''),
+            'humanizer' => (string) ($tasks['humanizer'] ?? ''),
+            default => '',
         };
+
+        return trim($resolved) !== '' ? $resolved : $baseModel;
     }
 
     private function stripMarkdownFences(string $text): string
