@@ -29,7 +29,7 @@ final class AdminTemplateLifecycleService
             if ($institutionId > 0) {
                 $norm = (new InstitutionNormDocumentService())->resolveForInstitution(['id' => $institutionId]);
                 if (($norm['source'] ?? '') === 'pdf_unparsed' || trim((string) ($norm['content'] ?? '')) === '') {
-                    throw new RuntimeException('Não é possível activar a norma: parsing de texto falhou (pdf_unparsed). Corrija o conteúdo antes de produção.');
+                    throw new RuntimeException('Não é possível activar a norma: parsing/OCR falhou. Forneça norma.txt, instale pdftotext/ocrmypdf no servidor ou configure NORM_OCR_PIPELINE_ENDPOINT para OCR remoto antes de produção.');
                 }
             }
         }

@@ -41,10 +41,13 @@
 │   └── templates (candidatos; montagem actual continua programática)
 └── views
 ```
-## Normas institucionais (fallback PDF)
+## Normas institucionais (fallback PDF/OCR)
 
-- O pipeline de normas tenta carregar, por ordem: `norma.txt` → `metadata.normalized_text` → extração de `norma.pdf` via `pdftotext` (quando disponível no host).
-- Se apenas `norma.pdf` existir e não houver `pdftotext`, o contexto permanece com `source=pdf_unparsed` sem quebrar o fluxo; as regras estruturadas continuam a vir de `metadata.json` quando presente.
+- O pipeline tenta carregar por ordem: `norma.txt` → `metadata.normalized_text` → extração de `norma.pdf` com `pdftotext`.
+- Se `pdftotext` falhar, tenta OCR local com `ocrmypdf` e nova extração para texto.
+- Em ambientes `public_html` sem utilitários nativos, usa OCR remoto via `NORM_OCR_PIPELINE_ENDPOINT` (upload do PDF, polling com timeout/retry, download de texto).
+- Quando OCR é bem-sucedido, persiste texto normalizado em `norma.txt` e `metadata.normalized_text` para evitar retrabalho.
+- Se todas as estratégias falharem, o contexto retorna `source=pdf_unparsed`; a activação administrativa da norma é bloqueada com mensagem acionável para produção.
 
 
 ## Convergência fresh vs upgrade
