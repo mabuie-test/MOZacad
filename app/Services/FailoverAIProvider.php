@@ -21,7 +21,8 @@ final class FailoverAIProvider implements AIProviderInterface
     {
         return $this->withFallback(
             fn (AIProviderInterface $provider): string => $provider->generate($prompt, $context),
-            'generate'
+            'generate',
+            $context
         );
     }
 
@@ -29,7 +30,8 @@ final class FailoverAIProvider implements AIProviderInterface
     {
         return $this->withFallback(
             fn (AIProviderInterface $provider): string => $provider->refine($text, $rules),
-            'refine'
+            'refine',
+            $rules
         );
     }
 
@@ -37,7 +39,8 @@ final class FailoverAIProvider implements AIProviderInterface
     {
         return $this->withFallback(
             fn (AIProviderInterface $provider): string => $provider->humanize($text, $profile),
-            'humanize'
+            'humanize',
+            ['profile' => $profile]
         );
     }
 
@@ -45,27 +48,55 @@ final class FailoverAIProvider implements AIProviderInterface
     {
         return $this->withFallback(
             fn (AIProviderInterface $provider): array => $provider->generateStructured($prompt, $schema),
-            'generate_structured'
+            'generate_structured',
+            $schema
         );
     }
 
-    private function withFallback(callable $operation, string $operationName): mixed
+    private function withFallback(callable $operation, string $operationName, array $metadata = []): mixed
     {
+        $section = $this->extractSection($metadata);
+        $primaryProvider = $this->providerName($this->primary);
+        $secondaryProvider = $this->providerName($this->secondary);
+
         try {
-            return $operation($this->primary);
+            $result = $operation($this->primary);
+            $this->logger->info('ai.provider.used', [
+                'operation' => $operationName,
+                'section' => $section,
+                'provider' => $primaryProvider,
+                'fallback_used' => false,
+            ]);
+            return $result;
         } catch (Throwable $primaryError) {
             $this->logger->error('ai.provider.failover.primary_failed', [
                 'operation' => $operationName,
-                'provider' => get_debug_type($this->primary),
+                'section' => $section,
+                'provider' => $primaryProvider,
                 'error' => $primaryError->getMessage(),
             ]);
 
             try {
-                return $operation($this->secondary);
+                $result = $operation($this->secondary);
+                $this->logger->info('ai.provider.used', [
+                    'operation' => $operationName,
+                    'section' => $section,
+                    'provider' => $secondaryProvider,
+                    'fallback_used' => true,
+                    'primary_provider' => $primaryProvider,
+                ]);
+                $this->logger->alert('ai.provider.failover.used', [
+                    'operation' => $operationName,
+                    'section' => $section,
+                    'from_provider' => $primaryProvider,
+                    'to_provider' => $secondaryProvider,
+                ]);
+                return $result;
             } catch (Throwable $secondaryError) {
                 $this->logger->error('ai.provider.failover.secondary_failed', [
                     'operation' => $operationName,
-                    'provider' => get_debug_type($this->secondary),
+                    'section' => $section,
+                    'provider' => $secondaryProvider,
                     'error' => $secondaryError->getMessage(),
                 ]);
 
@@ -76,5 +107,27 @@ final class FailoverAIProvider implements AIProviderInterface
                 );
             }
         }
+    }
+
+    private function providerName(AIProviderInterface $provider): string
+    {
+        return match (true) {
+            $provider instanceof OpenAIProvider => 'openai',
+            $provider instanceof GeminiProvider => 'gemini',
+            default => get_debug_type($provider),
+        };
+    }
+
+    private function extractSection(array $metadata): string
+    {
+        $keys = ['section', 'section_title', 'title', 'section_code', 'code'];
+        foreach ($keys as $key) {
+            $value = trim((string) ($metadata[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return 'unknown';
     }
 }
