@@ -13,7 +13,8 @@ final class AIProviderResolverService
         $provider = strtolower(trim((string) Env::get('AI_PROVIDER', 'openai')));
 
         return match ($provider) {
-            'openai', '' => new OpenAIProvider(),
+            'openai', '' => new FailoverAIProvider(new OpenAIProvider(), new GeminiProvider()),
+            'gemini' => new GeminiProvider(),
             default => throw new \RuntimeException(sprintf('AI_PROVIDER inválido: %s', $provider)),
         };
     }
