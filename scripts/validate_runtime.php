@@ -23,6 +23,67 @@ if ($env === 'production' && $allowUnsignedWebhook) {
 }
 
 
+$aiProvider = strtolower(trim((string) ($_ENV['AI_PROVIDER'] ?? 'openai')));
+$validProviders = ['openai', 'gemini', ''];
+if (!in_array($aiProvider, $validProviders, true)) {
+    fwrite(STDERR, "[ai] AI_PROVIDER inválido. Use openai (com failover) ou gemini (fixo).
+");
+    exit(1);
+}
+
+$openAiKey = trim((string) ($_ENV['OPENAI_API_KEY'] ?? ''));
+$geminiKey = trim((string) ($_ENV['GEMINI_API_KEY'] ?? ''));
+if ($env === 'production' && ($openAiKey === '' || $geminiKey === '')) {
+    fwrite(STDERR, "[ai] Em produção, OPENAI_API_KEY e GEMINI_API_KEY devem estar preenchidas para resiliência.
+");
+    exit(1);
+}
+
+$obsoleteModelPrefixes = ['text-', 'davinci', 'babbage', 'curie', 'ada', 'gemini-1.0', 'gemini-1.5'];
+$modelVars = [
+    'OPENAI_MODEL_STRUCTURE',
+    'OPENAI_MODEL_CONTENT',
+    'OPENAI_MODEL_REFINEMENT',
+    'OPENAI_MODEL_HUMANIZER',
+    'GEMINI_MODEL_STRUCTURE',
+    'GEMINI_MODEL_CONTENT',
+    'GEMINI_MODEL_REFINEMENT',
+    'GEMINI_MODEL_HUMANIZER',
+];
+foreach ($modelVars as $modelVar) {
+    $value = strtolower(trim((string) ($_ENV[$modelVar] ?? '')));
+    if ($value === '') {
+        fwrite(STDERR, "[ai] {$modelVar} não definido.
+");
+        exit(1);
+    }
+
+    foreach ($obsoleteModelPrefixes as $prefix) {
+        if (str_starts_with($value, $prefix)) {
+            fwrite(STDERR, "[ai] {$modelVar} usa modelo potencialmente obsoleto: {$value}.
+");
+            exit(1);
+        }
+    }
+}
+
+$openAiMaxTokens = max(1, (int) ($_ENV['OPENAI_MAX_OUTPUT_TOKENS'] ?? 0));
+$geminiMaxTokens = max(1, (int) ($_ENV['GEMINI_MAX_OUTPUT_TOKENS'] ?? 0));
+if ($openAiMaxTokens < 3000 || $geminiMaxTokens < 3000) {
+    fwrite(STDERR, "[ai] OPENAI_MAX_OUTPUT_TOKENS e GEMINI_MAX_OUTPUT_TOKENS devem ser >= 3000 para secções longas.
+");
+    exit(1);
+}
+
+$openAiTimeout = (int) ($_ENV['OPENAI_TIMEOUT'] ?? 0);
+$geminiTimeout = (int) ($_ENV['GEMINI_TIMEOUT'] ?? 0);
+if ($openAiTimeout < 20 || $openAiTimeout > 120 || $geminiTimeout < 20 || $geminiTimeout > 120) {
+    fwrite(STDERR, "[ai] OPENAI_TIMEOUT/GEMINI_TIMEOUT fora da faixa recomendada (20-120s) para hosting compartilhado.
+");
+    exit(1);
+}
+
+
 $staleQueuedMinutes = max(1, (int) ($_ENV['QUEUE_STALE_QUEUED_MINUTES'] ?? 10));
 $staleProcessingMinutes = max(1, (int) ($_ENV['QUEUE_STALE_PROCESSING_MINUTES'] ?? 30));
 
