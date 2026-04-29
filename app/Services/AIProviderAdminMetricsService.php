@@ -28,10 +28,16 @@ final class AIProviderAdminMetricsService
             }
 
             if ($event === 'ai.provider.used') {
-                $provider = strtolower(trim((string) ($payload['provider'] ?? 'unknown')));
-                $attempts[$provider] = ($attempts[$provider] ?? 0) + 1;
-                if (($payload['fallback_used'] ?? false) === true) {
-                    $fallbacks[$provider] = ($fallbacks[$provider] ?? 0) + 1;
+                $providerUsed = strtolower(trim((string) ($payload['provider'] ?? 'unknown')));
+                $fallbackUsed = (($payload['fallback_used'] ?? false) === true);
+                $primaryProvider = strtolower(trim((string) ($payload['primary_provider'] ?? $providerUsed)));
+                if ($primaryProvider === '') {
+                    $primaryProvider = 'unknown';
+                }
+
+                $attempts[$primaryProvider] = ($attempts[$primaryProvider] ?? 0) + 1;
+                if ($fallbackUsed) {
+                    $fallbacks[$primaryProvider] = ($fallbacks[$primaryProvider] ?? 0) + 1;
                 }
             }
         }

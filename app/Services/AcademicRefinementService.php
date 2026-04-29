@@ -24,10 +24,12 @@ final class AcademicRefinementService
             }
 
             $sectionTitle = (string) ($section['title'] ?? 'Secção');
+            $sectionCode = (string) ($section['code'] ?? 'section');
             $rules = [
                 'goal' => 'coherence_and_methodology',
                 'reference_style' => (string) ($context['reference_style'] ?? 'APA'),
                 'section_title' => $sectionTitle,
+                'section_code' => $sectionCode,
             ];
 
             $prompt = <<<TXT
