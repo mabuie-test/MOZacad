@@ -6,6 +6,9 @@ namespace App\Jobs;
 
 use App\Helpers\Database;
 use App\Repositories\AcademicLevelRepository;
+use App\Services\DocumentComplianceValidationService;
+use App\Repositories\DocumentComplianceValidationRepository;
+use App\Repositories\DeliveryChecklistRepository;
 use App\Repositories\GeneratedDocumentRepository;
 use App\Repositories\InstitutionRepository;
 use App\Repositories\OrderRepository;
@@ -181,6 +184,11 @@ final class GenerateOrderDocumentJob
             $orders->updateStatus($orderId, $requiresReview ? 'under_human_review' : 'ready');
 
             $documentId = $documents->create($orderId, $path, $documentStatus, $effectiveVersion);
+
+            $validation = (new DocumentComplianceValidationService())->validate($cited, $blueprint, $resolvedRules);
+            (new DocumentComplianceValidationRepository())->create($documentId, $effectiveVersion, $validation);
+            (new DeliveryChecklistRepository())->ensureDefaults($documentId, $effectiveVersion);
+            (new DeliveryChecklistRepository())->syncComplianceItemFromValidation($documentId, $effectiveVersion, $validation);
             if ($requiresReview) {
                 $queueId = (new HumanReviewQueueService())->enqueue($orderId, $documentId, $effectiveVersion);
             }

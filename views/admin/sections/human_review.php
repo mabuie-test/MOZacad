@@ -30,6 +30,23 @@ use App\Domain\StatusCatalog;
             <div class="muted-meta">Progresso: <?= $checked ?>/<?= $total ?></div>
             <div class="muted-meta">Aprovados: <?= (int) ($row['checklist_approved_items'] ?? 0) ?></div>
             <div class="muted-meta text-<?= $blocking > 0 ? 'danger' : 'success' ?>">Pendências impeditivas: <?= $blocking ?></div>
+            <?php $compliance = $row['compliance_validation'] ?? null; ?>
+            <?php if (is_array($compliance)): ?>
+              <div class="border rounded p-2 mb-2 bg-light">
+                <div class="fw-semibold small">Relatório de conformidade formal</div>
+                <div class="muted-meta">Críticas: <?= (int) ($compliance['critical_count'] ?? 0) ?> · Maiores: <?= (int) ($compliance['major_count'] ?? 0) ?> · Menores: <?= (int) ($compliance['minor_count'] ?? 0) ?></div>
+                <?php $nonConformities = json_decode((string) ($compliance['non_conformities_json'] ?? '[]'), true); ?>
+                <?php if (is_array($nonConformities) && $nonConformities !== []): ?>
+                  <ul class="small mb-0 mt-1">
+                    <?php foreach ($nonConformities as $issue): ?>
+                      <li><strong><?= htmlspecialchars((string) ($issue['severity'] ?? 'minor')) ?>:</strong> <?= htmlspecialchars((string) ($issue['message'] ?? '-')) ?></li>
+                    <?php endforeach; ?>
+                  </ul>
+                <?php else: ?>
+                  <div class="small text-success">Sem não conformidades.</div>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
             <div class="mt-2">
               <?php foreach (($row['checklist_items'] ?? []) as $checkItem): ?>
                 <form method="post" action="/admin/delivery-checklists/<?= (int) ($row['generated_document_id'] ?? 0) ?>/<?= (int) ($row['generated_document_version'] ?? 0) ?>/items" class="border rounded p-2 mb-1">

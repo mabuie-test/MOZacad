@@ -6,7 +6,7 @@ namespace App\Repositories;
 
 final class DeliveryChecklistRepository extends BaseRepository
 {
-    public const REQUIRED_ITEMS = ['normas', 'referencias', 'referencias_completas', 'antiplagio', 'anexos', 'linguagem'];
+    public const REQUIRED_ITEMS = ['normas', 'referencias', 'referencias_completas', 'antiplagio', 'anexos', 'linguagem', 'conformidade_estrutural'];
 
     public function ensureDefaults(int $documentId, int $version): void
     {
@@ -25,6 +25,33 @@ final class DeliveryChecklistRepository extends BaseRepository
     }
 
 
+
+
+    public function syncComplianceItemFromValidation(int $documentId, int $version, array $validation): void
+    {
+        $this->ensureDefaults($documentId, $version);
+        $isCompliant = !empty($validation['is_compliant']);
+        $status = $isCompliant ? 'approved' : 'rejected';
+        $notes = $isCompliant
+            ? 'Validação formal sem pendências críticas.'
+            : 'Validação formal com pendências críticas: bloqueia entrega final.';
+
+        $stmt = $this->db->prepare('UPDATE delivery_readiness_checklists
+            SET is_checked = 1,
+                status = :status,
+                notes = :notes,
+                updated_at = NOW()
+            WHERE generated_document_id = :document_id
+              AND generated_document_version = :version
+              AND checklist_item = :checklist_item');
+        $stmt->execute([
+            'status' => $status,
+            'notes' => $notes,
+            'document_id' => $documentId,
+            'version' => $version,
+            'checklist_item' => 'conformidade_estrutural',
+        ]);
+    }
 
     public function updateItemStatus(int $documentId, int $version, string $item, bool $isChecked, string $status, int $actorId, ?string $notes): void
     {
