@@ -25,12 +25,17 @@ final class AdminOperationsReadService
             $checklistSummaryMap[((int) $row['generated_document_id']) . ':' . ((int) $row['generated_document_version'])] = $row;
         }
         foreach ($queueRows as &$queueRow) {
-            $key = ((int) ($queueRow['generated_document_id'] ?? 0)) . ':' . ((int) ($queueRow['generated_document_version'] ?? 0));
+            $documentId = (int) ($queueRow['generated_document_id'] ?? 0);
+            $version = (int) ($queueRow['generated_document_version'] ?? 0);
+            $key = $documentId . ':' . $version;
             $summary = $checklistSummaryMap[$key] ?? null;
             $queueRow['checklist_total_items'] = (int) ($summary['total_items'] ?? 0);
             $queueRow['checklist_checked_items'] = (int) ($summary['checked_items'] ?? 0);
             $queueRow['checklist_approved_items'] = (int) ($summary['approved_items'] ?? 0);
             $queueRow['checklist_blocking_items'] = (int) ($summary['blocking_items'] ?? 0);
+            $queueRow['checklist_items'] = $documentId > 0 && $version > 0
+                ? (new DeliveryChecklistRepository())->listByDocument($documentId, $version)
+                : [];
         }
         unset($queueRow);
 
