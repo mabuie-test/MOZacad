@@ -12,6 +12,7 @@ final readonly class ReferenceEntryDTO
         public string $formatted,
         public bool $requiresManualReview,
         public string $completeness,
+        public array $source,
     ) {}
 
     public function toArray(): array
@@ -22,6 +23,7 @@ final readonly class ReferenceEntryDTO
             'formatted' => $this->formatted,
             'requires_manual_completion' => $this->requiresManualReview,
             'completeness' => $this->completeness,
+            'source' => $this->source,
         ];
     }
 }

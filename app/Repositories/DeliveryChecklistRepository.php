@@ -6,7 +6,7 @@ namespace App\Repositories;
 
 final class DeliveryChecklistRepository extends BaseRepository
 {
-    public const REQUIRED_ITEMS = ['normas', 'referencias', 'antiplagio', 'anexos', 'linguagem'];
+    public const REQUIRED_ITEMS = ['normas', 'referencias', 'referencias_completas', 'antiplagio', 'anexos', 'linguagem'];
 
     public function ensureDefaults(int $documentId, int $version): void
     {
