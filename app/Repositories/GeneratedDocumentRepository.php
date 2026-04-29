@@ -65,7 +65,7 @@ final class GeneratedDocumentRepository extends BaseRepository
             INNER JOIN orders o ON o.id = gd.order_id
             WHERE o.user_id = :user_id
               AND o.status = 'ready'
-              AND gd.status IN ('generated', 'approved', 'final_approved')
+              AND gd.status IN ('approved', 'final_approved')
             ORDER BY gd.created_at DESC
             LIMIT :limit");
         $stmt->bindValue('user_id', $userId, \PDO::PARAM_INT);

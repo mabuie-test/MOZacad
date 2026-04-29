@@ -27,13 +27,39 @@ final class DocumentDownloadService
         $status = (string) ($doc['status'] ?? '');
         $orderStatus = (string) ($doc['order_status'] ?? '');
         $isLatest = $this->documents->isLatestVersion((int) $doc['id'], (int) $doc['order_id']);
-        $allowedStatus = $isLatest && ($status === 'approved' || ($status === 'generated' && $orderStatus === 'ready'));
+        $allowedDocumentStatuses = ['final_approved', 'approved'];
+        $allowedStatus = $isLatest
+            && $orderStatus === 'ready'
+            && in_array($status, $allowedDocumentStatuses, true);
         $own = (int) $doc['user_id'] === $actorUserId;
-        if (!$allowedStatus || (!$own && !$this->authorization->isAdmin($actorUserId))) {
+
+        if (!$allowedStatus) {
+            $this->auditLogs->log($actorUserId, 'document.download.blocked', 'generated_document', $documentId, [
+                'reason' => 'state_not_eligible',
+                'order_id' => (int) $doc['order_id'],
+                'order_status' => $orderStatus,
+                'document_status' => $status,
+                'is_latest_version' => $isLatest,
+                'allowed_order_statuses' => ['ready'],
+                'allowed_document_statuses' => $allowedDocumentStatuses,
+            ]);
+            throw new RuntimeException('Sem permissão para descarregar este documento.');
+        }
+
+        if (!$own && !$this->authorization->isAdmin($actorUserId)) {
+            $this->auditLogs->log($actorUserId, 'document.download.blocked', 'generated_document', $documentId, [
+                'reason' => 'not_owner_or_admin',
+                'order_id' => (int) $doc['order_id'],
+            ]);
             throw new RuntimeException('Sem permissão para descarregar este documento.');
         }
 
         if (!$this->deliveryChecklist->isCompleteAndApproved((int) $doc['id'], (int) ($doc['version'] ?? 1))) {
+            $this->auditLogs->log($actorUserId, 'document.download.blocked', 'generated_document', $documentId, [
+                'reason' => 'delivery_checklist_not_approved',
+                'order_id' => (int) $doc['order_id'],
+                'version' => (int) ($doc['version'] ?? 1),
+            ]);
             throw new RuntimeException('Download final bloqueado: checklist de prontidão de entrega está incompleto ou sem assinaturas internas.');
         }
 
