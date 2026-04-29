@@ -137,6 +137,12 @@ Estrutura suportada:
 Campos relevantes em `metadata.json`:
 - `normalized_text`
 - `reference_style`
+
+### Pré-requisitos por ambiente (normas em PDF)
+- **Com `pdftotext`**: extração direta de texto a partir de `norma.pdf`.
+- **Sem `pdftotext`, com `ocrmypdf`**: OCR local + extração subsequente com `pdftotext`.
+- **Sem utilitários nativos (`public_html`)**: configurar `NORM_OCR_PIPELINE_ENDPOINT` (e opcionalmente `NORM_OCR_PIPELINE_TOKEN`) para OCR remoto com retry/polling.
+- **Sem nenhuma opção de extração/OCR válida**: publicação pode ocorrer, mas **activação para produção é bloqueada** até existir `norma.txt`/texto normalizado.
 - `visual_overrides`
 - `front_page_overrides`
 - `structure_overrides`

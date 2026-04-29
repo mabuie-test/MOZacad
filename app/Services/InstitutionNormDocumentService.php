@@ -7,6 +7,11 @@ namespace App\Services;
 
 final class InstitutionNormDocumentService
 {
+    private const OCR_MAX_ATTEMPTS = 3;
+    private const OCR_REQUEST_TIMEOUT_SECONDS = 20;
+    private const OCR_POLL_INTERVAL_SECONDS = 2;
+    private const OCR_POLL_TIMEOUT_SECONDS = 120;
+
     public function __construct(
         private readonly \App\Repositories\TemplateArtifactRepository $artifacts = new \App\Repositories\TemplateArtifactRepository(),
         private readonly ApplicationLoggerService $logger = new ApplicationLoggerService(),
@@ -215,11 +220,194 @@ final class InstitutionNormDocumentService
             }
         }
 
-        $internal = getenv('NORM_OCR_PIPELINE_ENDPOINT');
-        if (is_string($internal) && trim($internal) !== '') {
-            $this->logger->alert('norm.parsing.ocr_pipeline_configured_but_not_implemented', ['endpoint' => $internal]);
+        $pipelineEndpoint = trim((string) getenv('NORM_OCR_PIPELINE_ENDPOINT'));
+        if ($pipelineEndpoint !== '') {
+            $remoteText = $this->runRemoteOcrFallback($pdfPath, $pipelineEndpoint);
+            if ($remoteText !== '') {
+                return $remoteText;
+            }
         }
+
         return '';
+    }
+
+    private function runRemoteOcrFallback(string $pdfPath, string $endpoint): string
+    {
+        if (!is_file($pdfPath) || !is_readable($pdfPath)) {
+            $this->logger->error('norm.parsing.remote_ocr.invalid_input_file', ['pdf_path' => $pdfPath]);
+            return '';
+        }
+
+        $attempt = 0;
+        while ($attempt < self::OCR_MAX_ATTEMPTS) {
+            $attempt++;
+            try {
+                $result = $this->executeRemoteOcrAttempt($pdfPath, $endpoint);
+                if ($result !== '') {
+                    return $result;
+                }
+            } catch (\Throwable $exception) {
+                $isTransient = $this->isTransientOcrFailure($exception->getCode());
+                $this->logger->error('norm.parsing.remote_ocr.attempt_failed', [
+                    'attempt' => $attempt,
+                    'max_attempts' => self::OCR_MAX_ATTEMPTS,
+                    'transient' => $isTransient,
+                    'error' => $exception->getMessage(),
+                    'code' => $exception->getCode(),
+                ]);
+
+                if (!$isTransient || $attempt >= self::OCR_MAX_ATTEMPTS) {
+                    break;
+                }
+
+                sleep($attempt);
+            }
+        }
+
+        return '';
+    }
+
+    private function executeRemoteOcrAttempt(string $pdfPath, string $endpoint): string
+    {
+        $submission = $this->remoteOcrRequest('POST', $endpoint, [
+            'file' => new \CURLFile($pdfPath, 'application/pdf', basename($pdfPath)),
+        ]);
+
+        $jobId = trim((string) ($submission['job_id'] ?? $submission['id'] ?? ''));
+        $text = $this->cleanText((string) ($submission['text'] ?? ''));
+        if ($text !== '') {
+            return $text;
+        }
+        if ($jobId === '') {
+            throw new \RuntimeException('OCR remoto retornou resposta sem job_id.', 422);
+        }
+
+        $startedAt = time();
+        while ((time() - $startedAt) < self::OCR_POLL_TIMEOUT_SECONDS) {
+            sleep(self::OCR_POLL_INTERVAL_SECONDS);
+
+            $statusResponse = $this->remoteOcrRequest('GET', rtrim($endpoint, '/') . '/' . rawurlencode($jobId));
+            $status = strtolower(trim((string) ($statusResponse['status'] ?? '')));
+
+            if (in_array($status, ['completed', 'done', 'success', 'succeeded'], true)) {
+                $directText = $this->cleanText((string) ($statusResponse['text'] ?? ''));
+                if ($directText !== '') {
+                    return $directText;
+                }
+
+                $downloadUrl = trim((string) ($statusResponse['text_url'] ?? $statusResponse['result_url'] ?? ''));
+                if ($downloadUrl !== '') {
+                    return $this->downloadRemoteOcrText($downloadUrl);
+                }
+
+                throw new \RuntimeException('OCR remoto concluiu sem texto disponível.', 422);
+            }
+
+            if (in_array($status, ['failed', 'error', 'cancelled'], true)) {
+                $message = trim((string) ($statusResponse['error'] ?? 'Falha no OCR remoto.'));
+                throw new \RuntimeException($message, 422);
+            }
+        }
+
+        throw new \RuntimeException('Timeout no polling do OCR remoto.', 408);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function remoteOcrRequest(string $method, string $url, array $payload = []): array
+    {
+        $ch = curl_init();
+        if ($ch === false) {
+            throw new \RuntimeException('Falha ao iniciar cliente HTTP para OCR remoto.', 500);
+        }
+
+        $headers = ['Accept: application/json'];
+        $token = trim((string) getenv('NORM_OCR_PIPELINE_TOKEN'));
+        if ($token !== '') {
+            $headers[] = 'Authorization: Bearer ' . $token;
+        }
+
+        $options = [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => self::OCR_REQUEST_TIMEOUT_SECONDS,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_CUSTOMREQUEST => strtoupper($method),
+        ];
+
+        if (strtoupper($method) === 'POST') {
+            $options[CURLOPT_POSTFIELDS] = $payload;
+        }
+
+        curl_setopt_array($ch, $options);
+        $raw = curl_exec($ch);
+        $curlErrNo = curl_errno($ch);
+        $curlErr = curl_error($ch);
+        $statusCode = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if ($curlErrNo !== 0) {
+            throw new \RuntimeException('Falha de rede no OCR remoto: ' . $curlErr, $curlErrNo);
+        }
+        if (!is_string($raw) || trim($raw) === '') {
+            throw new \RuntimeException('Resposta vazia do OCR remoto.', $statusCode > 0 ? $statusCode : 502);
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            throw new \RuntimeException('Resposta inválida do OCR remoto (JSON).', $statusCode > 0 ? $statusCode : 502);
+        }
+        if ($statusCode >= 400) {
+            $message = trim((string) ($decoded['message'] ?? $decoded['error'] ?? 'OCR remoto retornou erro HTTP.'));
+            throw new \RuntimeException($message, $statusCode);
+        }
+
+        return $decoded;
+    }
+
+    private function downloadRemoteOcrText(string $url): string
+    {
+        $ch = curl_init($url);
+        if ($ch === false) {
+            throw new \RuntimeException('Falha ao iniciar download do resultado OCR.', 500);
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => self::OCR_REQUEST_TIMEOUT_SECONDS,
+            CURLOPT_CONNECTTIMEOUT => 5,
+        ]);
+        $raw = curl_exec($ch);
+        $curlErrNo = curl_errno($ch);
+        $curlErr = curl_error($ch);
+        $statusCode = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if ($curlErrNo !== 0) {
+            throw new \RuntimeException('Falha de rede ao descarregar OCR: ' . $curlErr, $curlErrNo);
+        }
+        if ($statusCode >= 400) {
+            throw new \RuntimeException('Falha HTTP ao descarregar OCR.', $statusCode);
+        }
+
+        $text = $this->cleanText(is_string($raw) ? $raw : '');
+        if ($text === '') {
+            throw new \RuntimeException('OCR remoto retornou ficheiro de texto vazio.', 422);
+        }
+
+        return $text;
+    }
+
+    private function isTransientOcrFailure(int $code): bool
+    {
+        return $code === 0
+            || $code === 28
+            || $code === 408
+            || $code === 425
+            || $code === 429
+            || ($code >= 500 && $code <= 599);
     }
 
     private function countPdfPages(string $pdfPath): int
