@@ -17,6 +17,13 @@ try {
     $isStale = (bool) ($result['is_stale'] ?? true);
     $providers = (array) ($result['providers'] ?? []);
 
+    $logger->info('ai.preflight.completed', [
+        'status' => $status,
+        'is_stale' => $isStale,
+        'last_check_at' => $result['last_check_at'] ?? null,
+        'providers_checked' => array_keys($providers),
+    ]);
+
     if ($status === 'ok' && $isStale === false) {
         $logger->info('ai.preflight.success', [
             'status' => $status,
