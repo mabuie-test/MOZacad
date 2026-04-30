@@ -83,9 +83,17 @@ final class PaymentService
                 throw new RuntimeException('DebitoPay v2 não retornou payment_id da transação.');
             }
 
+            $providerPayload = is_array($providerResponse['raw'] ?? null) ? $providerResponse['raw'] : [];
             $providerStatus = (string) ($providerResponse['provider_status'] ?? 'PENDING');
             $internalStatus = $this->statusMapper->map($providerStatus);
-            $providerPayload = is_array($providerResponse['raw'] ?? null) ? $providerResponse['raw'] : [];
+            $providerMethod = strtolower(trim((string) ($providerPayload['payment_method'] ?? '')));
+            $isMpesaSyncSuccess = $providerMethod === 'mpesa'
+                && (($providerPayload['success'] ?? false) === true)
+                && strtolower(trim((string) ($providerPayload['status'] ?? ''))) === 'success';
+            if ($isMpesaSyncSuccess) {
+                $providerStatus = 'success';
+                $internalStatus = 'paid';
+            }
 
             $this->payments->setExternalReference($paymentId, $debitoReference, $providerResponse['provider_transaction_id'] ?: null, $providerStatus);
 

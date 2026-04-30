@@ -8,7 +8,17 @@
 </div>
 
 
-<?php $workerHealth = (array) ($overview['worker_health'] ?? []); ?>
+<?php
+$workerHealth = (array) ($overview['worker_health'] ?? []);
+$formatPreflightDetail = static function (mixed $detail): string {
+    if (is_scalar($detail) || $detail === null) {
+        return (string) ($detail ?? '-');
+    }
+
+    $json = json_encode($detail, JSON_UNESCAPED_UNICODE);
+    return is_string($json) && $json !== '' ? $json : '-';
+};
+?>
 <?php $aiFallbackRates = (array) ($overview['ai_provider_fallback_rates'] ?? []); ?>
 <?php $aiPreflight = (array) ($overview['ai_preflight'] ?? []); ?>
 <div class="card p-3 mb-3">
@@ -66,10 +76,10 @@
       <thead><tr><th>Alvo</th><th>Status</th><th>Detalhe</th></tr></thead>
       <tbody>
       <?php foreach ((array) ($aiPreflight['providers'] ?? []) as $name => $result): ?>
-        <tr><td>Provider: <?= htmlspecialchars((string) $name) ?></td><td><?= !empty($result['ok']) ? '<span class="badge bg-success">OK</span>' : '<span class="badge bg-danger">FAIL</span>' ?></td><td><?= htmlspecialchars((string) ($result['error_type'] ?? $result['result'] ?? '-')) ?></td></tr>
+        <tr><td>Provider: <?= htmlspecialchars((string) $name) ?></td><td><?= !empty($result['ok']) ? '<span class="badge bg-success">OK</span>' : '<span class="badge bg-danger">FAIL</span>' ?></td><td><?= htmlspecialchars($formatPreflightDetail($result['error_type'] ?? $result['result'] ?? '-')) ?></td></tr>
       <?php endforeach; ?>
       <?php foreach ((array) ($aiPreflight['models'] ?? []) as $name => $result): ?>
-        <tr><td>Modelo: <?= htmlspecialchars((string) $name) ?></td><td><?= !empty($result['ok']) ? '<span class="badge bg-success">OK</span>' : '<span class="badge bg-danger">FAIL</span>' ?></td><td><?= htmlspecialchars((string) ($result['error_type'] ?? $result['result'] ?? '-')) ?></td></tr>
+        <tr><td>Modelo: <?= htmlspecialchars((string) $name) ?></td><td><?= !empty($result['ok']) ? '<span class="badge bg-success">OK</span>' : '<span class="badge bg-danger">FAIL</span>' ?></td><td><?= htmlspecialchars($formatPreflightDetail($result['error_type'] ?? $result['result'] ?? '-')) ?></td></tr>
       <?php endforeach; ?>
       </tbody>
     </table>

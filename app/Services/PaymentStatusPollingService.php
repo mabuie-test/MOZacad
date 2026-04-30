@@ -67,6 +67,10 @@ final class PaymentStatusPollingService
                     $summary['updated']++;
                     if ($internalStatus === 'paid') {
                         $summary['paid']++;
+                        $this->logger->info('payment.reconcile.success', [
+                            'metric' => 'reconcile_success_total',
+                            'payment_id' => (int) $payment['id'],
+                        ]);
                     }
                 }
 
@@ -74,6 +78,7 @@ final class PaymentStatusPollingService
                     'payment_id' => (int) $payment['id'],
                     'provider_status' => $providerStatus,
                     'internal_status' => $internalStatus,
+                    'pending_age_seconds' => isset($payment['created_at']) ? max(0, time() - strtotime((string) $payment['created_at'])) : null,
                 ]);
             } catch (Throwable $e) {
                 $summary['errors']++;
@@ -86,7 +91,10 @@ final class PaymentStatusPollingService
             }
         }
 
-        $this->logger->info('Polling lote concluído', $summary + ['batch_limit' => $batchLimit]);
+        $this->logger->info('Polling lote concluído', $summary + [
+            'batch_limit' => $batchLimit,
+            'metric_pending_count' => $summary['checked'],
+        ]);
         return $summary;
     }
 

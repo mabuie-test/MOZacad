@@ -278,7 +278,12 @@ PROMPT;
             default => '',
         };
 
-        return trim($resolved) !== '' ? $resolved : $baseModel;
+        $resolved = trim($resolved);
+        if ($resolved === '' || str_starts_with(strtolower($resolved), 'gemini:')) {
+            return $baseModel;
+        }
+
+        return $resolved;
     }
 
     private function stripMarkdownFences(string $text): string
