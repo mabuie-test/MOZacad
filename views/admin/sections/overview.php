@@ -67,7 +67,7 @@ $formatPreflightDetail = static function (mixed $detail): string {
     <div class="text-secondary small mt-1"><?= htmlspecialchars((string) ($aiPreflight['message'] ?? '')) ?></div>
     <div class="alert alert-warning py-2 my-2 small">Este teste consome quota da API configurada.</div>
     <form method="post" action="/admin/ai-preflight/run" class="d-inline">
-      <?= csrf_field() ?>
+      <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
       <button class="btn btn-sm btn-outline-warning" type="submit">Testar IA agora</button>
     </form>
   </div>
