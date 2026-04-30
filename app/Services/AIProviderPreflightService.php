@@ -11,6 +11,10 @@ use Throwable;
 
 final class AIProviderPreflightService
 {
+    private const STATUS_DISABLED = 'disabled';
+    private const STATUS_NOT_RUN = 'not_run';
+    private const STATUS_CONFIG_OK = 'config_ok';
+    private const STATUS_CONFIG_WARNING = 'config_warning';
     private const STATUS_OK = 'ok';
     private const STATUS_DEGRADED = 'degraded';
     private const STATUS_CRITICAL = 'critical';
@@ -18,7 +22,7 @@ final class AIProviderPreflightService
     /** @return array<string,mixed> */
     public function currentStatus(bool $runCheck = false): array
     {
-        if ($runCheck) {
+        if ($runCheck && $this->isEnabled() && $this->isAdminAutoRunEnabled()) {
             $this->runAndPersist();
         }
 
@@ -27,8 +31,11 @@ final class AIProviderPreflightService
         $latest = $latestStmt !== false ? $latestStmt->fetch() : false;
 
         if (!is_array($latest)) {
+            if (!$this->isEnabled()) {
+                return ['status' => self::STATUS_DISABLED, 'last_check_at' => null, 'is_stale' => false, 'providers' => [], 'models' => [], 'message' => 'Preflight automático desactivado para poupar quota.'];
+            }
             return [
-                'status' => self::STATUS_CRITICAL,
+                'status' => self::STATUS_NOT_RUN,
                 'last_check_at' => null,
                 'is_stale' => true,
                 'providers' => [],
@@ -54,6 +61,9 @@ final class AIProviderPreflightService
 
     public function assertQueueAllowed(): void
     {
+        if (!$this->isEnabled() || !$this->blocksWorker()) {
+            return;
+        }
         $status = $this->currentStatus();
         if (($status['status'] ?? self::STATUS_CRITICAL) === self::STATUS_CRITICAL) {
             throw new \RuntimeException('Preflight IA crítico: enfileiramento bloqueado até normalização dos providers/modelos.');
@@ -67,6 +77,12 @@ final class AIProviderPreflightService
     /** @return array<string,mixed> */
     public function runAndPersist(): array
     {
+        if (!$this->isEnabled()) {
+            return ['status' => self::STATUS_DISABLED, 'last_check_at' => null, 'is_stale' => false, 'providers' => [], 'models' => [], 'message' => 'Preflight automático desactivado. Use o botão Testar IA agora para executar verificação manual.'];
+        }
+        if (!$this->allowRealCalls()) {
+            return $this->runConfigOnlyAndPersist('Chamadas reais desactivadas por AI_PREFLIGHT_REAL_CALLS=false.');
+        }
         $config = Config::get('ai');
         $primary = strtolower(trim((string) ($config['provider']['default'] ?? 'openai')));
         $failoverEnabled = (bool) ($config['provider']['failover']['enabled'] ?? true);
@@ -94,7 +110,8 @@ final class AIProviderPreflightService
                 $this->registerFailureMetric($providerName, (string) $providerResult['error_type']);
             }
 
-            foreach (['content', 'refinement', 'humanizer', 'structure'] as $task) {
+            $tasks = $this->testAllUseCases() ? ['content', 'refinement', 'humanizer', 'structure'] : [];
+            foreach ($tasks as $task) {
                 $key = $providerName . ':' . $task;
                 $modelResults[$key] = $this->checkTask($provider, $task);
                 if (($modelResults[$key]['ok'] ?? false) !== true) {
@@ -130,6 +147,54 @@ final class AIProviderPreflightService
         ]);
 
         return $this->currentStatus();
+    }
+
+    public function runManualPreflight(bool $force = true): array
+    {
+        if (!$this->manualRouteEnabled()) {
+            throw new \RuntimeException('Rota manual de preflight desactivada.');
+        }
+        if (!$this->isEnabled()) {
+            return $this->runConfigOnlyAndPersist('Preflight automático desactivado. Validação manual apenas de configuração local.');
+        }
+        if (!$this->allowRealCalls()) {
+            return $this->runConfigOnlyAndPersist('Chamadas reais desactivadas por AI_PREFLIGHT_REAL_CALLS=false.');
+        }
+        if (!$force && $this->hasFreshCachedCheck()) {
+            return $this->currentStatus();
+        }
+        return $this->runAndPersist();
+    }
+
+    private function runConfigOnlyAndPersist(string $message): array
+    {
+        $warnings = [];
+        $config = Config::get('ai');
+        $primary = strtolower(trim((string) ($config['provider']['default'] ?? 'openai')));
+        $providers = ['provider' => ['ok' => in_array($primary, ['openai', 'gemini'], true), 'result' => $primary]];
+        if ($primary === 'openai' && trim((string) ($config['openai']['api_key'] ?? '')) === '') { $warnings[] = 'OPENAI_API_KEY ausente'; }
+        if ($primary === 'gemini' && trim((string) ($config['gemini']['api_key'] ?? '')) === '') { $warnings[] = 'GEMINI_API_KEY ausente'; }
+        $status = $warnings === [] ? self::STATUS_CONFIG_OK : self::STATUS_CONFIG_WARNING;
+        $summary = $warnings === [] ? 'Configuração local válida.' : 'Avisos de configuração: ' . implode('; ', $warnings);
+        $db = Database::connect();
+        $stmt = $db->prepare('INSERT INTO ai_preflight_checks (status, summary, providers_json, models_json, checked_at, created_at) VALUES (:status,:summary,:providers_json,:models_json,NOW(),NOW())');
+        $stmt->execute(['status' => $status, 'summary' => $summary . ' ' . $message, 'providers_json' => json_encode($providers, JSON_UNESCAPED_UNICODE), 'models_json' => json_encode([], JSON_UNESCAPED_UNICODE)]);
+        return $this->currentStatus();
+    }
+
+    private function isEnabled(): bool { return (bool) ((Config::get('ai')['preflight']['enabled'] ?? false)); }
+    private function blocksWorker(): bool { return (bool) ((Config::get('ai')['preflight']['block_worker'] ?? false)); }
+    private function allowRealCalls(): bool { return (bool) ((Config::get('ai')['preflight']['real_calls'] ?? false)); }
+    private function isAdminAutoRunEnabled(): bool { return (bool) ((Config::get('ai')['preflight']['admin_auto_run'] ?? false)); }
+    private function testAllUseCases(): bool { return (bool) ((Config::get('ai')['preflight']['test_all_use_cases'] ?? false)); }
+    private function manualRouteEnabled(): bool { return (bool) ((Config::get('ai')['preflight']['manual_route_enabled'] ?? true)); }
+    private function hasFreshCachedCheck(): bool
+    {
+        $db = Database::connect();
+        $latest = $db->query('SELECT checked_at FROM ai_preflight_checks ORDER BY id DESC LIMIT 1')->fetch();
+        if (!is_array($latest) || empty($latest['checked_at'])) { return false; }
+        $ttl = max(60, (int) (Config::get('ai')['preflight']['cache_ttl_seconds'] ?? 86400));
+        return (time() - strtotime((string) $latest['checked_at'])) < $ttl;
     }
 
     private function makeProvider(string $provider): AIProviderInterface

@@ -51,10 +51,15 @@
     <small>Status geral</small>
     <div>
       <?php $pStatus = (string) ($aiPreflight['status'] ?? 'critical'); ?>
-      <?= $pStatus === 'ok' ? '<span class="badge bg-success">OK</span>' : ($pStatus === 'degraded' ? '<span class="badge bg-warning text-dark">DEGRADED</span>' : '<span class="badge bg-danger">CRITICAL</span>') ?>
+      <?= $pStatus === 'ok' ? '<span class="badge bg-success">OK</span>' : ($pStatus === 'degraded' ? '<span class="badge bg-warning text-dark">DEGRADED</span>' : ($pStatus === 'disabled' ? '<span class="badge bg-secondary">DESACTIVADO</span>' : ($pStatus === 'not_run' ? '<span class="badge bg-info text-dark">NÃO EXECUTADO</span>' : '<span class="badge bg-danger">CRITICAL</span>'))) ?>
       <small class="text-secondary ms-2">Último check: <?= htmlspecialchars((string) ($aiPreflight['last_check_at'] ?? 'n/d')) ?></small>
     </div>
     <div class="text-secondary small mt-1"><?= htmlspecialchars((string) ($aiPreflight['message'] ?? '')) ?></div>
+    <div class="alert alert-warning py-2 my-2 small">Este teste consome quota da API configurada.</div>
+    <form method="post" action="/admin/ai-preflight/run" class="d-inline">
+      <?= csrf_field() ?>
+      <button class="btn btn-sm btn-outline-warning" type="submit">Testar IA agora</button>
+    </form>
   </div>
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">

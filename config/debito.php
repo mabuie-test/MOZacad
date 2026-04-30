@@ -2,7 +2,7 @@
 
 return [
     'base_url' => $_ENV['DEBITO_BASE_URL'] ?? 'https://my.debito.co.mz',
-    'wallet_id' => $_ENV['DEBITO_WALLET_ID'] ?? '',
+    'wallet_code' => $_ENV['DEBITO_WALLET_CODE'] ?? '',
     'token' => $_ENV['DEBITO_TOKEN'] ?? '',
     'callback_url' => $_ENV['DEBITO_CALLBACK_URL'] ?? null,
     'webhook_path' => $_ENV['DEBITO_WEBHOOK_PATH'] ?? '/webhooks/debito',

@@ -79,12 +79,16 @@ if ($mode === 'fresh') {
             continue;
         }
 
-        $db->beginTransaction();
+        if (!$db->inTransaction()) {
+            $db->beginTransaction();
+        }
         try {
             $runSqlFile($file);
-            $stmt = $db->prepare('INSERT INTO schema_migrations (migration_name, applied_at) VALUES (:name, NOW())');
+            $stmt = $db->prepare('INSERT IGNORE INTO schema_migrations (migration_name, applied_at) VALUES (:name, NOW())');
             $stmt->execute(['name' => $name]);
-            $db->commit();
+            if ($db->inTransaction()) {
+                $db->commit();
+            }
             $applied[$name] = true;
         } catch (Throwable $e) {
             if ($db->inTransaction()) {
