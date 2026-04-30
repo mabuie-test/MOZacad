@@ -24,15 +24,14 @@ final class PromptComposerService
             . "Palavras-chave do projecto: {$keywords}\n"
             . "Este contexto é permanente para todas as secções; não repetir mecanicamente problema/objectivos fora das secções em que isso seja contrato explícito.";
 
-        $prompts[] = $globalContext;
-
         foreach ($blueprint as $i => $section) {
             $title = (string) ($section['title'] ?? 'Secção');
             $prev = (string) (($blueprint[$i-1]['title'] ?? 'nenhuma'));
             $next = (string) (($blueprint[$i+1]['title'] ?? 'nenhuma'));
             $contract = $this->sectionContract($title);
             $terms = $this->mandatoryTerms($theme, $title, $briefing);
-            $prompts[] = "[INSTRUCAO_SECCAO]\n"
+            $prompts[] = $globalContext . "\n\n"
+                . "[INSTRUCAO_SECCAO]\n"
                 . "Escreve apenas o corpo da secção '{$title}' em português académico de Moçambique.\n"
                 . "Secção anterior: {$prev}; secção seguinte: {$next}.\n"
                 . "Contrato da secção: {$contract}.\n"

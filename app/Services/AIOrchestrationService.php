@@ -19,6 +19,16 @@ final class AIOrchestrationService
 
     public function run(array $prompts, array $blueprint = []): array
     {
+        if ($blueprint !== [] && count($prompts) !== count($blueprint)) {
+            throw new \InvalidArgumentException(
+                sprintf(
+                    'Divergência entre prompts (%d) e blueprint (%d).',
+                    count($prompts),
+                    count($blueprint)
+                )
+            );
+        }
+
         $result = [];
 
         foreach ($prompts as $index => $prompt) {
