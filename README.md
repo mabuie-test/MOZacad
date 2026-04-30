@@ -171,6 +171,7 @@ Ou rotinas separadas:
 * * * * * php /path/to/MOZacad/scripts/poll_payments.php
 */2 * * * * php /path/to/MOZacad/scripts/process_ai_jobs.php
 */5 * * * * php /path/to/MOZacad/scripts/reconcile_successful_payments.php
+*/5 * * * * php /path/to/MOZacad/scripts/ai_preflight_check.php >> /path/to/MOZacad/storage/logs/preflight-cron.log 2>&1
 ```
 
 Variáveis operacionais úteis:
@@ -242,3 +243,21 @@ Campos relevantes em `metadata.json`:
 - Para alerta automatizado, execute: `php scripts/worker_health_check.php` (retorna exit code 1 quando o heartbeat exceder `WORKER_ALERT_STALE_MINUTES`, padrão 5).
 - Garanta permissões de escrita para os diretórios: `storage/logs`, `storage/generated`, `storage/uploads`, `storage/norms`.
 - A rotação de `application.log` já é feita automaticamente por tamanho (`LOG_MAX_FILE_SIZE_MB`, `LOG_MAX_ROTATED_FILES`); aplique rotação de `worker-cron.log` via `logrotate` do host.
+
+## Operação contínua do preflight IA (produção)
+
+- Configure cron de preflight no mesmo padrão operacional do worker (rodada única com log em arquivo):
+  - `*/5 * * * * /usr/bin/php /workspace/MOZacad/scripts/ai_preflight_check.php >> /workspace/MOZacad/storage/logs/preflight-cron.log 2>&1`
+- Política de stale: o enfileiramento de novos `ai_jobs` é bloqueado quando o último preflight tiver mais de `AI_PREFLIGHT_STALE_MINUTES` minutos (default: `10`).
+- Logs operacionais:
+  - sucesso: evento `ai.preflight.success` em `storage/logs/application.log`;
+  - falha por provider/tipo: evento `ai.preflight.failure` com `provider` + `error_type`;
+  - falha de execução do script: evento `ai.preflight.execution_error`.
+
+### Resposta operacional quando status = `critical`
+
+1. Executar manualmente `php scripts/ai_preflight_check.php` para confirmar falha e coletar erro atual.
+2. Verificar `storage/logs/application.log` (eventos `ai.preflight.failure`) para identificar provider afetado e tipo (`auth`, `quota`, `invalid_model`, `timeout`, `unknown`).
+3. Corrigir credenciais/modelo/limite no `.env` (`OPENAI_API_KEY`, `GEMINI_API_KEY`, modelos por tarefa e modo de provider).
+4. Reexecutar `php scripts/ai_preflight_check.php` até retornar `status=ok` e `is_stale=false`.
+5. Após normalização, retomar enfileiramento (o bloqueio é removido automaticamente pelo próximo preflight saudável).

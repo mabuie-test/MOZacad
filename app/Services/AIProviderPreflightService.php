@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Helpers\Config;
 use App\Helpers\Database;
+use DateTimeImmutable;
 use Throwable;
 
 final class AIProviderPreflightService
@@ -29,18 +30,25 @@ final class AIProviderPreflightService
             return [
                 'status' => self::STATUS_CRITICAL,
                 'last_check_at' => null,
+                'is_stale' => true,
                 'providers' => [],
                 'models' => [],
                 'message' => 'Preflight ainda não executado.',
             ];
         }
 
+        $checkedAt = isset($latest['checked_at']) ? (string) $latest['checked_at'] : null;
+        $isStale = $this->isStale($checkedAt);
+
         return [
             'status' => (string) ($latest['status'] ?? self::STATUS_CRITICAL),
-            'last_check_at' => (string) ($latest['checked_at'] ?? null),
+            'last_check_at' => $checkedAt,
+            'is_stale' => $isStale,
             'providers' => json_decode((string) ($latest['providers_json'] ?? '[]'), true) ?: [],
             'models' => json_decode((string) ($latest['models_json'] ?? '[]'), true) ?: [],
-            'message' => (string) ($latest['summary'] ?? ''),
+            'message' => $isStale
+                ? sprintf('Último preflight expirado (> %d min). Execute novo check para liberar fila.', $this->staleMinutes())
+                : (string) ($latest['summary'] ?? ''),
         ];
     }
 
@@ -49,6 +57,10 @@ final class AIProviderPreflightService
         $status = $this->currentStatus();
         if (($status['status'] ?? self::STATUS_CRITICAL) === self::STATUS_CRITICAL) {
             throw new \RuntimeException('Preflight IA crítico: enfileiramento bloqueado até normalização dos providers/modelos.');
+        }
+
+        if (($status['is_stale'] ?? true) === true) {
+            throw new \RuntimeException('Preflight IA stale: enfileiramento bloqueado até nova verificação operacional.');
         }
     }
 
@@ -185,5 +197,25 @@ final class AIProviderPreflightService
         $db = Database::connect();
         $stmt = $db->prepare('INSERT INTO ai_preflight_failure_metrics (provider, failure_type, occurred_at, created_at) VALUES (:provider,:failure_type,NOW(),NOW())');
         $stmt->execute(['provider' => $provider, 'failure_type' => $type]);
+    }
+
+    private function staleMinutes(): int
+    {
+        $config = Config::get('ai');
+        return max(1, (int) ($config['preflight']['stale_minutes'] ?? 10));
+    }
+
+    private function isStale(?string $checkedAt): bool
+    {
+        if ($checkedAt === null || trim($checkedAt) === '') {
+            return true;
+        }
+
+        try {
+            $checked = new DateTimeImmutable($checkedAt);
+            return (time() - $checked->getTimestamp()) > ($this->staleMinutes() * 60);
+        } catch (Throwable) {
+            return true;
+        }
     }
 }

@@ -53,4 +53,7 @@ return [
         'openai.api_key',
         'gemini.api_key',
     ],
+    'preflight' => [
+        'stale_minutes' => (int) ($_ENV['AI_PREFLIGHT_STALE_MINUTES'] ?? 10),
+    ],
 ];
