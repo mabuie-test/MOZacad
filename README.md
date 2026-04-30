@@ -144,12 +144,16 @@ Executar manualmente (diagnóstico imediato):
 php scripts/ai_preflight_check.php
 ```
 
-Cron recomendado em host com `public_html` (a cada 5 minutos):
+Cron dedicado de preflight (separado do worker, a cada 5 minutos):
 ```bash
 */5 * * * * /usr/bin/php /home/USUARIO/mozacad/scripts/ai_preflight_check.php >> /home/USUARIO/mozacad/storage/logs/preflight-cron.log 2>&1
 ```
 
-Se o preflight estiver `critical` ou `stale`, o sistema bloqueia enfileiramento **e processamento** da fila `ai_jobs` até nova verificação válida.
+O script regista eventos com severidade operacional (`ok`/`warn`/`critical`) e detalhes de falha por provider/tipo (`failure_scope`, `failure_task`, `failure_type`).
+
+Ação automática para preflight stale:
+- gera alerta em log (`ai.preflight.stale_block`);
+- mantém bloqueio preventivo para novos jobs (enfileiramento) e para processamento da fila `ai_jobs` até nova verificação válida.
 
 Em produção com hosting clássico, **não** depender de terminal aberto com `composer workers:run`. O recomendado é cron executando rodada única:
 
