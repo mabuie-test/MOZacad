@@ -19,6 +19,10 @@ use App\Services\AcademicRefinementService;
 use App\Services\ApplicationLoggerService;
 use App\Services\CitationFormatterService;
 use App\Services\DocxAssemblyService;
+use App\Services\DynamicAcademicStructureService;
+use App\Services\AcademicBriefingAutoCompletionService;
+use App\Services\AcademicBriefingQualityService;
+use App\Services\AcademicContentQualityService;
 use App\Services\ExportService;
 use App\Services\HumanReviewQueueService;
 use App\Services\InstitutionFormattingService;
@@ -112,9 +116,22 @@ final class GenerateOrderDocumentJob
 
         $sections = $workTypeRepo->getStructureByWorkType((int) $order['work_type_id']);
         $blueprint = (new StructureBuilderService())->build($sections, $resolvedRulesDto->structureRules);
+        $blueprint = (new DynamicAcademicStructureService())->buildDynamicBlueprint($order, $briefing, $workTypeRepo->findById((int) $order['work_type_id']) ?? [], $blueprint, $resolvedRulesDto->structureRules);
         $workType = $workTypeRepo->findById((int) $order['work_type_id']) ?? [];
+
+        if ((bool) ($_ENV['BRIEFING_AUTOCOMPLETE_ENABLED'] ?? true)) {
+            $completed = (new AcademicBriefingAutoCompletionService())->complete($order, $requirements, []);
+            $briefing['problem'] = $completed['problem_statement'] ?? $briefing['problem'];
+            $briefing['generalObjective'] = $completed['general_objective'] ?? $briefing['generalObjective'];
+            $briefing['specificObjectives'] = $completed['specific_objectives'] ?? $briefing['specificObjectives'];
+            $briefing['keywords'] = $completed['keywords'] ?? $briefing['keywords'];
+        }
+        $briefingQuality = (new AcademicBriefingQualityService())->evaluate($briefing);
+
         $requiresObjectives = $this->workTypeRequiresObjectives($workType, $blueprint, $briefing);
-        $this->assertObjectiveQualityOrFail($briefing, $orderId, $workType, $requiresObjectives);
+        if ($requiresObjectives && !$briefingQuality['ok']) {
+            throw new RuntimeException('Falha de qualidade pré-DOCX no briefing académico: ' . implode(', ', $briefingQuality['issues']));
+        }
         $prompts = (new PromptComposerService())->compose($blueprint, $resolvedRules, $briefing);
         $referenceStyle = (string) ($resolvedRules['referenceRules']['style'] ?? 'APA');
 
@@ -136,10 +153,11 @@ final class GenerateOrderDocumentJob
             ]);
 
             $cited = $this->buildLocalFallbackSections($blueprint, $briefing, $referenceStyle);
+            $logger->warning('ai_job.document_generation.local_fallback_used', ['order_id' => $orderId]);
         }
 
-        $cited = $this->enforceObjectivesSection($cited, $briefing, $orderId, $requiresObjectives, $logger);
-        $this->assertObjectivePresenceInSections($cited, $briefing, $orderId, $requiresObjectives);
+        $contentQuality = (new AcademicContentQualityService())->validateDocument($cited, $briefing, $blueprint);
+        $hasWeakContent = !$contentQuality['ok'];
 
         $formatted = (new InstitutionFormattingService())->apply($cited, $resolvedRules);
         $docxAssembly = new DocxAssemblyService();
@@ -198,7 +216,7 @@ final class GenerateOrderDocumentJob
             $documentId = $documents->create($orderId, $path, $documentStatus, $effectiveVersion, $templateApplication);
 
             $validation = (new DocumentComplianceValidationService())->validate($cited, $blueprint, $resolvedRules);
-            $visualIssues = (new VisualIdentityComplianceService())->validate($resolvedRules);
+            $visualIssues = (new VisualIdentityComplianceService())->validate($resolvedRules, $templateResolution);
             if ($visualIssues !== []) {
                 $validation['non_conformities'] = array_merge($validation['non_conformities'] ?? [], $visualIssues);
                 foreach ($visualIssues as $issue) {
@@ -213,8 +231,7 @@ final class GenerateOrderDocumentJob
             (new DeliveryChecklistRepository())->ensureDefaults($documentId, $effectiveVersion);
             (new DeliveryChecklistRepository())->syncComplianceItemFromValidation($documentId, $effectiveVersion, $validation);
             (new DeliveryChecklistRepository())->syncReferencesCompletenessFromSections($documentId, $effectiveVersion, $cited);
-            $hasComplianceBlocker = ((int) ($validation['summary']['critical'] ?? 0) > 0)
-                || (($validation['is_compliant'] ?? true) === false);
+            $hasComplianceBlocker = ((int) ($validation['summary']['critical'] ?? 0) > 0) || (($validation['is_compliant'] ?? true) === false);
 
             if ($hasComplianceBlocker) {
                 $orders->updateStatus($orderId, 'delivery_blocked');
@@ -236,6 +253,9 @@ final class GenerateOrderDocumentJob
                         'action' => 'regenerar_ou_corrigir',
                     ]
                 );
+            } elseif ($hasWeakContent) {
+                $orders->updateStatus($orderId, 'under_human_review');
+                $documents->updateLatestStatusByOrderId($orderId, 'pending_human_review');
             } else {
                 $orders->updateStatus($orderId, $requiresReview ? 'under_human_review' : 'ready');
             }

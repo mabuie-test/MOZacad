@@ -6,27 +6,23 @@ namespace App\Services;
 
 final class VisualIdentityComplianceService
 {
-    public function validate(array $resolvedRules): array
+    public function validate(array $resolvedRules, array $templateResolution = []): array
     {
         $issues = [];
-        $visual = is_array($resolvedRules['visualRules'] ?? null) ? $resolvedRules['visualRules'] : [];
-        $frontPage = is_array($visual['front_page'] ?? null) ? $visual['front_page'] : [];
-
-        $margins = is_array($visual['margins'] ?? null) ? $visual['margins'] : [];
-        foreach (['top', 'bottom', 'left', 'right'] as $edge) {
-            $val = isset($margins[$edge]) ? (float) $margins[$edge] : 0.0;
-            if ($val < 2.0) {
-                $issues[] = ['severity' => 'critical', 'rule' => 'visual_margin', 'message' => "Margem {$edge} inferior ao mínimo institucional (2.0cm)."];
+        $margins = (array) ($resolvedRules['visualRules']['margins'] ?? []);
+        $mode = (string) ($templateResolution['mode'] ?? '');
+        foreach (['top','bottom','left','right'] as $side) {
+            if (!array_key_exists($side, $margins)) {
+                $issues[] = ['severity' => 'warning', 'rule' => 'margin_not_verified', 'message' => 'Margem não verificada automaticamente.', 'target' => $side];
+                continue;
             }
-        }
-
-        $fontFamily = trim((string) ($visual['font_family'] ?? ''));
-        if ($fontFamily === '') {
-            $issues[] = ['severity' => 'major', 'rule' => 'visual_font', 'message' => 'Fonte institucional não definida.'];
-        }
-
-        if (trim((string) ($frontPage['institution_name'] ?? '')) === '') {
-            $issues[] = ['severity' => 'major', 'rule' => 'visual_cover', 'message' => 'Capa sem nome da instituição.'];
+            $value = (float) $margins[$side];
+            if ($mode === 'template_published_tracked' && $value <= 0) {
+                continue;
+            }
+            if ($value > 0 && $value < 2.0) {
+                $issues[] = ['severity' => 'critical', 'rule' => 'margin_minimum', 'message' => sprintf('Margem %s inferior a 2.0cm.', $side), 'target' => $side];
+            }
         }
 
         return $issues;
