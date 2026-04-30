@@ -37,6 +37,10 @@ final class PaymentWebhookService
         }
 
         if (!$this->validateSignature($rawBody, $normalizedHeaders)) {
+            (new ApplicationLoggerService())->alert('payment.webhook.invalid_signature', [
+                'metric' => 'webhook_invalid_signature_total',
+                'provider' => 'debito',
+            ]);
             return ['received' => true, 'processed' => false, 'http_status' => 401, 'reason' => 'invalid_signature'];
         }
 
@@ -256,6 +260,8 @@ final class PaymentWebhookService
             $payload['data']['payment_id']
             ?? $payload['payment_id']
             ?? $payload['payment']['id']
+            ?? $payload['data']['source_id']
+            ?? $payload['source_id']
             ?? $payload['id']
             ?? $payload['data']['reference']
             ?? $payload['reference']
