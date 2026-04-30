@@ -17,6 +17,7 @@ final class AIJobDispatchService
         private readonly AuditLogRepository $audit = new AuditLogRepository(),
         private readonly OrderRepository $orders = new OrderRepository(),
         private readonly DebitoLoggerService $logger = new DebitoLoggerService(),
+        private readonly AIProviderPreflightService $preflight = new AIProviderPreflightService(),
     ) {}
 
     public function enqueueDocumentGeneration(array $order, array $payment, string $source = 'payment_transition'): ?int
@@ -25,6 +26,7 @@ final class AIJobDispatchService
         if ($orderId <= 0) {
             return null;
         }
+        $this->preflight->assertQueueAllowed();
 
         $stage = 'document_generation';
         $db = Database::connect();

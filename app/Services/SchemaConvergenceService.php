@@ -144,6 +144,26 @@ final class SchemaConvergenceService
             "ALTER TABLE webhook_replay_events MODIFY COLUMN last_seen_at DATETIME NOT NULL",
             "ALTER TABLE webhook_replay_events ADD INDEX IF NOT EXISTS idx_webhook_replay_provider_last_seen (provider, last_seen_at)",
             "ALTER TABLE webhook_replay_events ADD INDEX IF NOT EXISTS idx_webhook_replay_provider_hits (provider, hit_count)",
+            "CREATE TABLE IF NOT EXISTS ai_preflight_checks (
+              id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              status VARCHAR(20) NOT NULL,
+              summary VARCHAR(255) NULL,
+              providers_json JSON NOT NULL,
+              models_json JSON NOT NULL,
+              checked_at DATETIME NOT NULL,
+              created_at TIMESTAMP NULL,
+              INDEX idx_ai_preflight_checks_checked_at (checked_at),
+              INDEX idx_ai_preflight_checks_status (status, checked_at)
+            )",
+            "CREATE TABLE IF NOT EXISTS ai_preflight_failure_metrics (
+              id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+              provider VARCHAR(40) NOT NULL,
+              failure_type VARCHAR(40) NOT NULL,
+              occurred_at DATETIME NOT NULL,
+              created_at TIMESTAMP NULL,
+              INDEX idx_ai_preflight_failure_provider_type (provider, failure_type, occurred_at),
+              INDEX idx_ai_preflight_failure_occurred (occurred_at)
+            )",
         ];
 
         if ($applyRepairs) {
@@ -202,6 +222,10 @@ final class SchemaConvergenceService
             ['table' => 'webhook_replay_events', 'column' => 'last_seen_at'],
             ['table' => 'webhook_replay_events', 'column' => 'hit_count'],
             ['table' => 'webhook_replay_events', 'column' => 'expires_at'],
+            ['table' => 'ai_preflight_checks', 'column' => 'status'],
+            ['table' => 'ai_preflight_checks', 'column' => 'checked_at'],
+            ['table' => 'ai_preflight_failure_metrics', 'column' => 'provider'],
+            ['table' => 'ai_preflight_failure_metrics', 'column' => 'failure_type'],
         ];
         foreach ($checks as $check) {
             if (!$this->columnExists($db, $check['table'], $check['column'])) {
@@ -224,6 +248,8 @@ final class SchemaConvergenceService
             ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_expires'],
             ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_provider_last_seen'],
             ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_provider_hits'],
+            ['table' => 'ai_preflight_checks', 'index' => 'idx_ai_preflight_checks_checked_at'],
+            ['table' => 'ai_preflight_failure_metrics', 'index' => 'idx_ai_preflight_failure_provider_type'],
         ];
         foreach ($indexChecks as $check) {
             if (!$this->indexExists($db, $check['table'], $check['index'])) {

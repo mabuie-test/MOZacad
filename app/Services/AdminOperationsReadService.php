@@ -91,6 +91,7 @@ final class AdminOperationsReadService
 
         $workerHealth = in_array($section, ['overview'], true) ? (new WorkerHealthService())->snapshot() : [];
         $aiProviderFallbackRates = in_array($section, ['overview'], true) ? (new AIProviderAdminMetricsService())->fallbackRateByProvider() : [];
+        $aiPreflight = in_array($section, ['overview'], true) ? (new AIProviderPreflightService())->currentStatus(true) : [];
 
         return [
             'overview' => [
@@ -106,6 +107,7 @@ final class AdminOperationsReadService
                 'references_incomplete_rate_per_order' => $referenceRateRows,
                 'worker_health' => $workerHealth,
                 'ai_provider_fallback_rates' => $aiProviderFallbackRates,
+                'ai_preflight' => $aiPreflight,
             ],
             'orderStatusFilter' => $orderStatusFilter,
             'paymentStatusFilter' => $paymentStatusFilter,
