@@ -38,12 +38,23 @@ final class DocxAssemblyService
 
         $frontPage = is_array($rules['front_page'] ?? null) ? $rules['front_page'] : [];
         $sections = is_array($formatted['sections'] ?? null) ? $formatted['sections'] : [];
+        $profile = $this->resolveAssemblyProfile((string) ($rules['assembly_profile'] ?? 'strict_academic'));
 
         $this->addHeaderFooter($section, $frontPage);
-        $this->addCoverPage($section, $title, $frontPage, $templateMeta);
-        $this->addTitlePage($section, $title, $frontPage);
-        $this->addPreTextSections($section, $sections, ['resumo', 'abstract']);
-        $this->addTableOfContentsPlaceholder($section);
+
+        if ($this->isFrontBlockEnabled($frontPage, 'technical_cover_enabled', true)) {
+            $this->addCoverPage($section, $title, $frontPage, $templateMeta);
+        }
+
+        if ($this->isFrontBlockEnabled($frontPage, 'title_page_enabled', true)) {
+            $this->addTitlePage($section, $title, $frontPage, $profile);
+        }
+
+        $this->addPreTextSections($section, $sections, ['resumo', 'abstract'], $frontPage);
+
+        if ($this->isFrontBlockEnabled($frontPage, 'table_of_contents_enabled', true)) {
+            $this->addTableOfContentsPlaceholder($section, $profile);
+        }
         $this->addMainChapters($section, $sections);
         $this->addReferences($section, $sections);
         $this->addAnnexesAndAppendices($section, $sections);
@@ -88,13 +99,15 @@ final class DocxAssemblyService
         $city = $this->cleanText((string) ($frontPage['city'] ?? 'Maputo'));
         $year = $this->cleanText((string) ($frontPage['year'] ?? date('Y')));
         $section->addText($city . ', ' . $year, ['size' => 12], ['alignment' => Jc::CENTER]);
-        $section->addText(
-            'Template aplicado: ' . $this->cleanText((string) ($templateMeta['template_file'] ?? 'programmatic_fallback'))
-            . ' | ID: ' . $this->cleanText((string) ($templateMeta['template_artifact_id'] ?? 'n/a'))
-            . ' | HASH: ' . $this->cleanText((string) ($templateMeta['template_sha256'] ?? 'n/a')),
-            ['size' => 8],
-            ['alignment' => Jc::CENTER]
-        );
+        if ($this->shouldRenderTemplateNote($frontPage, $templateMeta)) {
+            $section->addText(
+                'Template aplicado: ' . $this->cleanText((string) ($templateMeta['template_file'] ?? 'programmatic_fallback'))
+                . ' | ID: ' . $this->cleanText((string) ($templateMeta['template_artifact_id'] ?? 'n/a'))
+                . ' | HASH: ' . $this->cleanText((string) ($templateMeta['template_sha256'] ?? 'n/a')),
+                ['size' => 8],
+                ['alignment' => Jc::CENTER]
+            );
+        }
         $section->addPageBreak();
     }
 
@@ -115,18 +128,22 @@ final class DocxAssemblyService
         ];
     }
 
-    private function addTitlePage(Section $section, string $title, array $frontPage): void
+    private function addTitlePage(Section $section, string $title, array $frontPage, string $profile): void
     {
         $section->addTitle('Folha de rosto', 1);
         $section->addText($this->cleanText($title), ['bold' => true, 'size' => 14], ['alignment' => Jc::CENTER]);
         $section->addTextBreak(1);
 
-        $note = (string) ($frontPage['submission_note'] ?? 'Documento académico elaborado segundo normas institucionais.');
-        $section->addText($this->cleanText($note), [], 'body_text');
+        $note = $this->cleanText((string) ($frontPage['submission_note'] ?? ''));
+        if ($note !== '') {
+            $section->addText($note, [], 'body_text');
+        } elseif ($profile === 'strict_academic') {
+            $section->addText('Documento académico.', [], 'body_text');
+        }
         $section->addPageBreak();
     }
 
-    private function addPreTextSections(Section $section, array $sections, array $codes): void
+    private function addPreTextSections(Section $section, array $sections, array $codes, array $frontPage): void
     {
         $found = false;
         foreach ($sections as $item) {
@@ -140,18 +157,21 @@ final class DocxAssemblyService
             $this->appendParagraphs($section, (string) ($item['content'] ?? ''), $title);
         }
 
-        if (!$found) {
-            $section->addTitle('Resumo', 1);
-            $section->addText('Este trabalho apresenta uma síntese académica introdutória do tema, com enquadramento conceptual e objectivos coerentes com o contexto de estudo.', [], 'body_text');
+        if (!$found && $this->isFrontBlockEnabled($frontPage, 'pretext_missing_summary_warning_enabled', false)) {
+            @trigger_error('Resumo/Abstract ausente nas secções pré-textuais do documento.', E_USER_WARNING);
         }
 
-        $section->addPageBreak();
+        if ($found) {
+            $section->addPageBreak();
+        }
     }
 
-    private function addTableOfContentsPlaceholder(Section $section): void
+    private function addTableOfContentsPlaceholder(Section $section, string $profile): void
     {
         $section->addTitle('Índice', 1);
-        $section->addText('O índice pode ser actualizado automaticamente no Microsoft Word ou LibreOffice, caso seja necessário.', [], 'plain_text');
+        if ($profile !== 'institutional') {
+            $section->addText('O índice pode ser actualizado automaticamente no Microsoft Word ou LibreOffice, caso seja necessário.', [], 'plain_text');
+        }
         $section->addPageBreak();
     }
 
@@ -206,6 +226,32 @@ final class DocxAssemblyService
             $section->addTitle($safeTitle, 1);
             $this->appendParagraphs($section, (string) ($item['content'] ?? ''), $safeTitle);
         }
+    }
+
+
+    private function isFrontBlockEnabled(array $frontPage, string $flag, bool $default): bool
+    {
+        if (!array_key_exists($flag, $frontPage)) {
+            return $default;
+        }
+
+        return filter_var($frontPage[$flag], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $default;
+    }
+
+    private function shouldRenderTemplateNote(array $frontPage, array $templateMeta): bool
+    {
+        if (($templateMeta['mode'] ?? '') === 'template_published_tracked') {
+            return true;
+        }
+
+        return $this->isFrontBlockEnabled($frontPage, 'template_note_enabled', true);
+    }
+
+    private function resolveAssemblyProfile(string $profile): string
+    {
+        $allowed = ['strict_academic', 'light_academic', 'institutional'];
+
+        return in_array($profile, $allowed, true) ? $profile : 'strict_academic';
     }
 
     private function appendParagraphs(Section $section, string $content, ?string $sectionTitle = null): void
