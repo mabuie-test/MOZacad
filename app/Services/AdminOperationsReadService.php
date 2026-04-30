@@ -91,7 +91,7 @@ final class AdminOperationsReadService
 
         $workerHealth = in_array($section, ['overview'], true) ? (new WorkerHealthService())->snapshot() : [];
         $aiProviderFallbackRates = in_array($section, ['overview'], true) ? (new AIProviderAdminMetricsService())->fallbackRateByProvider() : [];
-        $aiPreflight = in_array($section, ['overview'], true) ? (new AIProviderPreflightService())->currentStatus(true) : [];
+        $aiPreflight = in_array($section, ['overview'], true) ? (new AIProviderPreflightService())->currentStatus(false) : [];
 
         return [
             'overview' => [

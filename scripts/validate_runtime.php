@@ -31,13 +31,13 @@ if (!in_array($aiProvider, $validProviders, true)) {
     exit(1);
 }
 
+$aiMode = strtolower(trim((string) ($_ENV['AI_PROVIDER_MODE'] ?? 'failover')));
 $openAiKey = trim((string) ($_ENV['OPENAI_API_KEY'] ?? ''));
 $geminiKey = trim((string) ($_ENV['GEMINI_API_KEY'] ?? ''));
-if ($env === 'production' && ($openAiKey === '' || $geminiKey === '')) {
-    fwrite(STDERR, "[ai] Em produção, OPENAI_API_KEY e GEMINI_API_KEY devem estar preenchidas para resiliência.
-");
-    exit(1);
-}
+$requiresOpenAi = $aiProvider === 'openai' || $aiMode === 'failover';
+$requiresGemini = $aiProvider === 'gemini' || $aiMode === 'failover';
+if ($requiresOpenAi && $openAiKey === '') { fwrite(STDERR, "[ai] OPENAI_API_KEY ausente para cadeia activa.\n"); exit(1); }
+if ($requiresGemini && $geminiKey === '') { fwrite(STDERR, "[ai] GEMINI_API_KEY ausente para cadeia activa.\n"); exit(1); }
 
 $obsoleteModelPrefixes = ['text-', 'davinci', 'babbage', 'curie', 'ada', 'gemini-1.0', 'gemini-1.5'];
 $modelVars = [
@@ -69,11 +69,8 @@ foreach ($modelVars as $modelVar) {
 
 $openAiMaxTokens = max(1, (int) ($_ENV['OPENAI_MAX_OUTPUT_TOKENS'] ?? 0));
 $geminiMaxTokens = max(1, (int) ($_ENV['GEMINI_MAX_OUTPUT_TOKENS'] ?? 0));
-if ($openAiMaxTokens < 3000 || $geminiMaxTokens < 3000) {
-    fwrite(STDERR, "[ai] OPENAI_MAX_OUTPUT_TOKENS e GEMINI_MAX_OUTPUT_TOKENS devem ser >= 3000 para secções longas.
-");
-    exit(1);
-}
+if ($requiresOpenAi && $openAiMaxTokens < 3000) { echo "[ai] warning: OPENAI_MAX_OUTPUT_TOKENS < 3000.\n"; }
+if ($requiresGemini && $geminiMaxTokens < 3000) { echo "[ai] warning: GEMINI_MAX_OUTPUT_TOKENS < 3000.\n"; }
 
 $openAiTimeout = (int) ($_ENV['OPENAI_TIMEOUT'] ?? 0);
 $geminiTimeout = (int) ($_ENV['GEMINI_TIMEOUT'] ?? 0);
@@ -81,6 +78,11 @@ if ($openAiTimeout < 20 || $openAiTimeout > 120 || $geminiTimeout < 20 || $gemin
     fwrite(STDERR, "[ai] OPENAI_TIMEOUT/GEMINI_TIMEOUT fora da faixa recomendada (20-120s) para hosting compartilhado.
 ");
     exit(1);
+}
+
+$aiPreflightEnabled = filter_var((string) ($_ENV['AI_PREFLIGHT_ENABLED'] ?? false), FILTER_VALIDATE_BOOL);
+if (!$aiPreflightEnabled) {
+    echo "[ai] preflight automático desactivado.\n";
 }
 
 

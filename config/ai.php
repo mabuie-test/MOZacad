@@ -55,5 +55,12 @@ return [
     ],
     'preflight' => [
         'stale_minutes' => (int) ($_ENV['AI_PREFLIGHT_STALE_MINUTES'] ?? 10),
+        'enabled' => filter_var($_ENV['AI_PREFLIGHT_ENABLED'] ?? false, FILTER_VALIDATE_BOOL),
+        'block_worker' => filter_var($_ENV['AI_PREFLIGHT_BLOCK_WORKER'] ?? false, FILTER_VALIDATE_BOOL),
+        'real_calls' => filter_var($_ENV['AI_PREFLIGHT_REAL_CALLS'] ?? false, FILTER_VALIDATE_BOOL),
+        'cache_ttl_seconds' => (int) ($_ENV['AI_PREFLIGHT_CACHE_TTL_SECONDS'] ?? 86400),
+        'admin_auto_run' => filter_var($_ENV['AI_PREFLIGHT_ADMIN_AUTO_RUN'] ?? false, FILTER_VALIDATE_BOOL),
+        'test_all_use_cases' => filter_var($_ENV['AI_PREFLIGHT_TEST_ALL_USE_CASES'] ?? false, FILTER_VALIDATE_BOOL),
+        'manual_route_enabled' => filter_var($_ENV['AI_PREFLIGHT_MANUAL_ROUTE_ENABLED'] ?? true, FILTER_VALIDATE_BOOL),
     ],
 ];
