@@ -10,6 +10,7 @@
 
 <?php $workerHealth = (array) ($overview['worker_health'] ?? []); ?>
 <?php $aiFallbackRates = (array) ($overview['ai_provider_fallback_rates'] ?? []); ?>
+<?php $aiPreflight = (array) ($overview['ai_preflight'] ?? []); ?>
 <div class="card p-3 mb-3">
   <h2 class="h6">Saúde da fila assíncrona</h2>
   <div class="row g-3">
@@ -39,6 +40,32 @@
           </tr>
         <?php endforeach; ?>
       <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card p-3 mb-3">
+  <h2 class="h6">Preflight IA (produção)</h2>
+  <div class="mb-2">
+    <small>Status geral</small>
+    <div>
+      <?php $pStatus = (string) ($aiPreflight['status'] ?? 'critical'); ?>
+      <?= $pStatus === 'ok' ? '<span class="badge bg-success">OK</span>' : ($pStatus === 'degraded' ? '<span class="badge bg-warning text-dark">DEGRADED</span>' : '<span class="badge bg-danger">CRITICAL</span>') ?>
+      <small class="text-secondary ms-2">Último check: <?= htmlspecialchars((string) ($aiPreflight['last_check_at'] ?? 'n/d')) ?></small>
+    </div>
+    <div class="text-secondary small mt-1"><?= htmlspecialchars((string) ($aiPreflight['message'] ?? '')) ?></div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Alvo</th><th>Status</th><th>Detalhe</th></tr></thead>
+      <tbody>
+      <?php foreach ((array) ($aiPreflight['providers'] ?? []) as $name => $result): ?>
+        <tr><td>Provider: <?= htmlspecialchars((string) $name) ?></td><td><?= !empty($result['ok']) ? '<span class="badge bg-success">OK</span>' : '<span class="badge bg-danger">FAIL</span>' ?></td><td><?= htmlspecialchars((string) ($result['error_type'] ?? $result['result'] ?? '-')) ?></td></tr>
+      <?php endforeach; ?>
+      <?php foreach ((array) ($aiPreflight['models'] ?? []) as $name => $result): ?>
+        <tr><td>Modelo: <?= htmlspecialchars((string) $name) ?></td><td><?= !empty($result['ok']) ? '<span class="badge bg-success">OK</span>' : '<span class="badge bg-danger">FAIL</span>' ?></td><td><?= htmlspecialchars((string) ($result['error_type'] ?? $result['result'] ?? '-')) ?></td></tr>
+      <?php endforeach; ?>
       </tbody>
     </table>
   </div>
