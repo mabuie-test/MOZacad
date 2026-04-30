@@ -137,6 +137,20 @@ composer queue:status
 ```
 
 ## Workers em produção (`public_html`/hosting clássico)
+
+### Preflight contínuo de IA (obrigatório em produção)
+Executar manualmente (diagnóstico imediato):
+```bash
+php scripts/ai_preflight_check.php
+```
+
+Cron recomendado em host com `public_html` (a cada 5 minutos):
+```bash
+*/5 * * * * /usr/bin/php /home/USUARIO/mozacad/scripts/ai_preflight_check.php >> /home/USUARIO/mozacad/storage/logs/preflight-cron.log 2>&1
+```
+
+Se o preflight estiver `critical` ou `stale`, o sistema bloqueia enfileiramento **e processamento** da fila `ai_jobs` até nova verificação válida.
+
 Em produção com hosting clássico, **não** depender de terminal aberto com `composer workers:run`. O recomendado é cron executando rodada única:
 
 ```bash

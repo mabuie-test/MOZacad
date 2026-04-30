@@ -11,6 +11,11 @@ use App\Repositories\GeneratedDocumentRepository;
 
 final class AIJobProcessingService
 {
+    public function __construct(
+        private readonly AIProviderPreflightService $preflight = new AIProviderPreflightService(),
+        private readonly ApplicationLoggerService $logger = new ApplicationLoggerService(),
+    ) {}
+
     /**
      * @return array{checked:int,processed:int,completed:int,failed:int,skipped:int,retried:int}
      */
@@ -20,7 +25,30 @@ final class AIJobProcessingService
         $jobRunner = new GenerateOrderDocumentJob();
         $repo = new AIJobRepository();
         $documents = new GeneratedDocumentRepository();
-        $logger = new ApplicationLoggerService();
+
+        try {
+            $this->preflight->assertQueueAllowed();
+        } catch (\Throwable $e) {
+            $status = $this->preflight->currentStatus();
+            $this->logger->error('ai_job.processing.preflight_blocked', [
+                'error' => $e->getMessage(),
+                'preflight_status' => (string) ($status['status'] ?? 'critical'),
+                'is_stale' => (bool) ($status['is_stale'] ?? true),
+                'providers_checked' => array_keys((array) ($status['providers'] ?? [])),
+                'last_check_at' => $status['last_check_at'] ?? null,
+            ]);
+
+            return [
+                'checked' => 0,
+                'processed' => 0,
+                'completed' => 0,
+                'failed' => 0,
+                'skipped' => 0,
+                'retried' => 0,
+                'blocked' => true,
+                'reason' => $e->getMessage(),
+            ];
+        }
 
         $effectiveLimit = max(1, $limit ?? (int) ($_ENV['AI_JOB_BATCH_LIMIT'] ?? 5));
         $staleTimeout = max(300, (int) ($_ENV['AI_JOB_STALE_PROCESSING_TIMEOUT'] ?? 1800));
@@ -45,14 +73,14 @@ final class AIJobProcessingService
 
             if ($reservationToken === '' || !$repo->markProcessing($jobId, $reservationToken)) {
                 $summary['skipped']++;
-                $logger->info('ai_job.processing.skipped_reservation_lost', ['job_id' => $jobId, 'order_id' => $orderId]);
+                $this->logger->info('ai_job.processing.skipped_reservation_lost', ['job_id' => $jobId, 'order_id' => $orderId]);
                 continue;
             }
 
             if ($stage !== 'document_generation') {
                 $summary['failed']++;
                 $repo->markFailed($jobId, 'Stage não suportado: ' . $stage);
-                $logger->error('ai_job.unsupported_stage', ['job_id' => $jobId, 'stage' => $stage]);
+                $this->logger->error('ai_job.unsupported_stage', ['job_id' => $jobId, 'stage' => $stage]);
                 continue;
             }
 
@@ -68,24 +96,24 @@ final class AIJobProcessingService
                 ];
                 $repo->markCompleted($jobId, $result);
                 $summary['completed']++;
-                $logger->info('ai_job.processing.completed_existing_document', ['job_id' => $jobId, 'order_id' => $orderId]);
+                $this->logger->info('ai_job.processing.completed_existing_document', ['job_id' => $jobId, 'order_id' => $orderId]);
                 continue;
             }
 
-            $logger->info('ai_job.processing.started', ['job_id' => $jobId, 'order_id' => $orderId]);
+            $this->logger->info('ai_job.processing.started', ['job_id' => $jobId, 'order_id' => $orderId]);
 
             try {
                 $result = $jobRunner->handle($orderId);
                 $repo->markCompleted($jobId, $result);
                 $summary['completed']++;
-                $logger->info('ai_job.processing.completed', ['job_id' => $jobId, 'order_id' => $orderId, 'result' => $result]);
+                $this->logger->info('ai_job.processing.completed', ['job_id' => $jobId, 'order_id' => $orderId, 'result' => $result]);
             } catch (\Throwable $e) {
                 $attempts = (int) ($row['attempts'] ?? 0) + 1;
                 if ($attempts < $maxAttempts) {
                     $delaySeconds = min(1800, (int) pow(2, max(1, $attempts)) * 60);
                     $repo->markRetryWait($jobId, $e->getMessage(), $delaySeconds);
                     $summary['retried']++;
-                    $logger->error('ai_job.processing.retry_scheduled', [
+                    $this->logger->error('ai_job.processing.retry_scheduled', [
                         'job_id' => $jobId,
                         'order_id' => $orderId,
                         'attempt' => $attempts,
@@ -98,7 +126,7 @@ final class AIJobProcessingService
 
                 $repo->markFailed($jobId, $e->getMessage());
                 $summary['failed']++;
-                $logger->error('ai_job.processing.failed_terminal', [
+                $this->logger->error('ai_job.processing.failed_terminal', [
                     'job_id' => $jobId,
                     'order_id' => $orderId,
                     'attempt' => $attempts,
