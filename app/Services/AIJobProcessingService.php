@@ -29,25 +29,22 @@ final class AIJobProcessingService
         try {
             $this->preflight->assertQueueAllowed();
         } catch (\Throwable $e) {
-            $status = $this->preflight->currentStatus();
-            $this->logger->error('ai_job.processing.preflight_blocked', [
-                'error' => $e->getMessage(),
-                'preflight_status' => (string) ($status['status'] ?? 'critical'),
-                'is_stale' => (bool) ($status['is_stale'] ?? true),
-                'providers_checked' => array_keys((array) ($status['providers'] ?? [])),
-                'last_check_at' => $status['last_check_at'] ?? null,
-            ]);
-
-            return [
-                'checked' => 0,
-                'processed' => 0,
-                'completed' => 0,
-                'failed' => 0,
-                'skipped' => 0,
-                'retried' => 0,
-                'blocked' => true,
-                'reason' => $e->getMessage(),
-            ];
+            $block = filter_var((string) ($_ENV['AI_PREFLIGHT_BLOCK_WORKER'] ?? false), FILTER_VALIDATE_BOOL);
+            if (!$block) {
+                $this->logger->warning('ai_job.processing.preflight_ignored', ['error' => $e->getMessage()]);
+            } else {
+                $status = $this->preflight->currentStatus();
+                $this->logger->error('ai_job.processing.preflight_blocked', [
+                    'error' => $e->getMessage(),
+                    'preflight_status' => (string) ($status['status'] ?? 'critical'),
+                    'is_stale' => (bool) ($status['is_stale'] ?? true),
+                    'providers_checked' => array_keys((array) ($status['providers'] ?? [])),
+                    'last_check_at' => $status['last_check_at'] ?? null,
+                ]);
+                return [
+                    'checked' => 0,'processed' => 0,'completed' => 0,'failed' => 0,'skipped' => 0,'retried' => 0,'blocked' => true,'reason' => $e->getMessage(),
+                ];
+            }
         }
 
         $effectiveLimit = max(1, $limit ?? (int) ($_ENV['AI_JOB_BATCH_LIMIT'] ?? 5));
