@@ -8,26 +8,74 @@ final class DynamicAcademicStructureService
 {
     public function buildDynamicBlueprint(array $order, array $briefing, array $workType, array $baseBlueprint, array $rules): array
     {
-        $title = mb_strtolower((string) ($briefing['title'] ?? $order['topic'] ?? ''));
+        $title = (string) ($briefing['title'] ?? $order['topic'] ?? '');
+        $normalizedTitle = $this->normalizeTitle($title);
         $pages = (int) ($order['target_pages'] ?? 5);
 
-        if (str_contains($title, 'hist') && str_contains($title, 'moçambique') && str_contains($title, 'colon')) {
-            $sections = [
-                'Resumo',
-                'Introdução',
-                'Enquadramento histórico da educação colonial em Moçambique',
-                'Estado colonial, missões religiosas e política assimilacionista',
-                'Currículo, língua e formação para o trabalho',
-                'Desigualdades de acesso e efeitos sociais',
-                'Legados da educação colonial no pós-independência',
-                'Conclusão',
-                'Referências',
-            ];
-            if ($pages <= 3) { $sections = array_slice($sections, 0, 7); }
-            return $this->mapSections($sections);
+        foreach ($this->thematicProfiles() as $profile) {
+            if ($this->matchesProfile($normalizedTitle, $profile['criteria'])) {
+                $sections = $profile['sections'];
+
+                if ($pages <= 3) {
+                    $sections = array_slice($sections, 0, 7);
+                }
+
+                return $this->mapSections($sections);
+            }
         }
 
         return $baseBlueprint;
+    }
+
+    private function thematicProfiles(): array
+    {
+        return [
+            [
+                'id' => 'colonial_education_history_mozambique',
+                'criteria' => [
+                    ['historic', ['historia', 'historico', 'historica', 'hist']],
+                    ['colonial_education', ['educacao colonial', 'ensino colonial', 'escola colonial']],
+                    ['country', ['mocambique', 'mozambique']],
+                ],
+                'sections' => [
+                    'Resumo',
+                    'Introdução',
+                    'Enquadramento histórico da educação colonial em Moçambique',
+                    'Estado colonial, missões religiosas e política assimilacionista',
+                    'Currículo, língua e formação para o trabalho',
+                    'Desigualdades de acesso e efeitos sociais',
+                    'Legados da educação colonial no pós-independência',
+                    'Conclusão',
+                    'Referências',
+                ],
+            ],
+        ];
+    }
+
+    private function matchesProfile(string $normalizedTitle, array $criteria): bool
+    {
+        foreach ($criteria as $criterion) {
+            if (!isset($criterion[1]) || !is_array($criterion[1])) {
+                continue;
+            }
+
+            $matchesAnyVariant = false;
+
+            foreach ($criterion[1] as $variant) {
+                $normalizedVariant = $this->normalizeTitle((string) $variant);
+
+                if ($normalizedVariant !== '' && str_contains($normalizedTitle, $normalizedVariant)) {
+                    $matchesAnyVariant = true;
+                    break;
+                }
+            }
+
+            if (!$matchesAnyVariant) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function mapSections(array $titles): array
