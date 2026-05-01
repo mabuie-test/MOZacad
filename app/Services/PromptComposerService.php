@@ -9,14 +9,17 @@ final class PromptComposerService
     public function compose(array $blueprint, array $rules, array $briefing): array
     {
         $prompts = [];
+        $promptProfileVersion = (string) ($rules['prompt_profile_version'] ?? 'v2.0.0');
         $theme = (string) ($briefing['title'] ?? '');
         $problem = (string) ($briefing['problem'] ?? '');
         $general = (string) ($briefing['generalObjective'] ?? '');
         $specific = implode('; ', (array) ($briefing['specificObjectives'] ?? []));
         $keywords = implode(', ', (array) ($briefing['keywords'] ?? []));
-        $forbidden = 'No contexto do tema|O estudo apresenta síntese académica|A discussão académica evidencia|A interpretação privilegia|Conclui-se que o desenvolvimento do tema|Referências organizadas conforme';
+        $genericTemplates = 'No contexto de [tema], [autor/estudo] aborda [assunto] de forma geral.|A presente secção visa apresentar [ponto] no âmbito de [tema].|Conclui-se, de forma ampla, que [resultado] sem detalhar mecanismos.|Importa referir que [assunto] é relevante para [área], sem evidência concreta.';
 
-        $globalContext = "[CONTEXTO_GLOBAL]\n"
+        $globalContext = "[PERFIL_PROMPT]\n"
+            . "prompt_profile_version: {$promptProfileVersion}\n\n"
+            . "[CONTEXTO_GLOBAL]\n"
             . "Tema: {$theme}\n"
             . "Problema de investigação: {$problem}\n"
             . "Objectivo geral: {$general}\n"
@@ -36,8 +39,9 @@ final class PromptComposerService
                 . "Secção anterior: {$prev}; secção seguinte: {$next}.\n"
                 . "Contrato da secção: {$contract}.\n"
                 . "Para secções não introdutórias, não re-enunciar explicitamente problema/objectivos, excepto se necessário para coerência analítica pontual.\n"
+                . "Evita repetir frases de abertura já usadas noutras secções; inicia esta secção com formulação própria e foco substantivo distinto.\n"
                 . "Cada parágrafo deve introduzir informação nova, verificável e específica do foco desta secção.\n"
-                . "Instrução anti-fórmulas: não usar frases genéricas/placeholder como '{$forbidden}'. Se surgir formulação vaga, reformula com densidade conceptual (conceitos, relações causais, recorte temporal/espacial e evidência concreta).\n"
+                . "Instrução anti-fórmulas: não usar padrões semânticos genéricos/placeholder como '{$genericTemplates}'. Reformulação obrigatória: sempre que surgir formulação vaga, substitui imediatamente por redação específica com conceitos, relações causais, recorte temporal/espacial e evidência concreta.\n"
                 . "Termos obrigatórios contextuais desta secção: {$terms}.\n"
                 . "Proibido usar Markdown, referências inventadas ou texto meta-editorial.";
         }
@@ -50,18 +54,18 @@ final class PromptComposerService
         $t = mb_strtolower($title);
 
         if (str_contains($t, 'introdu')) {
-            return 'apresentar problema de investigação, objectivo geral, objectivos específicos e delimitação do estudo';
+            return 'apresentar problema de investigação, objectivo geral, objectivos específicos e delimitação do estudo. Exemplo aceitável: "Este estudo analisa como a expansão do ensino colonial em Nampula (1930-1974) estruturou desigualdades de acesso escolar entre grupos africanos e assimilados." Exemplo a evitar: "No contexto do tema, a investigação apresenta o problema de forma geral."';
         }
 
         if (str_contains($t, 'metodolog')) {
-            return 'explicitar desenho metodológico, procedimentos de recolha/tratamento de dados, critérios de validade e limitações';
+            return 'explicitar desenho metodológico, procedimentos de recolha/tratamento de dados, critérios de validade e limitações. Exemplo aceitável: "Adoptou-se estudo qualitativo documental com análise temática de relatórios coloniais (1945-1973) e triangulação com legislação educativa." Exemplo a evitar: "A metodologia foi adequada e permitiu analisar os dados."';
         }
 
         if (str_contains($t, 'conclus')) {
-            return 'sintetizar resultados centrais, implicações teóricas/práticas e recomendações consistentes com os achados';
+            return 'sintetizar resultados centrais, implicações teóricas/práticas e recomendações consistentes com os achados. Exemplo aceitável: "Os achados indicam que a segmentação curricular colonial ampliou diferenciais de mobilidade social, exigindo políticas de reparação centradas em inclusão linguística e financiamento escolar periférico." Exemplo a evitar: "Conclui-se que o tema é importante e deve ser mais estudado."';
         }
 
-        return 'desenvolver apenas o propósito específico desta secção com progressão lógica e coerência argumentativa';
+        return 'desenvolver apenas o propósito específico desta secção com progressão lógica e coerência argumentativa. Exemplo aceitável: "A secção demonstra como a política de recrutamento docente afectou a qualidade do ensino rural entre 1955 e 1970, relacionando escassez de formação e abandono escolar." Exemplo a evitar: "Esta parte aborda alguns aspectos relevantes do tema."';
     }
 
     private function mandatoryTerms(string $theme, string $title, array $briefing): string
@@ -73,15 +77,44 @@ final class PromptComposerService
 
         $sectionSpecific = [];
         $keywords = (array) ($briefing['keywords'] ?? []);
+        $specificObjectives = (array) ($briefing['specificObjectives'] ?? []);
+
+        foreach ($specificObjectives as $objective) {
+            $objectiveText = trim((string) $objective);
+            if ($objectiveText === '') {
+                continue;
+            }
+
+            $score = $this->relevanceScore($objectiveText, $title, $theme);
+            if ($score > 0) {
+                $sectionSpecific[] = ['term' => $objectiveText, 'score' => $score + 3];
+            }
+        }
+
         foreach ($keywords as $keyword) {
             $k = trim((string) $keyword);
-            if ($k !== '' && (str_contains($t, mb_strtolower($k)) || mb_strlen($k) > 6)) {
-                $sectionSpecific[] = $k;
+            if ($k === '') {
+                continue;
+            }
+
+            $score = $this->relevanceScore($k, $title, $theme);
+            if ($score > 0) {
+                $sectionSpecific[] = ['term' => $k, 'score' => $score];
             }
         }
 
         if ($sectionSpecific !== []) {
-            return implode(', ', array_slice(array_unique($sectionSpecific), 0, 8));
+            usort(
+                $sectionSpecific,
+                static fn (array $a, array $b): int => $b['score'] <=> $a['score']
+            );
+
+            $orderedTerms = [];
+            foreach ($sectionSpecific as $entry) {
+                $orderedTerms[] = $entry['term'];
+            }
+
+            return implode(', ', array_slice(array_values(array_unique($orderedTerms)), 0, 8));
         }
 
         if (str_contains($t, 'metodolog')) {
@@ -93,5 +126,39 @@ final class PromptComposerService
         }
 
         return 'termos nucleares estritamente ligados ao tema e ao objectivo específico da secção';
+    }
+
+    private function relevanceScore(string $term, string $title, string $theme): int
+    {
+        $score = 0;
+        $termLower = mb_strtolower($term);
+        $titleLower = mb_strtolower($title);
+        $themeLower = mb_strtolower($theme);
+
+        if (str_contains($titleLower, $termLower)) {
+            $score += 5;
+        }
+
+        $tokens = preg_split('/[\s,;:.!?()\-\_\/]+/u', $termLower) ?: [];
+        foreach ($tokens as $token) {
+            $token = trim($token);
+            if ($token === '' || mb_strlen($token) < 4) {
+                continue;
+            }
+
+            if (str_contains($titleLower, $token)) {
+                $score += 3;
+            }
+
+            if (str_contains($themeLower, $token)) {
+                $score += 1;
+            }
+        }
+
+        if ($score === 0 && mb_strlen($termLower) > 10) {
+            $score = 1;
+        }
+
+        return $score;
     }
 }
