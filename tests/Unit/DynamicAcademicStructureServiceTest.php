@@ -76,7 +76,7 @@ $fallbackMissingGroup = $service->buildDynamicBlueprint([
 ], [], [], [['code' => 'fallback']], []);
 assertSame('fallback', $fallbackMissingGroup[0]['code'], 'Missing required criterion group should keep fallback blueprint.');
 
-// Prioridade: primeiro perfil válido no catálogo vence quando múltiplos casam.
+// Prioridade explícita no catálogo: perfil com maior prioridade vence.
 $priority = $service->buildDynamicBlueprint([
     'topic' => 'Pedagogia e educação: fundamentos e teorias gerais',
     'target_pages' => 6,
@@ -109,6 +109,29 @@ $priorityResolved = $priorityService->buildDynamicBlueprint([
     'target_pages' => 6,
 ], [], [], [['code' => 'fallback']], []);
 assertSame('high_priority_profile', $priorityResolved[0]['dynamic_profile_id'], 'Higher priority profile must win tie.');
+
+// Desempate determinístico para prioridade e especificidade iguais: id ascendente.
+$deterministicTieService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
+    'id' => 'zz_profile',
+    'priority' => 7,
+    'criteria' => [['edu', ['educacao']], ['base', ['fundamentos']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+], [
+    'id' => 'aa_profile',
+    'priority' => 7,
+    'criteria' => [['edu', ['educacao']], ['base', ['fundamentos']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+]]);
+$firstTie = $deterministicTieService->buildDynamicBlueprint([
+    'topic' => 'Educação e fundamentos',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+$secondTie = $deterministicTieService->buildDynamicBlueprint([
+    'topic' => 'Educação e fundamentos',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+assertSame('aa_profile', $firstTie[0]['dynamic_profile_id'], 'Tie must resolve by ascending profile id.');
+assertSame($firstTie[0]['dynamic_profile_id'], $secondTie[0]['dynamic_profile_id'], 'Tie resolution must be stable across executions.');
 
 $matched = $service->buildDynamicBlueprint([
     'topic' => 'História da educação colonial em Moçambique',
@@ -145,6 +168,7 @@ assertSame($baseBlueprint, $stringCatalogBlueprint, 'String catalog must fail-sa
 
 $validCatalogService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
     'id' => 'custom_valid_profile',
+    'priority' => 3,
     'criteria' => [['tema', ['historia']]],
     'sections' => ['Resumo', 'Introdução', 'Metodologia', 'Conclusão', 'Referências'],
 ]]);
@@ -156,6 +180,7 @@ assertSame('custom_valid_profile', $validCatalogBlueprint[0]['dynamic_profile_id
 
 $invalidShortVariantService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
     'id' => 'invalid_short_variant',
+    'priority' => 3,
     'criteria' => [['group', ['abc']]],
     'sections' => ['Resumo'],
 ]]);
