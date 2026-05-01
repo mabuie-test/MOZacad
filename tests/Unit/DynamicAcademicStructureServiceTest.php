@@ -72,6 +72,19 @@ $mapped = $mapMethod->invoke($service, ['Resumo', 'Introdução', 'Metodologia',
 assertSame('metodologia', findByTitle($mapped, 'Metodologia')['code'], 'Metodologia should map semantically.');
 assertSame('references', findByTitle($mapped, 'Referencias')['code'], 'Referencias without accent should map to references.');
 
+
+$specificityMethod = $reflection->getMethod('specificityScoreFromMatchedCriteria');
+$specificityMethod->setAccessible(true);
+
+$scoreWithMalformedVariant = $specificityMethod->invoke($service, [
+    ['criterion' => 'c1', 'variant' => ''],
+    ['criterion' => 'c2'],
+]);
+assertSame(2002, $scoreWithMalformedVariant, 'Each matched criterion variant must contribute at least one point even when malformed.');
+
+$scoreWithEmptyCriteria = $specificityMethod->invoke($service, []);
+assertSame(0, $scoreWithEmptyCriteria, 'Empty matched criteria must keep specificity score at zero.');
+
 // Positivo: variantes sem acento.
 assertBlueprintTriggered($service, 'Historia da educacao colonial em Mocambique');
 
