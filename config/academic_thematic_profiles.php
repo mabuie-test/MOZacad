@@ -5,6 +5,7 @@ declare(strict_types=1);
 return [
     [
         'id' => 'colonial_education_history_mozambique',
+        'priority' => 100,
         'criteria' => [
             ['historic', ['historia', 'historico', 'historica', 'hist']],
             ['colonial_education', ['educacao colonial', 'ensino colonial', 'escola colonial']],
@@ -24,6 +25,7 @@ return [
     ],
     [
         'id' => 'general_pedagogy',
+        'priority' => 60,
         'criteria' => [
             ['education', ['pedagogia', 'educacao', 'ensino']],
             ['general_focus', ['geral', 'fundamentos', 'teorias']],
@@ -45,6 +47,7 @@ return [
     ],
     [
         'id' => 'public_administration',
+        'priority' => 50,
         'criteria' => [
             ['domain', ['administracao publica', 'gestao publica', 'setor publico']],
             ['governance', ['politicas publicas', 'governanca', 'servico publico']],
@@ -62,6 +65,7 @@ return [
     ],
     [
         'id' => 'public_health',
+        'priority' => 50,
         'criteria' => [
             ['domain', ['saude publica', 'salud publica', 'health public']],
             ['population', ['epidemiologia', 'promocao da saude', 'sistema de saude']],
