@@ -41,6 +41,7 @@ final class PromptComposerService
                 . "Para secções não introdutórias, não re-enunciar explicitamente problema/objectivos, excepto se necessário para coerência analítica pontual.\n"
                 . "Evita repetir frases de abertura já usadas noutras secções; inicia esta secção com formulação própria e foco substantivo distinto.\n"
                 . "Cada parágrafo deve introduzir informação nova, verificável e específica do foco desta secção.\n"
+                . "Valida internamente fidelidade aos objectivos específicos relevantes da secção sem replicar blocos textuais longos dos objectivos.\n"
                 . "Instrução anti-fórmulas: não usar padrões semânticos genéricos/placeholder como '{$genericTemplates}'. Reformulação obrigatória: sempre que surgir formulação vaga, substitui imediatamente por redação específica com conceitos, relações causais, recorte temporal/espacial e evidência concreta.\n"
                 . "Termos obrigatórios contextuais desta secção: {$terms}.\n"
                 . "Proibido usar Markdown, referências inventadas ou texto meta-editorial.";
@@ -78,6 +79,7 @@ final class PromptComposerService
         $sectionSpecific = [];
         $keywords = (array) ($briefing['keywords'] ?? []);
         $specificObjectives = (array) ($briefing['specificObjectives'] ?? []);
+        $maxTerms = 8;
 
         foreach ($specificObjectives as $objective) {
             $objectiveText = trim((string) $objective);
@@ -85,9 +87,12 @@ final class PromptComposerService
                 continue;
             }
 
-            $score = $this->relevanceScore($objectiveText, $title, $theme);
-            if ($score > 0) {
-                $sectionSpecific[] = ['term' => $objectiveText, 'score' => $score + 3];
+            $phrases = $this->extractObjectivePhrases($objectiveText);
+            foreach ($phrases as $phrase) {
+                $score = $this->relevanceScore($phrase, $title, $theme);
+                if ($score > 0) {
+                    $sectionSpecific[] = ['term' => $phrase, 'score' => $score + 3];
+                }
             }
         }
 
@@ -110,11 +115,24 @@ final class PromptComposerService
             );
 
             $orderedTerms = [];
+            $fingerprints = [];
             foreach ($sectionSpecific as $entry) {
-                $orderedTerms[] = $entry['term'];
+                $term = $this->normalizeTermLength((string) $entry['term']);
+                $fingerprint = $this->termFingerprint($term);
+                if ($term === '' || isset($fingerprints[$fingerprint])) {
+                    continue;
+                }
+
+                $orderedTerms[] = $term;
+                $fingerprints[$fingerprint] = true;
+                if (count($orderedTerms) >= $maxTerms) {
+                    break;
+                }
             }
 
-            return implode(', ', array_slice(array_values(array_unique($orderedTerms)), 0, 8));
+            if ($orderedTerms !== []) {
+                return implode(', ', $orderedTerms);
+            }
         }
 
         if (str_contains($t, 'metodolog')) {
@@ -126,6 +144,63 @@ final class PromptComposerService
         }
 
         return 'termos nucleares estritamente ligados ao tema e ao objectivo específico da secção';
+    }
+
+    private function extractObjectivePhrases(string $objective): array
+    {
+        $normalized = preg_replace('/\s+/u', ' ', trim($objective)) ?? '';
+        if ($normalized === '') {
+            return [];
+        }
+
+        $chunks = preg_split('/[;,:()\-]+/u', $normalized) ?: [];
+        $phrases = [];
+        foreach ($chunks as $chunk) {
+            $chunk = trim($chunk);
+            if ($chunk === '') {
+                continue;
+            }
+
+            $clean = preg_replace('/\b(identificar|analisar|avaliar|compreender|examinar|investigar|determinar|comparar|descrever|verificar|medir|explicar)\b/iu', '', $chunk) ?? '';
+            $clean = preg_replace('/\b(o|a|os|as|de|da|do|das|dos|e|em|no|na|nos|nas|para|por|com|sobre)\b/iu', ' ', $clean) ?? '';
+            $clean = preg_replace('/\s+/u', ' ', trim($clean)) ?? '';
+            $clean = $this->normalizeTermLength($clean);
+
+            if ($clean !== '' && mb_strlen($clean) >= 6) {
+                $phrases[] = $clean;
+            }
+        }
+
+        if ($phrases === []) {
+            $fallback = $this->normalizeTermLength($normalized);
+            return $fallback === '' ? [] : [$fallback];
+        }
+
+        return array_values(array_unique($phrases));
+    }
+
+    private function normalizeTermLength(string $term): string
+    {
+        $words = preg_split('/\s+/u', trim($term)) ?: [];
+        $words = array_values(array_filter($words, static fn (string $w): bool => $w !== ''));
+        if (count($words) > 5) {
+            $words = array_slice($words, 0, 5);
+        }
+
+        return implode(' ', $words);
+    }
+
+    private function termFingerprint(string $term): string
+    {
+        $base = mb_strtolower($term);
+        $base = preg_replace('/[^[:alnum:]\s]/u', ' ', $base) ?? '';
+        $base = preg_replace('/\s+/u', ' ', trim($base)) ?? '';
+
+        $tokens = preg_split('/\s+/u', $base) ?: [];
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => mb_strlen($token) > 2));
+        sort($tokens);
+
+        return implode('|', $tokens);
     }
 
     private function relevanceScore(string $term, string $title, string $theme): int
