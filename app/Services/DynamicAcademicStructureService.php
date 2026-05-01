@@ -64,18 +64,18 @@ final class DynamicAcademicStructureService
         }
 
         $topPriority = (int) ($profile['priority'] ?? 0);
-        $topSpecificity = $this->profileSpecificityScore($profile);
+        $topSpecificity = $this->matchSpecificityScore($selected);
         $tiedCandidates = array_values(array_map(function (array $match): array {
             $candidateProfile = $match['profile'];
             return [
                 'id' => (string) ($candidateProfile['id'] ?? ''),
                 'priority' => (int) ($candidateProfile['priority'] ?? 0),
-                'specificity' => $this->profileSpecificityScore($candidateProfile),
+                'specificity' => $this->matchSpecificityScore($match),
             ];
         }, array_filter($matches, function (array $match) use ($topPriority, $topSpecificity): bool {
             $candidateProfile = $match['profile'];
             return (int) ($candidateProfile['priority'] ?? 0) === $topPriority
-                && $this->profileSpecificityScore($candidateProfile) === $topSpecificity;
+                && $this->matchSpecificityScore($match) === $topSpecificity;
         })));
 
         $this->logger->info('dynamic_structure.profile_selected', [
@@ -84,6 +84,9 @@ final class DynamicAcademicStructureService
             'specificity' => $topSpecificity,
             'matched_criteria' => $selected['matched_criteria'],
             'title_tokens' => $titleTokens,
+            'candidate_count' => count($matches),
+            'tie_break_applied' => count($tiedCandidates) > 1,
+            'tie_break_basis' => 'priority>specificity>id',
             'tied_candidates' => $tiedCandidates,
             'tie_breaker_order' => ['priority_desc', 'specificity_desc', 'id_asc'],
         ]);
@@ -103,12 +106,31 @@ final class DynamicAcademicStructureService
             return $priorityCompare;
         }
 
-        $specificityCompare = $this->profileSpecificityScore($profileB) <=> $this->profileSpecificityScore($profileA);
+        $specificityCompare = $this->matchSpecificityScore($b) <=> $this->matchSpecificityScore($a);
         if ($specificityCompare !== 0) {
             return $specificityCompare;
         }
 
         return strcmp((string) ($profileA['id'] ?? ''), (string) ($profileB['id'] ?? ''));
+    }
+
+
+    private function matchSpecificityScore(array $match): int
+    {
+        $matchedCriteria = $match['matched_criteria'] ?? [];
+        if (!is_array($matchedCriteria) || $matchedCriteria === []) {
+            return 0;
+        }
+
+        $criteriaCount = count($matchedCriteria);
+        $variantTerms = 0;
+
+        foreach ($matchedCriteria as $item) {
+            $variant = $this->normalizeTitle((string) ($item['variant'] ?? ''));
+            $variantTerms += count($this->tokenize($variant, false));
+        }
+
+        return ($criteriaCount * 1000) + $variantTerms;
     }
 
     private function profileSpecificityScore(array $profile): int
