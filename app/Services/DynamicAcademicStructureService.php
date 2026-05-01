@@ -53,14 +53,45 @@ final class DynamicAcademicStructureService
             return $baseBlueprint;
         }
 
-        usort($matches, static function (array $a, array $b): int {
+        usort($matches, function (array $a, array $b): int {
             $pa = (int) (($a['profile']['priority'] ?? 0));
             $pb = (int) (($b['profile']['priority'] ?? 0));
-            return $pb <=> $pa;
+            if ($pa !== $pb) {
+                return $pb <=> $pa;
+            }
+
+            $sa = $this->specificityScore((array) ($a['matched_criteria'] ?? []));
+            $sb = $this->specificityScore((array) ($b['matched_criteria'] ?? []));
+            if ($sa !== $sb) {
+                return $sb <=> $sa;
+            }
+
+            $ida = (string) ($a['profile']['id'] ?? '');
+            $idb = (string) ($b['profile']['id'] ?? '');
+
+            return strcmp($ida, $idb);
         });
 
         $selected = $matches[0];
         $profile = $selected['profile'];
+        $selectedPriority = (int) ($profile['priority'] ?? 0);
+        $selectedSpecificity = $this->specificityScore((array) ($selected['matched_criteria'] ?? []));
+        $tieBreakApplied = false;
+        foreach ($matches as $candidate) {
+            $candidatePriority = (int) (($candidate['profile']['priority'] ?? 0));
+            if ($candidatePriority !== $selectedPriority) {
+                continue;
+            }
+            if (($candidate['profile']['id'] ?? '') === ($profile['id'] ?? '')) {
+                continue;
+            }
+
+            $candidateSpecificity = $this->specificityScore((array) ($candidate['matched_criteria'] ?? []));
+            if ($candidateSpecificity === $selectedSpecificity) {
+                $tieBreakApplied = true;
+                break;
+            }
+        }
         $sections = $profile['sections'];
 
         if ($pages <= 3) {
@@ -69,7 +100,11 @@ final class DynamicAcademicStructureService
 
         $this->logger->info('dynamic_structure.profile_selected', [
             'dynamic_profile_id' => $profile['id'],
-            'priority' => (int) ($profile['priority'] ?? 0),
+            'priority' => $selectedPriority,
+            'candidate_count' => count($matches),
+            'tie_break_applied' => $tieBreakApplied,
+            'tie_break_rule' => 'priority>specificity>id',
+            'specificity_score' => $selectedSpecificity,
             'matched_criteria' => $selected['matched_criteria'],
             'title_tokens' => $titleTokens,
         ]);
@@ -206,6 +241,22 @@ final class DynamicAcademicStructureService
         }
 
         return $matched;
+    }
+
+    private function specificityScore(array $matchedCriteria): int
+    {
+        $score = 0;
+        foreach ($matchedCriteria as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $variant = (string) ($entry['variant'] ?? '');
+            $tokens = $this->tokenize($variant, false);
+            $score += max(1, count($tokens));
+        }
+
+        return $score;
     }
 
     private function matchesVariant(string $normalizedTitle, array $titleTokens, string $normalizedVariant): bool
