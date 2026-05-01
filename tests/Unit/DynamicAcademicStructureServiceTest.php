@@ -133,6 +133,43 @@ $secondTie = $deterministicTieService->buildDynamicBlueprint([
 assertSame('aa_profile', $firstTie[0]['dynamic_profile_id'], 'Tie must resolve by ascending profile id.');
 assertSame($firstTie[0]['dynamic_profile_id'], $secondTie[0]['dynamic_profile_id'], 'Tie resolution must be stable across executions.');
 
+
+// Empate com mesma prioridade e match simultâneo: seleção determinística por id ascendente.
+$simultaneousTieService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
+    'id' => 'profile_b',
+    'priority' => 9,
+    'criteria' => [['edu', ['educacao']], ['hist', ['historia']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+], [
+    'id' => 'profile_a',
+    'priority' => 9,
+    'criteria' => [['edu', ['educacao']], ['hist', ['historia']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+]]);
+$simultaneousTie = $simultaneousTieService->buildDynamicBlueprint([
+    'topic' => 'História da educação',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+assertSame('profile_a', $simultaneousTie[0]['dynamic_profile_id'], 'Same-priority simultaneous match must be deterministic by ascending id.');
+
+// Regressão: prioridade continua prevalecendo sobre especificidade.
+$priorityOverSpecificityService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
+    'id' => 'high_priority_less_specific',
+    'priority' => 20,
+    'criteria' => [['edu', ['educacao']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+], [
+    'id' => 'low_priority_more_specific',
+    'priority' => 10,
+    'criteria' => [['edu', ['educacao']], ['hist', ['historia']], ['pais', ['mocambique']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+]]);
+$priorityOverSpecificity = $priorityOverSpecificityService->buildDynamicBlueprint([
+    'topic' => 'História da educação em Moçambique',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+assertSame('high_priority_less_specific', $priorityOverSpecificity[0]['dynamic_profile_id'], 'Priority must remain the primary tie-break rule.');
+
 $matched = $service->buildDynamicBlueprint([
     'topic' => 'História da educação colonial em Moçambique',
     'target_pages' => 6,

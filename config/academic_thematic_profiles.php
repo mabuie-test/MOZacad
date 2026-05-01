@@ -47,7 +47,7 @@ return [
     ],
     [
         'id' => 'public_administration',
-        'priority' => 50,
+        'priority' => 80,
         'criteria' => [
             ['domain', ['administracao publica', 'gestao publica', 'setor publico']],
             ['governance', ['politicas publicas', 'governanca', 'servico publico']],
@@ -65,7 +65,7 @@ return [
     ],
     [
         'id' => 'public_health',
-        'priority' => 50,
+        'priority' => 70,
         'criteria' => [
             ['domain', ['saude publica', 'salud publica', 'health public']],
             ['population', ['epidemiologia', 'promocao da saude', 'sistema de saude']],
