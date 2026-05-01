@@ -59,9 +59,6 @@ final class StructureBuilderService
             throw new InvalidArgumentException('As regras de estrutura não podem definir o trabalho como teórico e empírico simultaneamente.');
         }
 
-        if (! $flags['isTheoretical'] && ! $flags['isEmpirical'] && ! $flags['requiresResultsDiscussion']) {
-            throw new InvalidArgumentException('Combinação incoerente: falta secção analítica principal (teórica ou resultados/discussão).');
-        }
     }
 
     private function buildFallbackStructure(array $flags): array
@@ -94,6 +91,15 @@ final class StructureBuilderService
             array_splice($structure, count($structure) - 1, 0, [[
                 'code' => 'resultados',
                 'title' => 'Resultados e Discussão',
+                'is_required' => true,
+                'min_words' => 900,
+                'max_words' => 1600,
+            ]]);
+        }
+        else {
+            array_splice($structure, count($structure) - 1, 0, [[
+                'code' => 'analise',
+                'title' => 'Desenvolvimento analítico',
                 'is_required' => true,
                 'min_words' => 900,
                 'max_words' => 1600,
