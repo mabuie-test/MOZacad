@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\UnicodeWordCounter;
+
 final class InstitutionFormattingService
 {
     public function apply(array $sections, array $rules): array
@@ -32,7 +34,7 @@ final class InstitutionFormattingService
             'sections' => array_map(static function (array $section): array {
                 $content = trim((string) ($section['content'] ?? ''));
                 return $section + [
-                    'word_count' => str_word_count($content),
+                    'word_count' => UnicodeWordCounter::count($content),
                     'format_profile' => 'institutional',
                     'requires_manual_review' => str_contains(mb_strtolower($content), 'revisão manual') || (bool) ($section['requires_manual_completion'] ?? false),
                 ];
