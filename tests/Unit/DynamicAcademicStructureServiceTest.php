@@ -42,6 +42,12 @@ function findByTitle(array $sections, string $title): array
 
 $service = new DynamicAcademicStructureService();
 
+
+$catalogProfiles = require __DIR__ . '/../../config/academic_thematic_profiles.php';
+foreach ($catalogProfiles as $catalogProfile) {
+    assertSame(true, isset($catalogProfile['priority']) && is_int($catalogProfile['priority']), 'Every thematic profile must define integer priority.');
+}
+
 $blueprint = $service->buildDynamicBlueprint([
     'topic' => 'História da educação colonial em Moçambique',
     'target_pages' => 6,

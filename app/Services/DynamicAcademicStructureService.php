@@ -45,7 +45,11 @@ final class DynamicAcademicStructureService
         foreach ($this->thematicProfiles() as $profile) {
             $matchedCriteria = $this->matchedCriteria($normalizedTitle, $titleTokens, $profile['criteria']);
             if ($matchedCriteria !== null) {
-                $matches[] = ['profile' => $profile, 'matched_criteria' => $matchedCriteria];
+                $matches[] = [
+                    'profile' => $profile,
+                    'matched_criteria' => $matchedCriteria,
+                    'specificity_score' => $this->specificityScoreFromMatchedCriteria($matchedCriteria),
+                ];
             }
         }
 
@@ -64,7 +68,7 @@ final class DynamicAcademicStructureService
         }
 
         $topPriority = (int) ($profile['priority'] ?? 0);
-        $topSpecificity = $this->matchSpecificityScore($selected);
+        $topSpecificity = (int) ($selected['specificity_score'] ?? 0);
         $priorityTiedCandidates = array_filter($matches, static function (array $match) use ($topPriority): bool {
             $candidateProfile = $match['profile'];
             return (int) ($candidateProfile['priority'] ?? 0) === $topPriority;
@@ -75,18 +79,18 @@ final class DynamicAcademicStructureService
             return [
                 'id' => (string) ($candidateProfile['id'] ?? ''),
                 'priority' => (int) ($candidateProfile['priority'] ?? 0),
-                'specificity' => $this->matchSpecificityScore($match),
+                'specificity_score' => (int) ($match['specificity_score'] ?? 0),
             ];
         }, array_filter($matches, function (array $match) use ($topPriority, $topSpecificity): bool {
             $candidateProfile = $match['profile'];
             return (int) ($candidateProfile['priority'] ?? 0) === $topPriority
-                && $this->matchSpecificityScore($match) === $topSpecificity;
+                && (int) ($match['specificity_score'] ?? 0) === $topSpecificity;
         })));
 
         $this->logger->info('dynamic_structure.profile_selected', [
             'dynamic_profile_id' => $profile['id'],
             'priority' => $topPriority,
-            'specificity' => $topSpecificity,
+            'specificity_score' => $topSpecificity,
             'matched_criteria' => $selected['matched_criteria'],
             'title_tokens' => $titleTokens,
             'candidate_count' => count($matches),
@@ -111,7 +115,7 @@ final class DynamicAcademicStructureService
             return $priorityCompare;
         }
 
-        $specificityCompare = $this->matchSpecificityScore($b) <=> $this->matchSpecificityScore($a);
+        $specificityCompare = ((int) ($b['specificity_score'] ?? 0)) <=> ((int) ($a['specificity_score'] ?? 0));
         if ($specificityCompare !== 0) {
             return $specificityCompare;
         }
@@ -120,10 +124,9 @@ final class DynamicAcademicStructureService
     }
 
 
-    private function matchSpecificityScore(array $match): int
+    private function specificityScoreFromMatchedCriteria(array $matchedCriteria): int
     {
-        $matchedCriteria = $match['matched_criteria'] ?? [];
-        if (!is_array($matchedCriteria) || $matchedCriteria === []) {
+        if ($matchedCriteria === []) {
             return 0;
         }
 
@@ -133,32 +136,6 @@ final class DynamicAcademicStructureService
         foreach ($matchedCriteria as $item) {
             $variant = $this->normalizeTitle((string) ($item['variant'] ?? ''));
             $variantTerms += count($this->tokenize($variant, false));
-        }
-
-        return ($criteriaCount * 1000) + $variantTerms;
-    }
-
-    private function profileSpecificityScore(array $profile): int
-    {
-        $criteria = $profile['criteria'] ?? [];
-        if (!is_array($criteria) || $criteria === []) {
-            return 0;
-        }
-
-        $criteriaCount = 0;
-        $variantTerms = 0;
-
-        foreach ($criteria as $criterion) {
-            if (!is_array($criterion) || !isset($criterion[1]) || !is_array($criterion[1])) {
-                continue;
-            }
-
-            $criteriaCount++;
-
-            foreach ($criterion[1] as $variant) {
-                $tokens = $this->tokenize($this->normalizeTitle((string) $variant), false);
-                $variantTerms += count($tokens);
-            }
         }
 
         return ($criteriaCount * 1000) + $variantTerms;
