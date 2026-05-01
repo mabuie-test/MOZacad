@@ -122,16 +122,22 @@ $deterministicTieService = new DynamicAcademicStructureService(null, static fn (
     'criteria' => [['edu', ['educacao']], ['base', ['fundamentos']]],
     'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
 ]]);
-$firstTie = $deterministicTieService->buildDynamicBlueprint([
-    'topic' => 'Educação e fundamentos',
-    'target_pages' => 6,
-], [], [], [['code' => 'fallback']], []);
-$secondTie = $deterministicTieService->buildDynamicBlueprint([
-    'topic' => 'Educação e fundamentos',
-    'target_pages' => 6,
-], [], [], [['code' => 'fallback']], []);
-assertSame('aa_profile', $firstTie[0]['dynamic_profile_id'], 'Tie must resolve by ascending profile id.');
-assertSame($firstTie[0]['dynamic_profile_id'], $secondTie[0]['dynamic_profile_id'], 'Tie resolution must be stable across executions.');
+$expectedDeterministicProfile = null;
+for ($i = 0; $i < 20; $i++) {
+    $tieBlueprint = $deterministicTieService->buildDynamicBlueprint([
+        'topic' => 'Educação e fundamentos',
+        'target_pages' => 6,
+    ], [], [], [['code' => 'fallback']], []);
+
+    $currentProfile = $tieBlueprint[0]['dynamic_profile_id'] ?? null;
+
+    if ($expectedDeterministicProfile === null) {
+        $expectedDeterministicProfile = $currentProfile;
+    }
+
+    assertSame($expectedDeterministicProfile, $currentProfile, 'Tie resolution must be stable across repeated executions.');
+}
+assertSame('aa_profile', $expectedDeterministicProfile, 'Tie must resolve by ascending profile id.');
 
 
 // Empate com mesma prioridade e match simultâneo: seleção determinística por id ascendente.

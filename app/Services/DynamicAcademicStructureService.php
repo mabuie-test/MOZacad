@@ -65,6 +65,11 @@ final class DynamicAcademicStructureService
 
         $topPriority = (int) ($profile['priority'] ?? 0);
         $topSpecificity = $this->matchSpecificityScore($selected);
+        $priorityTiedCandidates = array_filter($matches, static function (array $match) use ($topPriority): bool {
+            $candidateProfile = $match['profile'];
+            return (int) ($candidateProfile['priority'] ?? 0) === $topPriority;
+        });
+
         $tiedCandidates = array_values(array_map(function (array $match): array {
             $candidateProfile = $match['profile'];
             return [
@@ -85,7 +90,7 @@ final class DynamicAcademicStructureService
             'matched_criteria' => $selected['matched_criteria'],
             'title_tokens' => $titleTokens,
             'candidate_count' => count($matches),
-            'tie_break_applied' => count($tiedCandidates) > 1,
+            'tie_break_applied' => count($priorityTiedCandidates) > 1,
             'tie_break_rule' => 'priority>specificity>id',
             'tied_candidates' => $tiedCandidates,
             'tie_breaker_order' => ['priority_desc', 'specificity_desc', 'id_asc'],
