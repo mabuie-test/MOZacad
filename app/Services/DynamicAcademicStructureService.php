@@ -4,8 +4,27 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Helpers\Config;
+use Throwable;
+
 final class DynamicAcademicStructureService
 {
+    private const DEFAULT_WORD_RANGES = [
+        'resumo' => [120, 220],
+        'abstract' => [120, 220],
+        'introducao' => [200, 400],
+        'metodologia' => [260, 520],
+        'conclusao' => [160, 320],
+        'references' => [80, 240],
+    ];
+
+    private readonly ApplicationLoggerService $logger;
+
+    public function __construct(?ApplicationLoggerService $logger = null)
+    {
+        $this->logger = $logger ?? new ApplicationLoggerService();
+    }
+
     public function buildDynamicBlueprint(array $order, array $briefing, array $workType, array $baseBlueprint, array $rules): array
     {
         $title = (string) ($briefing['title'] ?? $order['topic'] ?? '');
@@ -20,7 +39,7 @@ final class DynamicAcademicStructureService
                     $sections = array_slice($sections, 0, 7);
                 }
 
-                return $this->mapSections($sections);
+                return $this->mapSections($sections, $profile['id'], $profile['word_ranges_by_code'] ?? []);
             }
         }
 
@@ -29,31 +48,84 @@ final class DynamicAcademicStructureService
 
     private function thematicProfiles(): array
     {
-        return [
-            [
-                'id' => 'colonial_education_history_mozambique',
-                'criteria' => [
-                    ['historic', ['historia', 'historico', 'historica', 'hist']],
-                    ['colonial_education', ['educacao colonial', 'ensino colonial', 'escola colonial']],
-                    ['country', ['mocambique', 'mozambique']],
-                ],
-                'sections' => [
-                    'Resumo',
-                    'Introdução',
-                    'Enquadramento histórico da educação colonial em Moçambique',
-                    'Estado colonial, missões religiosas e política assimilacionista',
-                    'Currículo, língua e formação para o trabalho',
-                    'Desigualdades de acesso e efeitos sociais',
-                    'Legados da educação colonial no pós-independência',
-                    'Conclusão',
-                    'Referências',
-                ],
-            ],
-        ];
+        try {
+            $catalog = Config::get('academic_thematic_profiles');
+        } catch (Throwable $e) {
+            $this->logger->error('dynamic_structure.profile_catalog_unavailable', ['error' => $e->getMessage()]);
+            return [];
+        }
+
+        $validProfiles = [];
+
+        foreach ($catalog as $idx => $profile) {
+            if (!is_array($profile)) {
+                $this->logger->error('dynamic_structure.profile_invalid_type', ['index' => $idx]);
+                continue;
+            }
+
+            if (!$this->isValidProfile($profile)) {
+                $this->logger->error('dynamic_structure.profile_invalid_schema', [
+                    'index' => $idx,
+                    'id' => $profile['id'] ?? null,
+                ]);
+                continue;
+            }
+
+            $validProfiles[] = $profile;
+        }
+
+        return $validProfiles;
+    }
+
+    private function isValidProfile(array $profile): bool
+    {
+        if (!is_string($profile['id'] ?? null) || trim((string) $profile['id']) === '') {
+            return false;
+        }
+
+        if (!is_array($profile['criteria'] ?? null) || $profile['criteria'] === []) {
+            return false;
+        }
+
+        if (!is_array($profile['sections'] ?? null) || $profile['sections'] === []) {
+            return false;
+        }
+
+        foreach ($profile['criteria'] as $criterion) {
+            if (!is_array($criterion) || !isset($criterion[0], $criterion[1]) || !is_array($criterion[1]) || $criterion[1] === []) {
+                return false;
+            }
+        }
+
+        foreach ($profile['sections'] as $section) {
+            if (!is_string($section) || trim($section) === '') {
+                return false;
+            }
+        }
+
+        if (!isset($profile['word_ranges_by_code'])) {
+            return true;
+        }
+
+        if (!is_array($profile['word_ranges_by_code'])) {
+            return false;
+        }
+
+        foreach ($profile['word_ranges_by_code'] as $code => $range) {
+            if (!is_string($code) || !is_array($range) || count($range) !== 2) {
+                return false;
+            }
+            if (!is_int($range[0]) || !is_int($range[1]) || $range[0] < 0 || $range[1] < $range[0]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function matchesProfile(string $normalizedTitle, array $criteria): bool
     {
+        // Regra editorial de matching: grupos em AND; variantes de cada grupo em OR.
         foreach ($criteria as $criterion) {
             if (!isset($criterion[1]) || !is_array($criterion[1])) {
                 continue;
@@ -78,19 +150,20 @@ final class DynamicAcademicStructureService
         return true;
     }
 
-    private function mapSections(array $titles): array
+    private function mapSections(array $titles, string $profileId, array $wordRangesByCode = []): array
     {
         $out = [];
 
         foreach ($titles as $idx => $title) {
             $code = $this->resolveSectionCode((string) $title) ?? 'sec_' . ($idx + 1);
-            [$minWords, $maxWords] = $this->resolveWordRange($code, $idx, count($titles));
+            [$minWords, $maxWords] = $this->resolveWordRange($code, $idx, count($titles), $wordRangesByCode);
 
             $out[] = [
                 'code' => $code,
                 'title' => $title,
                 'min_words' => $minWords,
                 'max_words' => $maxWords,
+                'dynamic_profile_id' => $profileId,
             ];
         }
 
@@ -133,19 +206,14 @@ final class DynamicAcademicStructureService
         return trim(preg_replace('/\s+/', ' ', $normalized) ?? '');
     }
 
-    private function resolveWordRange(string $code, int $idx, int $total): array
+    private function resolveWordRange(string $code, int $idx, int $total, array $wordRangesByCode = []): array
     {
-        $rangeByCode = [
-            'resumo' => [120, 220],
-            'abstract' => [120, 220],
-            'introducao' => [200, 400],
-            'metodologia' => [260, 520],
-            'conclusao' => [160, 320],
-            'references' => [80, 240],
-        ];
+        if (isset($wordRangesByCode[$code]) && is_array($wordRangesByCode[$code])) {
+            return $wordRangesByCode[$code];
+        }
 
-        if (isset($rangeByCode[$code])) {
-            return $rangeByCode[$code];
+        if (isset(self::DEFAULT_WORD_RANGES[$code])) {
+            return self::DEFAULT_WORD_RANGES[$code];
         }
 
         if ($idx === 0 || $idx === $total - 1) {
