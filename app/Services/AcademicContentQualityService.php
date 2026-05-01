@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Support\UnicodeWordCounter;
+
 final class AcademicContentQualityService
 {
     private array $forbidden = ['no contexto do tema', 'o estudo apresenta síntese académica', 'referências organizadas conforme'];
@@ -84,7 +86,7 @@ final class AcademicContentQualityService
 
     private function validateWordCount(array $section, string $content, array $blueprint): array
     {
-        $wordCount = $this->countWordsUnicode($content);
+        $wordCount = UnicodeWordCounter::count($content);
         $sectionBlueprint = $this->resolveBlueprintSection($section, $blueprint);
 
         $issues = [];
@@ -102,13 +104,6 @@ final class AcademicContentQualityService
         return $issues;
     }
 
-    private function countWordsUnicode(string $text): int
-    {
-        $tokens = preg_split('/\\PL+/u', $text) ?: [];
-        $tokens = array_filter($tokens, static fn (string $token): bool => $token !== '');
-
-        return count($tokens);
-    }
 
     private function validateSectionTypeCriteria(array $section, string $content): array
     {
