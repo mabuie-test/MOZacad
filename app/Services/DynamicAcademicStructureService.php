@@ -135,7 +135,8 @@ final class DynamicAcademicStructureService
 
         foreach ($matchedCriteria as $item) {
             $variant = $this->normalizeTitle((string) ($item['variant'] ?? ''));
-            $variantTerms += count($this->tokenize($variant, false));
+            $tokenCount = count($this->tokenize($variant, false));
+            $variantTerms += max(1, $tokenCount);
         }
 
         return ($criteriaCount * 1000) + $variantTerms;
