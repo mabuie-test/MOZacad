@@ -97,4 +97,37 @@ $notMatched = $service->buildDynamicBlueprint([
 ], [], [], [['code' => 'fallback']], []);
 assertSame('fallback', $notMatched[0]['code'], 'Non-match deve retornar blueprint base (fallback).');
 
+$baseBlueprint = [['code' => 'fallback']];
+
+set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
+$nullCatalogService = new DynamicAcademicStructureService(null, static fn (): mixed => null);
+$nullCatalogBlueprint = $nullCatalogService->buildDynamicBlueprint([
+    'topic' => 'História da educação colonial em Moçambique',
+    'target_pages' => 6,
+], [], [], $baseBlueprint, []);
+assertSame($baseBlueprint, $nullCatalogBlueprint, 'Null catalog must fail-safe to base blueprint.');
+
+$stringCatalogService = new DynamicAcademicStructureService(null, static fn (): mixed => '{"invalid":true}');
+$stringCatalogBlueprint = $stringCatalogService->buildDynamicBlueprint([
+    'topic' => 'História da educação colonial em Moçambique',
+    'target_pages' => 6,
+], [], [], $baseBlueprint, []);
+assertSame($baseBlueprint, $stringCatalogBlueprint, 'String catalog must fail-safe to base blueprint.');
+
+$validCatalogService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
+    'id' => 'custom_valid_profile',
+    'criteria' => [['tema', ['historia']]],
+    'sections' => ['Resumo', 'Introdução', 'Metodologia', 'Conclusão', 'Referências'],
+]]);
+$validCatalogBlueprint = $validCatalogService->buildDynamicBlueprint([
+    'topic' => 'História contemporânea da educação',
+    'target_pages' => 6,
+], [], [], $baseBlueprint, []);
+assertSame('custom_valid_profile', $validCatalogBlueprint[0]['dynamic_profile_id'], 'Valid catalog must be consumed normally.');
+
+restore_error_handler();
+
 echo "DynamicAcademicStructureService tests passed.\n";

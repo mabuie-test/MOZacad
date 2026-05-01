@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Helpers\Config;
+use Closure;
 use Throwable;
 
 final class DynamicAcademicStructureService
@@ -19,10 +20,14 @@ final class DynamicAcademicStructureService
     ];
 
     private readonly ApplicationLoggerService $logger;
+    private readonly Closure $catalogLoader;
 
-    public function __construct(?ApplicationLoggerService $logger = null)
+    public function __construct(?ApplicationLoggerService $logger = null, ?callable $catalogLoader = null)
     {
         $this->logger = $logger ?? new ApplicationLoggerService();
+        $this->catalogLoader = $catalogLoader !== null
+            ? Closure::fromCallable($catalogLoader)
+            : static fn (): mixed => Config::get('academic_thematic_profiles');
     }
 
     public function buildDynamicBlueprint(array $order, array $briefing, array $workType, array $baseBlueprint, array $rules): array
@@ -49,9 +54,19 @@ final class DynamicAcademicStructureService
     private function thematicProfiles(): array
     {
         try {
-            $catalog = Config::get('academic_thematic_profiles');
+            $catalog = ($this->catalogLoader)();
         } catch (Throwable $e) {
             $this->logger->error('dynamic_structure.profile_catalog_unavailable', ['error' => $e->getMessage()]);
+            return [];
+        }
+
+        if (!is_array($catalog)) {
+            $this->logger->error('dynamic_structure.profile_catalog_invalid_root_type', [
+                'received_type' => gettype($catalog),
+                'config_key' => 'academic_thematic_profiles',
+                'environment' => getenv('APP_ENV') ?: null,
+            ]);
+
             return [];
         }
 
