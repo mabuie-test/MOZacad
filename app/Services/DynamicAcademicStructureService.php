@@ -33,9 +33,77 @@ final class DynamicAcademicStructureService
     private function mapSections(array $titles): array
     {
         $out = [];
+
         foreach ($titles as $idx => $title) {
-            $out[] = ['code' => 'sec_' . ($idx + 1), 'title' => $title, 'min_words' => 140, 'max_words' => 420];
+            $code = $this->resolveSectionCode((string) $title) ?? 'sec_' . ($idx + 1);
+            [$minWords, $maxWords] = $this->resolveWordRange($code, $idx, count($titles));
+
+            $out[] = [
+                'code' => $code,
+                'title' => $title,
+                'min_words' => $minWords,
+                'max_words' => $maxWords,
+            ];
         }
+
         return $out;
+    }
+
+    private function resolveSectionCode(string $title): ?string
+    {
+        $normalized = $this->normalizeTitle($title);
+
+        $containsMap = [
+            'resumo' => 'resumo',
+            'abstract' => 'abstract',
+            'introducao' => 'introducao',
+            'enquadramento' => 'enquadramento',
+            'metodologia' => 'metodologia',
+            'metodo' => 'metodologia',
+            'referencias' => 'references',
+            'bibliografia' => 'references',
+            'conclusao' => 'conclusao',
+            'consideracoes finais' => 'conclusao',
+        ];
+
+        foreach ($containsMap as $needle => $code) {
+            if (str_contains($normalized, $needle)) {
+                return $code;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeTitle(string $title): string
+    {
+        $normalized = mb_strtolower(trim($title));
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $normalized);
+        $normalized = is_string($ascii) ? $ascii : $normalized;
+        $normalized = preg_replace('/[^a-z0-9\s]/', ' ', $normalized) ?? '';
+
+        return trim(preg_replace('/\s+/', ' ', $normalized) ?? '');
+    }
+
+    private function resolveWordRange(string $code, int $idx, int $total): array
+    {
+        $rangeByCode = [
+            'resumo' => [120, 220],
+            'abstract' => [120, 220],
+            'introducao' => [200, 400],
+            'metodologia' => [260, 520],
+            'conclusao' => [160, 320],
+            'references' => [80, 240],
+        ];
+
+        if (isset($rangeByCode[$code])) {
+            return $rangeByCode[$code];
+        }
+
+        if ($idx === 0 || $idx === $total - 1) {
+            return [160, 320];
+        }
+
+        return [220, 520];
     }
 }
