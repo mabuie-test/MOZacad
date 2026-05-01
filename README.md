@@ -279,3 +279,21 @@ Campos relevantes em `metadata.json`:
 3. Corrigir credenciais/modelo/limite no `.env` (`OPENAI_API_KEY`, `GEMINI_API_KEY`, modelos por tarefa e modo de provider).
 4. Reexecutar `php scripts/ai_preflight_check.php` até retornar `status=ok` e `is_stale=false`.
 5. Após normalização, retomar enfileiramento (o bloqueio é removido automaticamente pelo próximo preflight saudável).
+
+## Quality gate mínimo (PRs em serviços académicos críticos)
+Para PRs que alterem `UnicodeWordCounter`, `AcademicBriefingAutoCompletionService`, `InstitutionFormattingService` ou `DynamicAcademicStructureService`, o mínimo obrigatório é:
+
+1. Executar e passar os testes de contagem Unicode (acentos, hífen e pontuação).
+2. Executar e passar os testes de fallback por tipo de trabalho (revisão/ensaio/empírico/teórico).
+3. Executar e passar os testes de keywords fallback e pacote colonial (`education_colonial_package`).
+4. Executar e passar os testes de consistência de `word_count` no formatting institucional.
+5. Executar e passar o teste de contrato do blueprint dinâmico (match/non-match e forma `code/title/min_words/max_words`).
+
+Comandos de referência:
+
+```bash
+php tests/Unit/UnicodeWordCounterTest.php
+php tests/Unit/AcademicBriefingAutoCompletionServiceTest.php
+php tests/Unit/InstitutionFormattingServiceTest.php
+php tests/Unit/DynamicAcademicStructureServiceTest.php
+```
