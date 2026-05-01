@@ -83,4 +83,18 @@ $priority = $service->buildDynamicBlueprint([
 ], [], [], [['code' => 'fallback']], []);
 assertSame('general_pedagogy', $priority[0]['dynamic_profile_id'], 'First matching profile should win by catalog order.');
 
+
+$matched = $service->buildDynamicBlueprint([
+    'topic' => 'História da educação colonial em Moçambique',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+
+assertSame(true, isset($matched[0]['code'], $matched[0]['title'], $matched[0]['min_words'], $matched[0]['max_words']), 'Contrato do blueprint deve conter code/title/min_words/max_words.');
+
+$notMatched = $service->buildDynamicBlueprint([
+    'topic' => 'Administração pública local e transparência',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+assertSame('fallback', $notMatched[0]['code'], 'Non-match deve retornar blueprint base (fallback).');
+
 echo "DynamicAcademicStructureService tests passed.\n";
