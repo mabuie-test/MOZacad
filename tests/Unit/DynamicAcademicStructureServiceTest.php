@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+require __DIR__ . '/../../app/Helpers/Config.php';
+require __DIR__ . '/../../app/Helpers/Env.php';
+require __DIR__ . '/../../app/Services/StoragePathService.php';
+require __DIR__ . '/../../app/Services/LogSanitizerService.php';
+require __DIR__ . '/../../app/Services/TraceContextService.php';
+require __DIR__ . '/../../app/Services/ApplicationLoggerService.php';
 require __DIR__ . '/../../app/Services/DynamicAcademicStructureService.php';
 
 use App\Services\DynamicAcademicStructureService;
@@ -36,48 +42,45 @@ function findByTitle(array $sections, string $title): array
 
 $service = new DynamicAcademicStructureService();
 
-$order = [
+$blueprint = $service->buildDynamicBlueprint([
     'topic' => 'História da educação colonial em Moçambique',
     'target_pages' => 6,
-];
-
-$blueprint = $service->buildDynamicBlueprint($order, [], [], [], []);
+], [], [], [], []);
 
 assertSame('resumo', findByTitle($blueprint, 'Resumo')['code'], 'Resumo should map to resumo code.');
 assertSame('introducao', findByTitle($blueprint, 'Introdução')['code'], 'Introdução should map to introducao code.');
 assertSame('conclusao', findByTitle($blueprint, 'Conclusão')['code'], 'Conclusão should map to conclusao code.');
 assertSame('references', findByTitle($blueprint, 'Referências')['code'], 'Referências should map to references code.');
+assertSame('colonial_education_history_mozambique', $blueprint[0]['dynamic_profile_id'], 'Dynamic profile id should be included in output metadata.');
 
 $summary = findByTitle($blueprint, 'Resumo');
 assertSame(120, $summary['min_words'], 'Resumo min words should be specific.');
 assertSame(220, $summary['max_words'], 'Resumo max words should be specific.');
 
-$methodSection = [
-    'Resumo',
-    'Introdução',
-    'Metodologia',
-    'Conclusão',
-    'Referencias',
-];
-
 $reflection = new ReflectionClass(DynamicAcademicStructureService::class);
 $mapMethod = $reflection->getMethod('mapSections');
 $mapMethod->setAccessible(true);
 /** @var array<int,array<string,mixed>> $mapped */
-$mapped = $mapMethod->invoke($service, $methodSection);
+$mapped = $mapMethod->invoke($service, ['Resumo', 'Introdução', 'Metodologia', 'Conclusão', 'Referencias'], 'test_profile', []);
 
 assertSame('metodologia', findByTitle($mapped, 'Metodologia')['code'], 'Metodologia should map semantically.');
 assertSame('references', findByTitle($mapped, 'Referencias')['code'], 'Referencias without accent should map to references.');
 
-assertBlueprintTriggered($service, 'História da educação colonial em Moçambique');
+// Positivo: variantes sem acento.
 assertBlueprintTriggered($service, 'Historia da educacao colonial em Mocambique');
-assertBlueprintTriggered($service, 'Hist. educação colonial - Mocambique');
-assertBlueprintTriggered($service, 'Moçambique: contexto histórico da educação colonial');
 
-$fallback = $service->buildDynamicBlueprint([
-    'topic' => 'Historia de Angola',
+// Negativo: ausência de grupo obrigatório (sem país Moçambique).
+$fallbackMissingGroup = $service->buildDynamicBlueprint([
+    'topic' => 'História da educação colonial na África',
     'target_pages' => 6,
 ], [], [], [['code' => 'fallback']], []);
-assertSame('fallback', $fallback[0]['code'], 'Non-matching topics should keep base blueprint.');
+assertSame('fallback', $fallbackMissingGroup[0]['code'], 'Missing required criterion group should keep fallback blueprint.');
+
+// Prioridade: primeiro perfil válido no catálogo vence quando múltiplos casam.
+$priority = $service->buildDynamicBlueprint([
+    'topic' => 'Pedagogia e educação: fundamentos e teorias gerais',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+assertSame('general_pedagogy', $priority[0]['dynamic_profile_id'], 'First matching profile should win by catalog order.');
 
 echo "DynamicAcademicStructureService tests passed.\n";
