@@ -84,7 +84,7 @@ final class AcademicContentQualityService
 
     private function validateWordCount(array $section, string $content, array $blueprint): array
     {
-        $wordCount = str_word_count($content);
+        $wordCount = $this->countWordsUnicode($content);
         $sectionBlueprint = $this->resolveBlueprintSection($section, $blueprint);
 
         $issues = [];
@@ -100,6 +100,14 @@ final class AcademicContentQualityService
         }
 
         return $issues;
+    }
+
+    private function countWordsUnicode(string $text): int
+    {
+        $tokens = preg_split('/\\PL+/u', $text) ?: [];
+        $tokens = array_filter($tokens, static fn (string $token): bool => $token !== '');
+
+        return count($tokens);
     }
 
     private function validateSectionTypeCriteria(array $section, string $content): array
