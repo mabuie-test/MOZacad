@@ -13,7 +13,9 @@ final class ApplicationLoggerService
         private readonly LogSanitizerService $sanitizer = new LogSanitizerService(),
     ) {}
 
+    public function debug(string $event, array $context = []): void { $this->write('DEBUG', $event, $context); }
     public function info(string $event, array $context = []): void { $this->write('INFO', $event, $context); }
+    public function warning(string $event, array $context = []): void { $this->write('WARNING', $event, $context); }
     public function error(string $event, array $context = []): void { $this->write('ERROR', $event, $context); }
     public function alert(string $event, array $context = []): void { $this->write('ALERT', $event, $context); }
 
@@ -25,15 +27,16 @@ final class ApplicationLoggerService
         $file = $base . '/application.log';
         $this->rotateIfNeeded($file);
 
-        $line = sprintf(
-            "[%s] [%s] %s %s\n",
-            date('c'),
-            $level,
-            $event,
-            json_encode($this->sanitizer->sanitize($context + ['trace_id' => (new TraceContextService())->currentTraceId($_SERVER)]), JSON_UNESCAPED_UNICODE)
-        );
+        $payload = [
+            'timestamp' => date('c'),
+            'level' => $level,
+            'event' => $event,
+            'context' => $this->sanitizer->sanitize($context + [
+                'trace_id' => (new TraceContextService())->currentTraceId($_SERVER),
+            ]),
+        ];
 
-        file_put_contents($file, $line, FILE_APPEND);
+        file_put_contents($file, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL, FILE_APPEND);
         $this->enforcePermissions($file);
     }
 

@@ -19,6 +19,7 @@ final class LogSanitizerService
         'x_webhook_signature',
         'signature',
         'msisdn',
+        'phone',
     ];
 
     public function sanitize(array $context): array
