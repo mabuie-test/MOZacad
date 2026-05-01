@@ -81,8 +81,34 @@ $priority = $service->buildDynamicBlueprint([
     'topic' => 'Pedagogia e educação: fundamentos e teorias gerais',
     'target_pages' => 6,
 ], [], [], [['code' => 'fallback']], []);
-assertSame('general_pedagogy', $priority[0]['dynamic_profile_id'], 'First matching profile should win by catalog order.');
+assertSame('general_pedagogy', $priority[0]['dynamic_profile_id'], 'Priority should deterministically resolve tie.');
 
+
+
+// Falso positivo evitado: radical curto não deve casar por substring arbitrária.
+$falsePositive = $service->buildDynamicBlueprint([
+    'topic' => 'Historicidade da administração pública em Moçambique',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+assertSame('fallback', $falsePositive[0]['code'], 'Short radical should not trigger match by substring.');
+
+// Desempate por prioridade explícita.
+$priorityService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
+    'id' => 'low_priority_profile',
+    'priority' => 1,
+    'criteria' => [['edu', ['educacao']], ['gen', ['fundamentos']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+], [
+    'id' => 'high_priority_profile',
+    'priority' => 10,
+    'criteria' => [['edu', ['educacao']], ['gen', ['fundamentos']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+]]);
+$priorityResolved = $priorityService->buildDynamicBlueprint([
+    'topic' => 'Educação e fundamentos',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+assertSame('high_priority_profile', $priorityResolved[0]['dynamic_profile_id'], 'Higher priority profile must win tie.');
 
 $matched = $service->buildDynamicBlueprint([
     'topic' => 'História da educação colonial em Moçambique',
@@ -127,6 +153,17 @@ $validCatalogBlueprint = $validCatalogService->buildDynamicBlueprint([
     'target_pages' => 6,
 ], [], [], $baseBlueprint, []);
 assertSame('custom_valid_profile', $validCatalogBlueprint[0]['dynamic_profile_id'], 'Valid catalog must be consumed normally.');
+
+$invalidShortVariantService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
+    'id' => 'invalid_short_variant',
+    'criteria' => [['group', ['abc']]],
+    'sections' => ['Resumo'],
+]]);
+$invalidShortVariantBlueprint = $invalidShortVariantService->buildDynamicBlueprint([
+    'topic' => 'abc',
+    'target_pages' => 6,
+], [], [], $baseBlueprint, []);
+assertSame($baseBlueprint, $invalidShortVariantBlueprint, 'Single-term variants shorter than threshold must be rejected by schema validator.');
 
 restore_error_handler();
 

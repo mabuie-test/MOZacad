@@ -19,6 +19,9 @@ final class DynamicAcademicStructureService
         'references' => [80, 240],
     ];
 
+    private const MIN_SINGLE_VARIANT_LENGTH = 4;
+    private const MULTI_TERM_WINDOW = 3;
+
     private readonly ApplicationLoggerService $logger;
     private readonly Closure $catalogLoader;
 
@@ -34,21 +37,44 @@ final class DynamicAcademicStructureService
     {
         $title = (string) ($briefing['title'] ?? $order['topic'] ?? '');
         $normalizedTitle = $this->normalizeTitle($title);
+        $titleTokens = $this->tokenize($normalizedTitle, false);
         $pages = (int) ($order['target_pages'] ?? 5);
 
+        $matches = [];
+
         foreach ($this->thematicProfiles() as $profile) {
-            if ($this->matchesProfile($normalizedTitle, $profile['criteria'])) {
-                $sections = $profile['sections'];
-
-                if ($pages <= 3) {
-                    $sections = array_slice($sections, 0, 7);
-                }
-
-                return $this->mapSections($sections, $profile['id'], $profile['word_ranges_by_code'] ?? []);
+            $matchedCriteria = $this->matchedCriteria($normalizedTitle, $titleTokens, $profile['criteria']);
+            if ($matchedCriteria !== null) {
+                $matches[] = ['profile' => $profile, 'matched_criteria' => $matchedCriteria];
             }
         }
 
-        return $baseBlueprint;
+        if ($matches === []) {
+            return $baseBlueprint;
+        }
+
+        usort($matches, static function (array $a, array $b): int {
+            $pa = (int) (($a['profile']['priority'] ?? 0));
+            $pb = (int) (($b['profile']['priority'] ?? 0));
+            return $pb <=> $pa;
+        });
+
+        $selected = $matches[0];
+        $profile = $selected['profile'];
+        $sections = $profile['sections'];
+
+        if ($pages <= 3) {
+            $sections = array_slice($sections, 0, 7);
+        }
+
+        $this->logger->info('dynamic_structure.profile_selected', [
+            'dynamic_profile_id' => $profile['id'],
+            'priority' => (int) ($profile['priority'] ?? 0),
+            'matched_criteria' => $selected['matched_criteria'],
+            'title_tokens' => $titleTokens,
+        ]);
+
+        return $this->mapSections($sections, $profile['id'], $profile['word_ranges_by_code'] ?? []);
     }
 
     private function thematicProfiles(): array
@@ -98,6 +124,10 @@ final class DynamicAcademicStructureService
             return false;
         }
 
+        if (isset($profile['priority']) && !is_int($profile['priority'])) {
+            return false;
+        }
+
         if (!is_array($profile['criteria'] ?? null) || $profile['criteria'] === []) {
             return false;
         }
@@ -109,6 +139,17 @@ final class DynamicAcademicStructureService
         foreach ($profile['criteria'] as $criterion) {
             if (!is_array($criterion) || !isset($criterion[0], $criterion[1]) || !is_array($criterion[1]) || $criterion[1] === []) {
                 return false;
+            }
+
+            foreach ($criterion[1] as $variant) {
+                $normalizedVariant = $this->normalizeTitle((string) $variant);
+                if ($normalizedVariant === '') {
+                    return false;
+                }
+
+                if (!str_contains($normalizedVariant, ' ') && mb_strlen($normalizedVariant) < self::MIN_SINGLE_VARIANT_LENGTH) {
+                    return false;
+                }
             }
         }
 
@@ -138,31 +179,89 @@ final class DynamicAcademicStructureService
         return true;
     }
 
-    private function matchesProfile(string $normalizedTitle, array $criteria): bool
+    private function matchedCriteria(string $normalizedTitle, array $titleTokens, array $criteria): ?array
     {
-        // Regra editorial de matching: grupos em AND; variantes de cada grupo em OR.
+        $matched = [];
         foreach ($criteria as $criterion) {
             if (!isset($criterion[1]) || !is_array($criterion[1])) {
                 continue;
             }
 
+            $criterionName = (string) ($criterion[0] ?? 'unnamed');
             $matchesAnyVariant = false;
 
             foreach ($criterion[1] as $variant) {
                 $normalizedVariant = $this->normalizeTitle((string) $variant);
 
-                if ($normalizedVariant !== '' && str_contains($normalizedTitle, $normalizedVariant)) {
+                if ($normalizedVariant !== '' && $this->matchesVariant($normalizedTitle, $titleTokens, $normalizedVariant)) {
                     $matchesAnyVariant = true;
+                    $matched[] = ['criterion' => $criterionName, 'variant' => $normalizedVariant];
                     break;
                 }
             }
 
             if (!$matchesAnyVariant) {
+                return null;
+            }
+        }
+
+        return $matched;
+    }
+
+    private function matchesVariant(string $normalizedTitle, array $titleTokens, string $normalizedVariant): bool
+    {
+        $variantTokens = $this->tokenize($normalizedVariant);
+        if ($variantTokens === []) {
+            return false;
+        }
+
+        if (count($variantTokens) === 1) {
+            return in_array($variantTokens[0], $titleTokens, true);
+        }
+
+        if (str_contains($normalizedTitle, $normalizedVariant)) {
+            return true;
+        }
+
+        return $this->tokensInWindow($titleTokens, $variantTokens, self::MULTI_TERM_WINDOW);
+    }
+
+    private function tokenize(string $text, bool $unique = true): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        $tokens = preg_split('/\s+/', $text) ?: [];
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+
+        return $unique ? array_values(array_unique($tokens)) : $tokens;
+    }
+
+    private function tokensInWindow(array $titleTokens, array $variantTokens, int $window): bool
+    {
+        $positionsByToken = [];
+        foreach (array_values($titleTokens) as $idx => $token) {
+            $positionsByToken[$token][] = $idx;
+        }
+
+        foreach ($variantTokens as $token) {
+            if (!isset($positionsByToken[$token])) {
                 return false;
             }
         }
 
-        return true;
+        $allPositions = [];
+        foreach ($variantTokens as $token) {
+            $allPositions = array_merge($allPositions, $positionsByToken[$token]);
+        }
+
+        if ($allPositions === []) {
+            return false;
+        }
+
+        sort($allPositions);
+        return ($allPositions[count($allPositions) - 1] - $allPositions[0]) <= (count($variantTokens) - 1 + $window);
     }
 
     private function mapSections(array $titles, string $profileId, array $wordRangesByCode = []): array
