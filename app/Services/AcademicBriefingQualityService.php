@@ -6,6 +6,10 @@ namespace App\Services;
 
 final class AcademicBriefingQualityService
 {
+    private const int MIN_WORDS_PROBLEM_STATEMENT = 8;
+    private const int MIN_WORDS_GENERAL_OBJECTIVE = 5;
+    private const int MIN_WORDS_SPECIFIC_OBJECTIVE = 4;
+
     public function evaluate(array $briefing, int $minSpecific = 3): array
     {
         $issues = [];
@@ -13,13 +17,13 @@ final class AcademicBriefingQualityService
         $general = trim((string) ($briefing['general_objective'] ?? $briefing['generalObjective'] ?? ''));
         $specific = array_values(array_filter(array_map(static fn ($i) => trim((string) $i), (array) ($briefing['specific_objectives'] ?? $briefing['specificObjectives'] ?? [])), static fn ($v) => $v !== ''));
 
-        if ($problem === '' || !str_contains($problem, '?')) { $issues[] = 'problem_not_question'; }
-        if ($general === '' || !$this->hasAcademicVerb($general)) { $issues[] = 'general_objective_weak'; }
+        if ($problem === '' || !str_contains($problem, '?') || $this->countWords($problem) < self::MIN_WORDS_PROBLEM_STATEMENT) { $issues[] = 'problem_not_question'; }
+        if ($general === '' || !$this->hasAcademicVerb($general) || $this->countWords($general) < self::MIN_WORDS_GENERAL_OBJECTIVE) { $issues[] = 'general_objective_weak'; }
         if (count($specific) < $minSpecific) { $issues[] = 'specific_objectives_insufficient'; }
 
         $seen = [];
         foreach ($specific as $item) {
-            if (str_word_count($item) < 4) { $issues[] = 'specific_objective_too_short'; }
+            if ($this->countWords($item) < self::MIN_WORDS_SPECIFIC_OBJECTIVE) { $issues[] = 'specific_objective_too_short'; }
             if (!$this->hasAcademicVerb($item)) { $issues[] = 'specific_objective_weak'; }
             $key = mb_strtolower($item);
             if (isset($seen[$key])) { $issues[] = 'specific_objective_duplicated'; }
@@ -27,6 +31,13 @@ final class AcademicBriefingQualityService
         }
 
         return ['ok' => $issues === [], 'issues' => array_values(array_unique($issues))];
+    }
+
+    private function countWords(string $text): int
+    {
+        $words = preg_split('/\\PL+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
+
+        return is_array($words) ? count($words) : 0;
     }
 
     private function hasAcademicVerb(string $text): bool
