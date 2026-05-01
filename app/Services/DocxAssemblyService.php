@@ -10,6 +10,8 @@ use PhpOffice\PhpWord\SimpleType\Jc;
 
 final class DocxAssemblyService
 {
+    private string $editorialCleanupMode = 'default';
+
     public function assemble(array $formatted, string $title, array $templateResolution = []): PhpWord
     {
         $phpWord = new PhpWord();
@@ -39,6 +41,7 @@ final class DocxAssemblyService
         $frontPage = is_array($rules['front_page'] ?? null) ? $rules['front_page'] : [];
         $sections = is_array($formatted['sections'] ?? null) ? $formatted['sections'] : [];
         $profile = $this->resolveAssemblyProfile((string) ($rules['assembly_profile'] ?? 'strict_academic'));
+        $this->editorialCleanupMode = $this->resolveEditorialCleanupMode((string) ($rules['editorial_cleanup_mode'] ?? 'default'));
 
         $this->addHeaderFooter($section, $frontPage);
 
@@ -286,21 +289,19 @@ final class DocxAssemblyService
         $clean = preg_replace('/^\s*[-*•]+\s+/m', '', $clean) ?? $clean;
         $clean = preg_replace('/^\s*>+\s*/m', '', $clean) ?? $clean;
 
-        $blockedPhrases = [
-            'Revisão humana necessária',
-            'Resumo indisponível',
-            'requer revisão manual',
-            'sujeito a revisão humana',
-            'não foram fornecidos',
-            'não foi previamente definido',
-            'não foram indicadas',
-            'não foram disponibilizados',
-            'não foram especificados',
-            'não devem ser interpretados como conclusões empíricas',
-        ];
+        if ($this->editorialCleanupMode === 'strict_editorial_cleanup') {
+            $blockedPhrases = [
+                'Revisão humana necessária',
+                'Resumo indisponível',
+                'requer revisão manual',
+                'sujeito a revisão humana',
+                '[[REVISAR]]',
+                '[[TODO_EDITORIAL]]',
+            ];
 
-        foreach ($blockedPhrases as $phrase) {
-            $clean = preg_replace('/' . preg_quote($phrase, '/') . '/iu', '', $clean) ?? $clean;
+            foreach ($blockedPhrases as $phrase) {
+                $clean = preg_replace('/' . preg_quote($phrase, '/') . '/iu', '', $clean) ?? $clean;
+            }
         }
 
         $clean = preg_replace('/\n{3,}/', "\n\n", $clean) ?? $clean;
@@ -324,5 +325,12 @@ final class DocxAssemblyService
         $val = $this->safeFloat($cm, 2.5);
 
         return (int) round($val * 567.0);
+    }
+
+    private function resolveEditorialCleanupMode(string $mode): string
+    {
+        $allowed = ['default', 'strict_editorial_cleanup'];
+
+        return in_array($mode, $allowed, true) ? $mode : 'default';
     }
 }
