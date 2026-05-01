@@ -13,6 +13,16 @@ function assertSame(mixed $expected, mixed $actual, string $message): void
     }
 }
 
+function assertBlueprintTriggered(DynamicAcademicStructureService $service, string $topic): void
+{
+    $blueprint = $service->buildDynamicBlueprint([
+        'topic' => $topic,
+        'target_pages' => 6,
+    ], [], [], [['code' => 'fallback']], []);
+
+    assertSame('resumo', findByTitle($blueprint, 'Resumo')['code'], sprintf('Blueprint should trigger for topic: %s', $topic));
+}
+
 function findByTitle(array $sections, string $title): array
 {
     foreach ($sections as $section) {
@@ -58,5 +68,16 @@ $mapped = $mapMethod->invoke($service, $methodSection);
 
 assertSame('metodologia', findByTitle($mapped, 'Metodologia')['code'], 'Metodologia should map semantically.');
 assertSame('references', findByTitle($mapped, 'Referencias')['code'], 'Referencias without accent should map to references.');
+
+assertBlueprintTriggered($service, 'História da educação colonial em Moçambique');
+assertBlueprintTriggered($service, 'Historia da educacao colonial em Mocambique');
+assertBlueprintTriggered($service, 'Hist. educação colonial - Mocambique');
+assertBlueprintTriggered($service, 'Moçambique: contexto histórico da educação colonial');
+
+$fallback = $service->buildDynamicBlueprint([
+    'topic' => 'Historia de Angola',
+    'target_pages' => 6,
+], [], [], [['code' => 'fallback']], []);
+assertSame('fallback', $fallback[0]['code'], 'Non-matching topics should keep base blueprint.');
 
 echo "DynamicAcademicStructureService tests passed.\n";
