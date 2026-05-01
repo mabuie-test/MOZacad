@@ -17,7 +17,7 @@ final class AcademicBriefingAutoCompletionService
         if ($problem === '') {
             $problem = "Como se estruturou {$title} e que efeitos produziu no contexto moçambicano?";
         }
-        if ($general === '' || str_word_count($general) < 6) {
+        if ($general === '' || $this->countWordsUnicode($general) < 6) {
             $general = "Analisar {$title}, considerando políticas, actores institucionais, desigualdades de acesso e legados sociais.";
         }
         if (count($specific) < (int) ($_ENV['BRIEFING_AUTOCOMPLETE_MIN_SPECIFIC_OBJECTIVES'] ?? 3)) {
@@ -54,5 +54,13 @@ final class AcademicBriefingAutoCompletionService
             return [];
         }
         return array_values(array_filter(array_map(static fn ($i) => trim((string) $i), $raw), static fn ($v) => $v !== ''));
+    }
+
+    private function countWordsUnicode(string $text): int
+    {
+        $tokens = preg_split('/\\PL+/u', $text) ?: [];
+        $tokens = array_filter($tokens, static fn (string $token): bool => $token !== '');
+
+        return count($tokens);
     }
 }
