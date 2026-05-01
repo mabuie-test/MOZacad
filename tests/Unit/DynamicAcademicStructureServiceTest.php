@@ -152,6 +152,41 @@ $simultaneousTie = $simultaneousTieService->buildDynamicBlueprint([
 ], [], [], [['code' => 'fallback']], []);
 assertSame('profile_a', $simultaneousTie[0]['dynamic_profile_id'], 'Same-priority simultaneous match must be deterministic by ascending id.');
 
+// Regressão: mesma prioridade com múltiplos matches deve estabilizar por especificidade e id em execuções repetidas.
+$regressionTieService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
+    'id' => 'profile_z',
+    'priority' => 5,
+    'criteria' => [['edu', ['educacao']], ['hist', ['historia']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+], [
+    'id' => 'profile_a',
+    'priority' => 5,
+    'criteria' => [['edu', ['educacao']], ['hist', ['historia']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+], [
+    'id' => 'profile_specific',
+    'priority' => 5,
+    'criteria' => [['edu', ['educacao']], ['hist', ['historia da educacao']]],
+    'sections' => ['Resumo', 'Introdução', 'Conclusão', 'Referências'],
+]]);
+
+$expectedRegressionProfile = null;
+for ($i = 0; $i < 15; $i++) {
+    $regressionBlueprint = $regressionTieService->buildDynamicBlueprint([
+        'topic' => 'História da educação',
+        'target_pages' => 6,
+    ], [], [], [['code' => 'fallback']], []);
+
+    $currentProfile = $regressionBlueprint[0]['dynamic_profile_id'] ?? null;
+
+    if ($expectedRegressionProfile === null) {
+        $expectedRegressionProfile = $currentProfile;
+    }
+
+    assertSame($expectedRegressionProfile, $currentProfile, 'Same-priority matches must produce stable profile id across repeated executions.');
+}
+assertSame('profile_specific', $expectedRegressionProfile, 'Specificity must break same-priority ties before id.');
+
 // Regressão: prioridade continua prevalecendo sobre especificidade.
 $priorityOverSpecificityService = new DynamicAcademicStructureService(null, static fn (): mixed => [[
     'id' => 'high_priority_less_specific',

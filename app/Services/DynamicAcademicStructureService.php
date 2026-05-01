@@ -86,7 +86,7 @@ final class DynamicAcademicStructureService
             'title_tokens' => $titleTokens,
             'candidate_count' => count($matches),
             'tie_break_applied' => count($tiedCandidates) > 1,
-            'tie_break_basis' => 'priority>specificity>id',
+            'tie_break_rule' => 'priority>specificity>id',
             'tied_candidates' => $tiedCandidates,
             'tie_breaker_order' => ['priority_desc', 'specificity_desc', 'id_asc'],
         ]);
