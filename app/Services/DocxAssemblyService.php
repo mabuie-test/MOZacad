@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use PhpOffice\PhpWord\Element\Section;
+use PhpOffice\PhpWord\Settings;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\SimpleType\Jc;
 
@@ -14,6 +15,8 @@ final class DocxAssemblyService
 
     public function assemble(array $formatted, string $title, array $templateResolution = []): PhpWord
     {
+        Settings::setOutputEscapingEnabled(true);
+
         $phpWord = new PhpWord();
         $rules = is_array($formatted['rules'] ?? null) ? $formatted['rules'] : [];
         $templateMeta = $this->normalizeTemplateMeta($templateResolution);
