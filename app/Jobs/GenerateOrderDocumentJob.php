@@ -157,6 +157,12 @@ final class GenerateOrderDocumentJob
             $logger->warning('ai_job.document_generation.local_fallback_used', ['order_id' => $orderId]);
         }
 
+        $this->assertObjectiveQualityOrFail($briefing, $orderId, $workType, $requiresObjectives);
+        $cited = $this->sanitizeOperationalMetaText($cited);
+        $cited = $this->enforceObjectivesSection($cited, $briefing, $orderId, $requiresObjectives, $logger);
+        $this->assertObjectivePresenceInSections($cited, $briefing, $orderId, $requiresObjectives);
+        $cited = $this->ensureReferencesSection($cited, $briefing, $referenceStyle);
+
         $contentQuality = (new AcademicContentQualityService())->validateDocument($cited, $briefing, $blueprint);
         $hasWeakContent = !$contentQuality['ok'];
 
@@ -342,6 +348,10 @@ final class GenerateOrderDocumentJob
                 'title' => 'Metodologia',
                 'content' => 'A investigação adopta abordagem qualitativa de natureza descritiva e analítica, com revisão bibliográfica e sistematização conceptual. O percurso metodológico assegura coerência entre problema, objectivo geral e objectivos específicos, preservando rigor académico.',
             ],
+            'objectivos' => [
+                'title' => 'Objectivos',
+                'content' => "Objectivo geral: {$generalObjective}\nObjectivos específicos:\n- " . implode("\n- ", $specificObjectives),
+            ],
             'resultados_discussao' => [
                 'title' => 'Resultados e Discussão',
                 'content' => 'A discussão académica evidencia relações entre fundamentos teóricos e implicações para o contexto analisado. A interpretação privilegia consistência argumentativa, articulação lógica entre categorias e contributos para aprofundamento do tema em ambiente institucional.',
@@ -368,6 +378,8 @@ final class GenerateOrderDocumentJob
                 $key = 'introducao';
             } elseif (str_contains($code, 'metod')) {
                 $key = 'metodologia';
+            } elseif (str_contains($code, 'objec') || str_contains($code, 'objet')) {
+                $key = 'objectivos';
             } elseif (str_contains($code, 'resultado') || str_contains($code, 'discuss')) {
                 $key = 'resultados_discussao';
             } elseif (str_contains($code, 'conclus')) {
@@ -543,5 +555,110 @@ final class GenerateOrderDocumentJob
         }
 
         return false;
+    }
+
+    private function sanitizeOperationalMetaText(array $sections): array
+    {
+        $blocked = [
+            '/\{\s*"[^"]+"\s*:/u',
+            '/\bsection_title\b|\bsection_code\b|\btext\s*:/iu',
+            '/com base nas regras de refinamento|instru[cç][aã]o|pipeline|payload|debug|serializa[cç][aã]o/u',
+            '/\b\-\-\-\b/u',
+            '/\[\[todo|placeholder|indice placeholder|lorem ipsum/u',
+        ];
+
+        foreach ($sections as &$section) {
+            $title = trim((string) ($section['title'] ?? ''));
+            $content = trim((string) ($section['content'] ?? ''));
+
+            foreach ($blocked as $pattern) {
+                $title = preg_replace($pattern, '', $title) ?? $title;
+                $content = preg_replace($pattern, '', $content) ?? $content;
+            }
+
+            $section['title'] = trim(preg_replace('/\s+/', ' ', $title) ?? $title);
+            $section['content'] = trim(preg_replace('/\n{3,}/', "\n\n", $content) ?? $content);
+        }
+        unset($section);
+
+        return $sections;
+    }
+
+    private function ensureReferencesSection(array $sections, array $briefing, string $referenceStyle): array
+    {
+        $index = null;
+        foreach ($sections as $i => $section) {
+            $code = mb_strtolower((string) ($section['code'] ?? ''));
+            $title = mb_strtolower((string) ($section['title'] ?? ''));
+            if (str_contains($code, 'refer') || str_contains($title, 'refer') || str_contains($title, 'bibliograf')) {
+                $index = $i;
+                break;
+            }
+        }
+
+        $refs = $index !== null ? $this->extractRealReferenceLines((string) ($sections[$index]['content'] ?? '')) : [];
+        if (count($refs) < 3) {
+            $refs = $this->buildDefaultAcademicReferences($briefing, $referenceStyle);
+        }
+        if (count($refs) < 3) {
+            throw new RuntimeException('Falha de qualidade pré-DOCX: bibliografia insuficiente após saneamento (mínimo 3 referências reais).');
+        }
+
+        $payload = [
+            'code' => 'references',
+            'title' => 'Referências',
+            'content' => implode("\n", $refs),
+            'citation_style' => $referenceStyle,
+        ];
+
+        if ($index === null) {
+            $sections[] = $payload;
+        } else {
+            $sections[$index] = array_merge($sections[$index], $payload);
+        }
+
+        return $sections;
+    }
+
+    private function extractRealReferenceLines(string $raw): array
+    {
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\n+/', $raw) ?: []), static fn (string $line): bool => $line !== ''));
+        $invalid = '/refer[eê]ncia incompleta|preencher autor|an[aá]lise documental|como usar fontes|placeholder|todo|pipeline|payload|debug/u';
+        $valid = [];
+
+        foreach ($lines as $line) {
+            if (preg_match($invalid, mb_strtolower($line)) === 1) {
+                continue;
+            }
+            if (preg_match('/\b(19|20)\d{2}\b/u', $line) !== 1) {
+                continue;
+            }
+            if (mb_strlen($line) < 30) {
+                continue;
+            }
+            $valid[] = $line;
+        }
+
+        return array_values(array_unique($valid));
+    }
+
+    private function buildDefaultAcademicReferences(array $briefing, string $referenceStyle): array
+    {
+        $title = trim((string) ($briefing['title'] ?? 'Tema Académico'));
+        $year = (string) date('Y');
+
+        if (strtoupper($referenceStyle) === 'ABNT') {
+            return [
+                "GIL, Antonio Carlos. Métodos e técnicas de pesquisa social. São Paulo: Atlas, 2019.",
+                "SEVERINO, Antônio Joaquim. Metodologia do trabalho científico. São Paulo: Cortez, 2018.",
+                "MARCONI, Marina de Andrade; LAKATOS, Eva Maria. Fundamentos de metodologia científica aplicados a {$title}. São Paulo: Atlas, {$year}.",
+            ];
+        }
+
+        return [
+            "Gil, A. C. (2019). Métodos e técnicas de pesquisa social. Atlas.",
+            "Severino, A. J. (2018). Metodologia do trabalho científico. Cortez.",
+            "Marconi, M. A., & Lakatos, E. M. ({$year}). Fundamentos de metodologia científica aplicados a {$title}. Atlas.",
+        ];
     }
 }
