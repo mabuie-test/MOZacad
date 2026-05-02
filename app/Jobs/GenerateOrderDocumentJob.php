@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Helpers\Database;
 use App\Repositories\AcademicLevelRepository;
 use App\Services\DocumentComplianceValidationService;
+use App\Services\DocumentEditorialQualityGateService;
 use App\Repositories\DocumentComplianceValidationRepository;
 use App\Repositories\DeliveryChecklistRepository;
 use App\Repositories\GeneratedDocumentRepository;
@@ -158,6 +159,11 @@ final class GenerateOrderDocumentJob
 
         $contentQuality = (new AcademicContentQualityService())->validateDocument($cited, $briefing, $blueprint);
         $hasWeakContent = !$contentQuality['ok'];
+
+        $editorialGate = (new DocumentEditorialQualityGateService())->validate($cited);
+        if (!$editorialGate['ok']) {
+            throw new RuntimeException('Falha no quality gate editorial: ' . json_encode($editorialGate['issues'], JSON_UNESCAPED_UNICODE));
+        }
 
         $formatted = (new InstitutionFormattingService())->apply($cited, $resolvedRules);
         $docxAssembly = new DocxAssemblyService();
