@@ -173,8 +173,9 @@ final class DocxAssemblyService
     {
         $section->addTitle('Índice', 1);
         if ($profile !== 'institutional') {
-            $section->addText('O índice pode ser actualizado automaticamente no Microsoft Word ou LibreOffice, caso seja necessário.', [], 'plain_text');
+            $section->addText('Índice automático (actualizável no editor de texto).', [], 'plain_text');
         }
+        $section->addTOC(['size' => 11]);
         $section->addPageBreak();
     }
 
@@ -288,6 +289,9 @@ final class DocxAssemblyService
         $clean = str_replace(['**', '__', '`'], '', $clean);
         $clean = preg_replace('/^\s*[-*•]+\s+/m', '', $clean) ?? $clean;
         $clean = preg_replace('/^\s*>+\s*/m', '', $clean) ?? $clean;
+        $clean = preg_replace('/\{\s*"[^"]+"\s*:\s*.*\}/u', '', $clean) ?? $clean;
+        $clean = preg_replace('/\b(section_title|section_code|payload|debug|hash|id_interno)\b\s*:?/iu', '', $clean) ?? $clean;
+        $clean = preg_replace('/com base nas regras de refinamento[^\.]*\.?/iu', '', $clean) ?? $clean;
 
         if ($this->editorialCleanupMode === 'strict_editorial_cleanup') {
             $blockedPhrases = [
