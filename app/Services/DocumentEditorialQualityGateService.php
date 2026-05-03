@@ -32,6 +32,8 @@ final class DocumentEditorialQualityGateService
                 $issues[] = ['severity' => 'critical', 'rule' => 'required_section_empty', 'message' => 'Secção obrigatória ausente/vazia: ' . $req];
             }
         }
+        $issues = array_merge($issues, $this->validateLogicalOrder($sections));
+        $issues = array_merge($issues, $this->validateContentDensity($sections));
 
         $refs = $this->findSection($sections, 'referencias');
         if ($refs !== null) {
@@ -96,5 +98,55 @@ final class DocumentEditorialQualityGateService
         $value = preg_replace('/[^a-z0-9\s]/u', ' ', $value) ?? $value;
 
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+    }
+
+    private function validateLogicalOrder(array $sections): array
+    {
+        $issues = [];
+        $order = ['introducao' => 1, 'objectivos' => 2, 'metodologia' => 3, 'desenvolvimento' => 4, 'resultados' => 4, 'conclusao' => 5, 'referencias' => 6];
+        $last = 0;
+        foreach ($sections as $section) {
+            $k = $this->classifySectionKey($section);
+            if (!isset($order[$k])) {
+                continue;
+            }
+            if ($order[$k] < $last) {
+                $issues[] = ['severity' => 'critical', 'rule' => 'logical_order_invalid', 'message' => 'Ordem ilógica de secções detectada.'];
+                break;
+            }
+            $last = $order[$k];
+        }
+        return $issues;
+    }
+
+    private function validateContentDensity(array $sections): array
+    {
+        $issues = [];
+        foreach ($sections as $section) {
+            $k = $this->classifySectionKey($section);
+            $content = trim((string) ($section['content'] ?? ''));
+            $words = preg_split('/\s+/u', $content) ?: [];
+            $count = count(array_filter($words, static fn (string $w): bool => trim($w) !== ''));
+            if ($k === 'metodologia' && $count < 120) {
+                $issues[] = ['severity' => 'critical', 'rule' => 'methodology_too_short', 'message' => 'Metodologia demasiado curta para padrão académico.'];
+            }
+            if (in_array($k, ['desenvolvimento', 'resultados'], true) && $count < 220) {
+                $issues[] = ['severity' => 'critical', 'rule' => 'analysis_too_short', 'message' => 'Desenvolvimento/Análise com densidade insuficiente.'];
+            }
+        }
+        return $issues;
+    }
+
+    private function classifySectionKey(array $section): string
+    {
+        $s = $this->norm((string) ($section['code'] ?? '') . ' ' . (string) ($section['title'] ?? ''));
+        if (str_contains($s, 'introdu')) return 'introducao';
+        if (str_contains($s, 'objet') || str_contains($s, 'objec')) return 'objectivos';
+        if (str_contains($s, 'metod')) return 'metodologia';
+        if (str_contains($s, 'result') || str_contains($s, 'discuss')) return 'resultados';
+        if (str_contains($s, 'analis') || str_contains($s, 'desenvol')) return 'desenvolvimento';
+        if (str_contains($s, 'conclus')) return 'conclusao';
+        if (str_contains($s, 'refer') || str_contains($s, 'bibliograf')) return 'referencias';
+        return 'other';
     }
 }

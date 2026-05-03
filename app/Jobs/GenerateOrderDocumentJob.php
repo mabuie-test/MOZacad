@@ -160,8 +160,10 @@ final class GenerateOrderDocumentJob
         $this->assertObjectiveQualityOrFail($briefing, $orderId, $workType, $requiresObjectives);
         $cited = $this->sanitizeOperationalMetaText($cited);
         $cited = $this->enforceObjectivesSection($cited, $briefing, $orderId, $requiresObjectives, $logger);
+        $cited = $this->enforceContextualSectionPolicy($cited, $briefing, $workType, $blueprint);
         $this->assertObjectivePresenceInSections($cited, $briefing, $orderId, $requiresObjectives);
         $cited = $this->ensureReferencesSection($cited, $briefing, $referenceStyle);
+        $cited = $this->enforceLogicalSectionOrder($cited);
 
         $contentQuality = (new AcademicContentQualityService())->validateDocument($cited, $briefing, $blueprint);
         $hasWeakContent = !$contentQuality['ok'];
@@ -342,11 +344,11 @@ final class GenerateOrderDocumentJob
             ],
             'introducao' => [
                 'title' => 'Introdução',
-                'content' => "No contexto do tema {$title}, estabelece-se como problema orientador {$problem}. O objectivo geral consiste em {$generalObjective}. Como objectivos específicos, consideram-se: {$specificObjectivesText}.",
+                'content' => "A análise de {$title} ganha relevância pela forma como condiciona trajectórias institucionais, práticas sociais e produção de conhecimento no contexto moçambicano. Partindo do problema {$problem}, o estudo delimita um horizonte analítico que articula antecedentes históricos, disputas conceptuais e implicações contemporâneas. Em vez de uma descrição linear, a introdução posiciona o tema como questão científica situada, justificando o objectivo geral de {$generalObjective} e preparando a progressão argumentativa desenvolvida nas secções seguintes.",
             ],
             'metodologia' => [
                 'title' => 'Metodologia',
-                'content' => 'A investigação adopta abordagem qualitativa de natureza descritiva e analítica, com revisão bibliográfica e sistematização conceptual. O percurso metodológico assegura coerência entre problema, objectivo geral e objectivos específicos, preservando rigor académico.',
+                'content' => 'A investigação adopta uma estratégia qualitativa, de natureza histórico-documental e analítico-interpretativa. O desenho metodológico combina revisão bibliográfica dirigida, leitura crítica de obras de referência e organização de um corpus documental pertinente ao recorte temático. O procedimento foi estruturado em três etapas: (i) delimitação de categorias de análise alinhadas ao problema e aos objectivos; (ii) extração e comparação de evidências em fontes académicas e normativas; e (iii) síntese interpretativa orientada por critérios de coerência interna, relevância contextual e consistência argumentativa. Esta opção metodológica permite discutir o fenómeno com densidade teórica sem reduzir a análise a generalizações descritivas.',
             ],
             'objectivos' => [
                 'title' => 'Objectivos',
@@ -354,11 +356,11 @@ final class GenerateOrderDocumentJob
             ],
             'resultados_discussao' => [
                 'title' => 'Resultados e Discussão',
-                'content' => 'A discussão académica evidencia relações entre fundamentos teóricos e implicações para o contexto analisado. A interpretação privilegia consistência argumentativa, articulação lógica entre categorias e contributos para aprofundamento do tema em ambiente institucional.',
+                'content' => 'Os achados são apresentados por eixos temáticos e discutidos à luz do quadro teórico adoptado, evidenciando convergências, tensões e limites das evidências levantadas. A discussão interpreta os resultados de forma situada, relacionando-os com o problema de investigação, com os objectivos traçados e com implicações para o campo de estudo.',
             ],
             'conclusao' => [
                 'title' => 'Conclusão',
-                'content' => "Conclui-se que o desenvolvimento do tema {$title} permite responder ao problema orientador e sustentar o objectivo geral proposto. Os objectivos específicos são retomados de forma integrada, reforçando contributos académicos e encaminhamentos para estudos futuros.",
+                'content' => "Conclui-se que a análise de {$title} oferece resposta consistente ao problema formulado e sustenta o objectivo geral definido. A articulação entre enquadramento teórico, percurso metodológico e desenvolvimento analítico evidencia contributos para compreender o fenómeno em perspectiva crítica. Como desdobramento, recomendam-se estudos comparativos e aprofundamentos empíricos capazes de testar, em novos contextos, as interpretações aqui construídas.",
             ],
             'referencias' => [
                 'title' => 'Referências',
@@ -510,8 +512,8 @@ final class GenerateOrderDocumentJob
 
         $injected = [
             'code' => 'objectivos',
-            'title' => 'Objectivos do Estudo',
-            'content' => "Objectivo geral: {$generalObjective}\nObjectivos específicos:\n- " . implode("\n- ", $specificObjectives),
+            'title' => 'Objectivos',
+            'content' => "Objectivo geral\n{$generalObjective}\n\nObjectivos específicos\n- " . implode("\n- ", $specificObjectives),
         ];
 
         array_unshift($sections, $injected);
@@ -644,21 +646,81 @@ final class GenerateOrderDocumentJob
 
     private function buildDefaultAcademicReferences(array $briefing, string $referenceStyle): array
     {
-        $title = trim((string) ($briefing['title'] ?? 'Tema Académico'));
-        $year = (string) date('Y');
+        $theme = mb_strtolower(trim((string) ($briefing['title'] ?? '')));
+        $isMozEducationHistory = str_contains($theme, 'moçambique') || str_contains($theme, 'mozambique') || str_contains($theme, 'colonial') || str_contains($theme, 'educa');
+
+        if ($isMozEducationHistory) {
+            return [
+                'ALTHUSSER, Louis. Ideologia e aparelhos ideológicos do Estado. Lisboa: Presença, 1980.',
+                'BASIL DAVIDSON. A descoberta do passado de África. Lisboa: Sá da Costa, 1981.',
+                'MONDLANE, Eduardo. Lutar por Moçambique. Maputo: Centro de Estudos Africanos, 1995.',
+                'NEWITT, Malyn. A History of Mozambique. Bloomington: Indiana University Press, 1995.',
+                'NGOENHA, Severino Elias. Estatuto e axiologia da educação em Moçambique. Maputo: Livraria Universitária UEM, 2000.',
+            ];
+        }
 
         if (strtoupper($referenceStyle) === 'ABNT') {
             return [
                 "GIL, Antonio Carlos. Métodos e técnicas de pesquisa social. São Paulo: Atlas, 2019.",
                 "SEVERINO, Antônio Joaquim. Metodologia do trabalho científico. São Paulo: Cortez, 2018.",
-                "MARCONI, Marina de Andrade; LAKATOS, Eva Maria. Fundamentos de metodologia científica aplicados a {$title}. São Paulo: Atlas, {$year}.",
+                "MARCONI, Marina de Andrade; LAKATOS, Eva Maria. Fundamentos de metodologia científica. São Paulo: Atlas, 2021.",
             ];
         }
 
         return [
             "Gil, A. C. (2019). Métodos e técnicas de pesquisa social. Atlas.",
             "Severino, A. J. (2018). Metodologia do trabalho científico. Cortez.",
-            "Marconi, M. A., & Lakatos, E. M. ({$year}). Fundamentos de metodologia científica aplicados a {$title}. Atlas.",
+            "Marconi, M. A., & Lakatos, E. M. (2021). Fundamentos de metodologia científica. Atlas.",
         ];
+    }
+
+    private function enforceLogicalSectionOrder(array $sections): array
+    {
+        $rank = ['capa' => 10, 'folha de rosto' => 20, 'indice' => 30, 'introducao' => 40, 'objectivos' => 50, 'metodologia' => 60, 'desenvolvimento' => 70, 'analise' => 70, 'resultados' => 70, 'conclusao' => 80, 'referencias' => 90];
+        usort($sections, function (array $a, array $b) use ($rank): int {
+            $ka = $this->classifySectionKey($a);
+            $kb = $this->classifySectionKey($b);
+            return ($rank[$ka] ?? 75) <=> ($rank[$kb] ?? 75);
+        });
+        return array_values($sections);
+    }
+
+    private function enforceContextualSectionPolicy(array $sections, array $briefing, array $workType, array $blueprint): array
+    {
+        if ($this->shouldIncludeResultsDiscussion($briefing, $workType, $blueprint)) {
+            return $sections;
+        }
+        return array_values(array_filter($sections, function (array $section): bool {
+            $k = $this->classifySectionKey($section);
+            return $k !== 'resultados';
+        }));
+    }
+
+    private function shouldIncludeResultsDiscussion(array $briefing, array $workType, array $blueprint): bool
+    {
+        $scope = mb_strtolower(implode(' ', array_merge([(string) ($briefing['title'] ?? ''), (string) ($briefing['problem'] ?? ''), (string) ($workType['name'] ?? ''), (string) ($workType['slug'] ?? '')], array_map(static fn(array $s): string => (string) ($s['title'] ?? ''), $blueprint))));
+        $empiricalMarkers = ['entrevista', 'questionario', 'questionário', 'inquerito', 'inquérito', 'campo', 'dados', 'estatistic', 'amostra', 'observa'];
+        foreach ($empiricalMarkers as $marker) {
+            if (str_contains($scope, $marker)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function classifySectionKey(array $section): string
+    {
+        $s = mb_strtolower((string) ($section['code'] ?? '') . ' ' . (string) ($section['title'] ?? ''));
+        if (str_contains($s, 'capa')) return 'capa';
+        if (str_contains($s, 'rosto')) return 'folha de rosto';
+        if (str_contains($s, 'indice') || str_contains($s, 'índice')) return 'indice';
+        if (str_contains($s, 'introdu')) return 'introducao';
+        if (str_contains($s, 'objet') || str_contains($s, 'objec')) return 'objectivos';
+        if (str_contains($s, 'metod')) return 'metodologia';
+        if (str_contains($s, 'result') || str_contains($s, 'discuss')) return 'resultados';
+        if (str_contains($s, 'conclus')) return 'conclusao';
+        if (str_contains($s, 'refer') || str_contains($s, 'bibliograf')) return 'referencias';
+        if (str_contains($s, 'analis') || str_contains($s, 'desenvol')) return 'desenvolvimento';
+        return 'outros';
     }
 }
