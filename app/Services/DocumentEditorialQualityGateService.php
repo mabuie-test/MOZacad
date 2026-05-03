@@ -34,6 +34,7 @@ final class DocumentEditorialQualityGateService
         }
         $issues = array_merge($issues, $this->validateLogicalOrder($sections));
         $issues = array_merge($issues, $this->validateContentDensity($sections));
+        $issues = array_merge($issues, $this->validateDevelopmentAndCitationConsistency($sections));
 
         $refs = $this->findSection($sections, 'referencias');
         if ($refs !== null) {
@@ -134,6 +135,63 @@ final class DocumentEditorialQualityGateService
                 $issues[] = ['severity' => 'critical', 'rule' => 'analysis_too_short', 'message' => 'Desenvolvimento/Análise com densidade insuficiente.'];
             }
         }
+        return $issues;
+    }
+
+    private function validateDevelopmentAndCitationConsistency(array $sections): array
+    {
+        $issues = [];
+        $developmentWords = 0;
+        $developmentText = '';
+        $hasConclusion = false;
+
+        foreach ($sections as $section) {
+            $k = $this->classifySectionKey($section);
+            $content = trim((string) ($section['content'] ?? ''));
+            if (in_array($k, ['desenvolvimento', 'resultados'], true)) {
+                $developmentText .= "\n" . $content;
+                $developmentWords += count(array_filter(preg_split('/\s+/u', $content) ?: [], static fn (string $w): bool => trim($w) !== ''));
+            }
+            if ($k === 'conclusao') {
+                $hasConclusion = true;
+            }
+        }
+
+        if ($developmentWords < 220) {
+            $issues[] = ['severity' => 'critical', 'rule' => 'development_missing_or_short', 'message' => 'Documento sem desenvolvimento temático substantivo antes da conclusão.'];
+        }
+        if ($hasConclusion && $developmentWords < 220) {
+            $issues[] = ['severity' => 'critical', 'rule' => 'conclusion_without_analysis', 'message' => 'Conclusão detectada sem corpo analítico suficiente.'];
+        }
+
+        $citationMatches = preg_match_all('/\([^)]+,\s*(19|20)\d{2}[a-z]?\)/u', $developmentText, $matches);
+        if (($citationMatches ?: 0) < 2) {
+            $issues[] = ['severity' => 'critical', 'rule' => 'development_without_citations', 'message' => 'Desenvolvimento sem citações académicas mínimas no corpo do texto.'];
+        }
+
+        $refs = $this->findSection($sections, 'referencias');
+        $refLines = array_values(array_filter(array_map('trim', preg_split('/\n+/', (string) ($refs['content'] ?? '')) ?: [])));
+        if ($refLines !== [] && isset($matches[0])) {
+            $hits = 0;
+            foreach (array_unique($matches[0]) as $inlineCitation) {
+                if (preg_match('/\(([^,]+),\s*((?:19|20)\d{2})/u', $inlineCitation, $parts) !== 1) {
+                    continue;
+                }
+                $author = mb_strtolower(trim((string) $parts[1]));
+                $year = (string) $parts[2];
+                foreach ($refLines as $line) {
+                    $lineNorm = mb_strtolower($line);
+                    if (str_contains($lineNorm, $author) && str_contains($lineNorm, $year)) {
+                        $hits++;
+                        break;
+                    }
+                }
+            }
+            if ($hits === 0) {
+                $issues[] = ['severity' => 'critical', 'rule' => 'references_not_used_in_body', 'message' => 'Referências finais sem correspondência com citações no desenvolvimento.'];
+            }
+        }
+
         return $issues;
     }
 
