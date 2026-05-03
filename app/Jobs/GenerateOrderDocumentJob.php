@@ -165,7 +165,9 @@ final class GenerateOrderDocumentJob
         $this->assertObjectivePresenceInSections($cited, $briefing, $orderId, $requiresObjectives);
         $cited = $this->ensureReferencesSection($cited, $briefing, $referenceStyle);
         $cited = $this->injectAuthorDateCitationsIntoDevelopment($cited);
+        $cited = $this->enforceDevelopmentThresholdAndConclusionGuard($cited);
         $cited = $this->enforceLogicalSectionOrder($cited);
+        $this->assertNoOperationalMetaText($cited);
 
         $contentQuality = (new AcademicContentQualityService())->validateDocument($cited, $briefing, $blueprint);
         $hasWeakContent = !$contentQuality['ok'];
@@ -605,7 +607,7 @@ final class GenerateOrderDocumentJob
         $hasDevelopment = false;
         foreach ($sections as $section) {
             $k = $this->classifySectionKey($section);
-            if (in_array($k, ['desenvolvimento', 'resultados'], true) && str_word_count((string) ($section['content'] ?? '')) >= 220) {
+            if (in_array($k, ['desenvolvimento', 'resultados'], true) && str_word_count((string) ($section['content'] ?? '')) >= 650) {
                 $hasDevelopment = true;
                 break;
             }
@@ -760,11 +762,83 @@ final class GenerateOrderDocumentJob
             $hasCitation = preg_match('/\([^)]+,\s*(19|20)\d{2}[a-z]?\)/u', $content) === 1;
             if (!$hasCitation) {
                 $section['content'] = $content . ' ' . $citations[0];
+                continue;
             }
+
+            $paragraphs = array_values(array_filter(array_map('trim', preg_split('/\n{2,}/u', $content) ?: []), static fn (string $p): bool => $p !== ''));
+            if (count($paragraphs) < 2) {
+                continue;
+            }
+            foreach ($paragraphs as $idx => $paragraph) {
+                if (preg_match('/\([^)]+,\s*(19|20)\d{2}[a-z]?\)/u', $paragraph) === 1) {
+                    continue;
+                }
+                $paragraphs[$idx] = $paragraph . ' ' . $citations[$idx % count($citations)];
+            }
+            $section['content'] = implode("\n\n", $paragraphs);
         }
         unset($section);
 
         return $sections;
+    }
+
+    private function enforceDevelopmentThresholdAndConclusionGuard(array $sections): array
+    {
+        $minDevelopmentWords = 650;
+        $minThematicSections = 6;
+        $minCitations = 5;
+        $developmentWords = 0;
+        $developmentText = '';
+        $hasConclusion = false;
+
+        foreach ($sections as $section) {
+            $key = $this->classifySectionKey($section);
+            if (in_array($key, ['desenvolvimento', 'resultados'], true)) {
+                $content = trim((string) ($section['content'] ?? ''));
+                $developmentText .= "\n" . $content;
+                $developmentWords += count(array_filter(preg_split('/\s+/u', $content) ?: [], static fn (string $w): bool => trim($w) !== ''));
+            }
+            if ($key === 'conclusao') {
+                $hasConclusion = true;
+            }
+        }
+
+        $subSections = $this->countDevelopmentSubSections($developmentText);
+        $citationCount = preg_match_all('/\([^)]+,\s*(19|20)\d{2}[a-z]?\)/u', $developmentText) ?: 0;
+        if ($developmentWords < $minDevelopmentWords || $subSections < $minThematicSections || $citationCount < $minCitations) {
+            if ($hasConclusion) {
+                throw new RuntimeException('Falha de qualidade pré-DOCX: conclusão bloqueada por desenvolvimento insuficiente (palavras/secções/citações abaixo do mínimo).');
+            }
+            throw new RuntimeException('Falha de qualidade pré-DOCX: desenvolvimento insuficiente para composição académica final.');
+        }
+
+        return $sections;
+    }
+
+    private function assertNoOperationalMetaText(array $sections): void
+    {
+        $text = mb_strtolower(implode("\n", array_map(static fn (array $s): string => ((string) ($s['title'] ?? '')) . "\n" . ((string) ($s['content'] ?? '')), $sections)));
+        $patterns = [
+            '/aqui est[aá] a sec[cç][aã]o/u',
+            '/\brefinada\b/u',
+            '/com base nas regras de refinamento|instru[cç][aã]o|pipeline|payload|debug/u',
+            '/\b\-\-\-\b/u',
+            '/coment[aá]rio de edi[cç][aã]o|meta-editorial/u',
+        ];
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $text) === 1) {
+                throw new RuntimeException('Falha de qualidade pré-DOCX: metatexto operacional detectado após sanitização final.');
+            }
+        }
+    }
+
+    private function countDevelopmentSubSections(string $developmentText): int
+    {
+        if (trim($developmentText) === '') {
+            return 0;
+        }
+        preg_match_all('/(^|\n)\s*(\d+\.\s+[^\n]+|[A-ZÀ-Ú][^\n]{10,}\:)\s*(\n|$)/u', $developmentText, $matches);
+        return is_array($matches[0] ?? null) ? count($matches[0]) : 0;
     }
 
     private function toInlineCitation(string $referenceLine): string
