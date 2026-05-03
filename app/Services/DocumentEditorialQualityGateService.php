@@ -6,6 +6,10 @@ namespace App\Services;
 
 final class DocumentEditorialQualityGateService
 {
+    private const MIN_DEVELOPMENT_WORDS = 700;
+    private const MIN_ANALYTIC_SUBSECTIONS = 6;
+    private const MIN_INLINE_CITATIONS = 6;
+
     public function validate(array $sections): array
     {
         $issues = [];
@@ -133,7 +137,7 @@ final class DocumentEditorialQualityGateService
             if ($k === 'metodologia' && $count < 120) {
                 $issues[] = ['severity' => 'critical', 'rule' => 'methodology_too_short', 'message' => 'Metodologia demasiado curta para padrão académico.'];
             }
-            if (in_array($k, ['desenvolvimento', 'resultados'], true) && $count < 650) {
+            if (in_array($k, ['desenvolvimento', 'resultados'], true) && $count < self::MIN_DEVELOPMENT_WORDS) {
                 $issues[] = ['severity' => 'critical', 'rule' => 'analysis_too_short', 'message' => 'Desenvolvimento/Análise com densidade insuficiente.'];
             }
         }
@@ -159,19 +163,19 @@ final class DocumentEditorialQualityGateService
             }
         }
 
-        if ($developmentWords < 650) {
+        if ($developmentWords < self::MIN_DEVELOPMENT_WORDS) {
             $issues[] = ['severity' => 'critical', 'rule' => 'development_missing_or_short', 'message' => 'Documento sem desenvolvimento temático substantivo antes da conclusão.'];
         }
-        if ($hasConclusion && $developmentWords < 650) {
+        if ($hasConclusion && $developmentWords < self::MIN_DEVELOPMENT_WORDS) {
             $issues[] = ['severity' => 'critical', 'rule' => 'conclusion_without_analysis', 'message' => 'Conclusão detectada sem corpo analítico suficiente.'];
         }
         $analyticSectionsCount = $this->countDevelopmentSubSections($developmentText);
-        if ($analyticSectionsCount < 6) {
+        if ($analyticSectionsCount < self::MIN_ANALYTIC_SUBSECTIONS) {
             $issues[] = ['severity' => 'critical', 'rule' => 'development_subsections_insufficient', 'message' => 'Desenvolvimento sem número mínimo de secções analíticas (mínimo 6).'];
         }
 
         $citationMatches = preg_match_all('/\([^)]+,\s*(19|20)\d{2}[a-z]?\)/u', $developmentText, $matches);
-        if (($citationMatches ?: 0) < 5) {
+        if (($citationMatches ?: 0) < self::MIN_INLINE_CITATIONS) {
             $issues[] = ['severity' => 'critical', 'rule' => 'development_without_citations', 'message' => 'Desenvolvimento sem citações académicas mínimas no corpo do texto.'];
         }
 
