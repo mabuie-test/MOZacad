@@ -563,6 +563,14 @@ final class GenerateOrderDocumentJob
 
     private function sanitizeOperationalMetaText(array $sections): array
     {
+        $forbiddenSnippets = [
+            'aqui está a secção',
+            'refinada',
+            'comentário de edição',
+            'instruções do pipeline',
+            'linguagem meta-editorial',
+            'índice automático (actualizável no editor de texto).',
+        ];
         $blocked = [
             '/\{\s*"[^"]+"\s*:/u',
             '/\bsection_title\b|\bsection_code\b|\btext\s*:/iu',
@@ -578,6 +586,10 @@ final class GenerateOrderDocumentJob
             foreach ($blocked as $pattern) {
                 $title = preg_replace($pattern, '', $title) ?? $title;
                 $content = preg_replace($pattern, '', $content) ?? $content;
+            }
+            foreach ($forbiddenSnippets as $snippet) {
+                $title = str_ireplace($snippet, '', $title);
+                $content = str_ireplace($snippet, '', $content);
             }
 
             $section['title'] = trim(preg_replace('/\s+/', ' ', $title) ?? $title);
@@ -603,15 +615,17 @@ final class GenerateOrderDocumentJob
         }
 
         $refs = $this->buildDefaultAcademicReferences($briefing, $referenceStyle);
-        $c1 = $this->toInlineCitation($refs[0] ?? '');
-        $c2 = $this->toInlineCitation($refs[1] ?? '');
-        $c3 = $this->toInlineCitation($refs[2] ?? '');
-        $c4 = $this->toInlineCitation($refs[3] ?? $refs[0] ?? '');
+        $citations = array_values(array_filter(array_map(fn (string $line): string => $this->toInlineCitation($line), $refs)));
+        $c1 = $citations[0] ?? '(Newitt, 1995)';
+        $c2 = $citations[1] ?? '(Ngoenha, 2000)';
+        $c3 = $citations[2] ?? '(Mondlane, 1995)';
+        $c4 = $citations[3] ?? '(Althusser, 1980)';
+        $c5 = $citations[4] ?? $c1;
 
         $sections[] = [
-            'code' => 'desenvolvimento_analise_historica',
-            'title' => 'Desenvolvimento: análise histórica e temática',
-            'content' => "A compreensão da história da educação em Moçambique no período colonial exige leitura articulada entre administração imperial, projectos missionários e mecanismos de estratificação social. O sistema escolar não foi concebido para universalizar direitos, mas para segmentar trajectórias e produzir hierarquias de pertença política e cultural {$c1}. Neste quadro, a escola funcionou como dispositivo de socialização colonial e de mediação entre Estado, igreja e mercado de trabalho {$c2}.\n\nNo plano institucional, a coexistência entre ensino oficial, ensino missionário e modalidades rudimentares criou um percurso educativo fragmentado. A distinção entre educação para colonos e educação para populações africanas estruturou currículos, línguas de ensino e expectativas de mobilidade social, com forte assimetria de acesso e progressão {$c3}. Em termos linguísticos e simbólicos, a centralidade do português operou simultaneamente como instrumento de integração restrita e de apagamento de repertórios locais, reforçando políticas de assimilação e disciplinamento cultural {$c4}.\n\nOs efeitos sociais desse arranjo persistiram para além do período colonial. A distribuição desigual de capital escolar, a concentração de recursos em determinados territórios e a legitimidade diferencial de saberes continuam a influenciar debates sobre qualidade, equidade e pertença no pós-independência. Assim, o legado colonial não se reduz a memória histórica: ele permanece inscrito na arquitetura institucional e nas disputas contemporâneas por democratização educativa, exigindo análise crítica sustentada por fontes e por comparação histórica rigorosa {$c2}.",
+            'code' => 'desenvolvimento_historico_documental',
+            'title' => 'Desenvolvimento',
+            'content' => "1. Contextualização histórica do colonialismo português em Moçambique\nA política colonial portuguesa consolidou-se em Moçambique por meio da administração indirecta, de companhias majestáticas e de um projecto civilizacional que associava escola, trabalho e controlo social. A educação formal foi integrada nesse desenho como mecanismo de governo da população, e não como direito universal. Isso explica por que a escolarização se desenvolveu com cobertura territorial limitada e com funções diferenciadas segundo raça, estatuto jurídico e inserção económica {$c1}.\n\n2. Estrutura do sistema educativo colonial\nNo período colonial, coexistiram redes distintas: ensino oficial voltado para a minoria europeia e para segmentos assimilados; ensino rudimentar para populações africanas; e formação profissional de baixa complexidade orientada ao mercado colonial. Essa estrutura traduziu uma racionalidade de dualização escolar, na qual currículo, progressão e certificação obedeciam a expectativas sociais hierarquizadas {$c2}. A literacia básica concedida aos africanos era, em geral, instrumental e subordinada a objectivos administrativos e laborais {$c3}.\n\n3. Papel das missões religiosas\nAs missões cristãs ocuparam lugar central na expansão da escolarização em áreas rurais e periurbanas, atuando onde o Estado tinha baixa capacidade de cobertura. Embora tenham permitido acesso inicial à leitura e escrita, também funcionaram como dispositivos de normatização cultural, moral e linguística, articulando catequese, disciplina e adesão ao projecto colonial {$c4}. Essa ambivalência exige leitura crítica: as missões ampliaram acesso, mas dentro de uma matriz de subordinação política e epistemológica.\n\n4. Ensino rudimentar, assimilação e língua portuguesa\nO ensino rudimentar vinculava-se ao regime de assimilação e ao ideal de formação de sujeitos leais à ordem colonial. A língua portuguesa foi posicionada como capital simbólico de mobilidade limitada, ao mesmo tempo que práticas e saberes locais eram desvalorizados. A política linguística escolar, portanto, operou como filtro de pertença e de reconhecimento social, convertendo o domínio do português em critério de distinção e exclusão {$c5}.\n\n5. Desigualdade de acesso e estratificação social\nA distribuição desigual de escolas, professores e materiais didácticos produziu trajetórias escolares profundamente assimétricas entre regiões, grupos sociais e estatutos jurídicos. O acesso ao ensino pós-primário permaneceu restrito, e a transição para níveis mais avançados foi bloqueada para a maioria africana. A escolarização colonial reforçou, desse modo, padrões de estratificação racial e económica já presentes na organização do trabalho e da cidadania {$c2}.\n\n6. Impactos socioculturais e legados no pós-independência\nOs efeitos desse arranjo ultrapassaram a transição política para a independência. Permaneceram desafios ligados à expansão com qualidade, à valorização das línguas nacionais e à redução de desigualdades regionais na oferta educativa. O legado colonial não deve ser lido como herança estática, mas como estrutura histórica que continua a moldar disputas por democratização curricular, inclusão linguística e justiça educacional {$c1}.",
         ];
 
         return $sections;

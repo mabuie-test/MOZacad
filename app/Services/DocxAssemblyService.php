@@ -175,9 +175,7 @@ final class DocxAssemblyService
     private function addTableOfContentsPlaceholder(Section $section, string $profile): void
     {
         $section->addTitle('Índice', 1);
-        if ($profile !== 'institutional') {
-            $section->addText('Índice automático (actualizável no editor de texto).', [], 'plain_text');
-        }
+        $section->addText('Sumário', ['bold' => true], 'plain_text');
         $section->addTOC(['size' => 11]);
         $section->addPageBreak();
     }
