@@ -608,15 +608,15 @@ final class GenerateOrderDocumentJob
 
     private function ensureSubstantiveDevelopment(array $sections, array $briefing, string $referenceStyle): array
     {
-        $hasDevelopment = false;
-        foreach ($sections as $section) {
-            $k = $this->classifySectionKey($section);
-            if (in_array($k, ['desenvolvimento', 'resultados'], true) && str_word_count((string) ($section['content'] ?? '')) >= self::MIN_DEVELOPMENT_WORDS) {
-                $hasDevelopment = true;
-                break;
-            }
-        }
-        if ($hasDevelopment) {
+        $metrics = $this->extractDevelopmentMetrics($sections);
+        $isMozHistoricalEducation = $this->isMozambiqueColonialEducationTheme($briefing);
+        $requiredThemes = $this->requiredMozambiqueHistoricalThemes();
+        $missingThemes = $isMozHistoricalEducation ? $this->missingRequiredThemes($metrics['development_text'], $requiredThemes) : [];
+        $isSufficient = $metrics['words'] >= self::MIN_DEVELOPMENT_WORDS
+            && $metrics['subsections'] >= self::MIN_THEMATIC_SUBSECTIONS
+            && $metrics['citations'] >= self::MIN_DEVELOPMENT_CITATIONS
+            && (!$isMozHistoricalEducation || count($missingThemes) === 0);
+        if ($isSufficient) {
             return $sections;
         }
 
@@ -628,13 +628,95 @@ final class GenerateOrderDocumentJob
         $c4 = $citations[3] ?? '(Althusser, 1980)';
         $c5 = $citations[4] ?? $c1;
 
-        $sections[] = [
+        $fallbackDevelopment = [
             'code' => 'desenvolvimento_historico_documental',
             'title' => 'Desenvolvimento',
             'content' => "1. Contextualização histórica do colonialismo português em Moçambique\nA consolidação do domínio colonial português em Moçambique articulou administração territorial, exploração económica e produção de hierarquias raciais e jurídicas. Nesse quadro, a escola não foi instituída como direito social universal, mas como instrumento de regulação da força de trabalho e de integração subordinada das populações africanas. A expansão da instrução ocorreu de forma seletiva, com forte concentração urbana e prioridade para grupos socialmente privilegiados. Assim, o arranjo escolar colonial deve ser lido como parte de uma estratégia mais ampla de governo, legitimidade política e ordenamento social {$c1}.\n\n2. Estrutura do sistema educativo colonial\nA arquitetura educativa colonial era dual. De um lado, havia ensino oficial mais estruturado, orientado à população europeia e a pequenas camadas assimiladas; de outro, o ensino rudimentar dirigido à maioria africana, com baixa progressão e currículo restrito. Essa separação incidia sobre duração dos ciclos, qualidade docente, acesso a materiais e possibilidade de certificação. A escola colonial, portanto, não apenas espelhava desigualdades, mas as reproduzia institucionalmente, condicionando trajetórias ocupacionais e expectativas de mobilidade social {$c2}. Além disso, a seletividade de passagem para níveis superiores reforçava a distância entre alfabetização básica e formação crítica {$c3}.\n\n3. Papel das missões religiosas\nAs missões religiosas desempenharam papel central na capilarização da escolarização onde a presença estatal era reduzida. Em muitas localidades, foram as primeiras instituições a ofertar alfabetização e socialização escolar. Contudo, essa mediação esteve vinculada à catequese, à disciplina moral e à difusão de referências culturais europeias. A pedagogia missionária combinava abertura inicial de acesso com enquadramento ideológico, estabelecendo padrões de comportamento e pertencimento compatíveis com o projeto colonial. Essa ambivalência exige interpretação histórica não binária: houve ampliação de escolarização, mas com limites claros de autonomia epistemológica e cidadania plena {$c4}.\n\n4. Ensino rudimentar, assimilação e língua portuguesa\nO ensino rudimentar foi articulado ao regime de assimilação, no qual o domínio da língua portuguesa e de códigos culturais metropolitanos funcionava como critério de reconhecimento jurídico-social. Em vez de valorização sistemática das línguas e saberes locais, predominou um modelo de substituição cultural e de normatização identitária. A língua portuguesa converteu-se em mecanismo simultâneo de inclusão limitada e exclusão massiva: permitia acesso a nichos administrativos, mas restringia a maioria a percursos escolares curtos e utilitários. Com isso, a política linguística escolar operou como dispositivo de distinção social e de gestão da diferença colonial {$c5}.\n\n5. Desigualdade de acesso e estratificação social\nAs desigualdades de acesso foram produzidas por fatores territoriais, económicos e político-jurídicos. Regiões rurais e periféricas enfrentavam maior escassez de escolas, docentes e infraestruturas, enquanto centros urbanos concentravam oportunidades. A transição para níveis pós-primários era estreita e socialmente filtrada, mantendo grande parte da população africana fora dos circuitos de qualificação avançada. Em termos sociológicos, isso consolidou um padrão de reprodução intergeracional de desvantagens, no qual a educação colonial reforçava a própria divisão do trabalho imposta pela economia colonial {$c2}.\n\n6. Impactos socioculturais\nNo plano sociocultural, a escolarização colonial gerou efeitos contraditórios. Por um lado, criou repertórios de letramento que viabilizaram novas formas de participação pública; por outro, desautorizou conhecimentos comunitários e consolidou hierarquias simbólicas entre idiomas, culturas e modos de vida. As identidades escolares tornaram-se terreno de disputa entre imposição cultural e apropriação local, com diferentes grupos reinterpretando conteúdos e práticas conforme seus contextos. Esse processo ajuda a explicar por que as memórias da escola colonial aparecem, simultaneamente, como experiência de acesso e de violência epistémica {$c1}.\n\n7. Legados no pós-independência\nApós a independência, o sistema nacional herdou assimetrias estruturais produzidas no período colonial: concentração de recursos, déficits de formação docente, desigualdades regionais e frágil integração das línguas nacionais. As políticas de massificação escolar ampliaram acesso, mas enfrentaram o desafio de combinar expansão com qualidade e equidade. Nesse sentido, o legado colonial não é apenas passado encerrado; ele permanece como condicionante histórico das disputas contemporâneas por currículo inclusivo, justiça linguística e democratização substantiva da educação em Moçambique {$c3}.",
         ];
 
+        $replaced = false;
+        foreach ($sections as $idx => $section) {
+            $k = $this->classifySectionKey($section);
+            if (in_array($k, ['desenvolvimento', 'resultados'], true)) {
+                $sections[$idx] = array_merge($section, $fallbackDevelopment);
+                $replaced = true;
+                break;
+            }
+        }
+        if (!$replaced) {
+            $sections[] = $fallbackDevelopment;
+        }
+
         return $sections;
+    }
+
+    private function extractDevelopmentMetrics(array $sections): array
+    {
+        $words = 0;
+        $developmentText = '';
+        foreach ($sections as $section) {
+            $k = $this->classifySectionKey($section);
+            if (!in_array($k, ['desenvolvimento', 'resultados'], true)) {
+                continue;
+            }
+            $content = trim((string) ($section['content'] ?? ''));
+            $developmentText .= "\n" . $content;
+            $words += count(array_filter(preg_split('/\s+/u', $content) ?: [], static fn (string $w): bool => trim($w) !== ''));
+        }
+
+        return [
+            'words' => $words,
+            'subsections' => $this->countDevelopmentSubSections($developmentText),
+            'citations' => preg_match_all('/\([^)]+,\s*(19|20)\d{2}[a-z]?\)/u', $developmentText) ?: 0,
+            'development_text' => $developmentText,
+        ];
+    }
+
+    private function isMozambiqueColonialEducationTheme(array $briefing): bool
+    {
+        $theme = mb_strtolower(trim((string) ($briefing['title'] ?? '')));
+        return str_contains($theme, 'moçambique') || str_contains($theme, 'mozambique') || str_contains($theme, 'colonial') || str_contains($theme, 'educa');
+    }
+
+    private function requiredMozambiqueHistoricalThemes(): array
+    {
+        return [
+            'enquadramento histórico do colonialismo português em moçambique',
+            'estrutura do sistema educativo colonial',
+            'papel das missões religiosas',
+            'assimilação, língua portuguesa e ensino rudimentar',
+            'desigualdade de acesso e estratificação social',
+            'impactos socioculturais',
+            'legados no pós-independência',
+        ];
+    }
+
+    private function missingRequiredThemes(string $developmentText, array $requiredThemes): array
+    {
+        $normalized = mb_strtolower($developmentText);
+        $aliases = [
+            'enquadramento histórico do colonialismo português em moçambique' => ['contextualização histórica do colonialismo português em moçambique', 'enquadramento histórico do colonialismo português em moçambique'],
+            'estrutura do sistema educativo colonial' => ['estrutura do sistema educativo colonial'],
+            'papel das missões religiosas' => ['papel das missões religiosas'],
+            'assimilação, língua portuguesa e ensino rudimentar' => ['ensino rudimentar, assimilação e língua portuguesa', 'assimilação, língua portuguesa e ensino rudimentar'],
+            'desigualdade de acesso e estratificação social' => ['desigualdade de acesso e estratificação social'],
+            'impactos socioculturais' => ['impactos socioculturais'],
+            'legados no pós-independência' => ['legados no pós-independência'],
+        ];
+        $missing = [];
+        foreach ($requiredThemes as $theme) {
+            $found = false;
+            foreach (($aliases[$theme] ?? [$theme]) as $needle) {
+                if (str_contains($normalized, $needle)) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                $missing[] = $theme;
+            }
+        }
+        return $missing;
     }
 
     private function ensureReferencesSection(array $sections, array $briefing, string $referenceStyle): array
