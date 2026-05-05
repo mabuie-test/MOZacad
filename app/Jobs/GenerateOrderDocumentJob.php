@@ -165,7 +165,11 @@ final class GenerateOrderDocumentJob
         $cited = $this->sanitizeOperationalMetaText($cited);
         $cited = $this->enforceObjectivesSection($cited, $briefing, $orderId, $requiresObjectives, $logger);
         $cited = $this->enforceContextualSectionPolicy($cited, $briefing, $workType, $blueprint);
+        $cited = $this->ensureAcademicAbstract($cited, $briefing);
+        $cited = $this->ensureAcademicIntroduction($cited, $briefing);
+        $cited = $this->ensureSubstantiveMethodology($cited, $briefing);
         $cited = $this->ensureSubstantiveDevelopment($cited, $briefing, $referenceStyle);
+        $cited = $this->ensureAcademicConclusion($cited, $briefing);
         $this->assertObjectivePresenceInSections($cited, $briefing, $orderId, $requiresObjectives);
         $cited = $this->ensureReferencesSection($cited, $briefing, $referenceStyle);
         $cited = $this->injectAuthorDateCitationsIntoDevelopment($cited);
@@ -612,6 +616,142 @@ final class GenerateOrderDocumentJob
         $this->failHonestOnInsufficientDevelopment();
 
         return $sections;
+    }
+
+    private function ensureAcademicAbstract(array $sections, array $briefing): array
+    {
+        return $this->upsertAcademicSection($sections, ['resumo', 'abstract'], 'Resumo', function (string $content) use ($briefing): string {
+            $wordCount = count(array_filter(preg_split('/\s+/u', trim($content)) ?: [], static fn (string $w): bool => $w !== ''));
+            $hasProblem = $this->hasAnyNeedle($content, [(string) ($briefing['problem'] ?? ''), 'problema', 'questão']);
+            $hasObjective = $this->hasAnyNeedle($content, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo', 'objetivo']);
+            $hasKeywords = $this->hasAnyNeedle($content, ['palavras-chave', 'palavras chave', 'keywords']);
+            $isSufficient = $wordCount >= 90 && $hasProblem && $hasObjective && $hasKeywords;
+            if ($isSufficient) {
+                return $content;
+            }
+            return trim($content . "\n\n" . $this->buildGenericAbstractReinforcement($briefing));
+        });
+    }
+
+    private function ensureAcademicIntroduction(array $sections, array $briefing): array
+    {
+        return $this->upsertAcademicSection($sections, ['introducao'], 'Introdução', function (string $content) use ($briefing): string {
+            $wordCount = count(array_filter(preg_split('/\s+/u', trim($content)) ?: [], static fn (string $w): bool => $w !== ''));
+            $hasTheme = $this->hasAnyNeedle($content, [(string) ($briefing['title'] ?? ''), 'tema']);
+            $hasProblem = $this->hasAnyNeedle($content, [(string) ($briefing['problem'] ?? ''), 'problema']);
+            $hasObjective = $this->hasAnyNeedle($content, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo', 'objetivo']);
+            $isSufficient = $wordCount >= 140 && $hasTheme && $hasProblem && $hasObjective;
+            if ($isSufficient) {
+                return $content;
+            }
+            return trim($content . "\n\n" . $this->buildGenericIntroductionReinforcement($briefing));
+        });
+    }
+
+    private function ensureSubstantiveMethodology(array $sections, array $briefing): array
+    {
+        return $this->upsertAcademicSection($sections, ['metodologia'], 'Metodologia', function (string $content) use ($briefing): string {
+            $wordCount = count(array_filter(preg_split('/\s+/u', trim($content)) ?: [], static fn (string $w): bool => $w !== ''));
+            $hasApproach = $this->hasAnyNeedle($content, ['abordagem', 'método', 'metodo']);
+            $hasProcedures = $this->hasAnyNeedle($content, ['procedimentos', 'técnica', 'tecnica', 'etapas']);
+            $hasBriefingAnchor = $this->hasAnyNeedle($content, [(string) ($briefing['problem'] ?? ''), (string) ($briefing['generalObjective'] ?? '')]);
+            $isSufficient = $wordCount >= 130 && $hasApproach && $hasProcedures && $hasBriefingAnchor;
+            if ($isSufficient) {
+                return $content;
+            }
+            return trim($content . "\n\n" . $this->buildGenericMethodologyReinforcement($briefing));
+        });
+    }
+
+    private function ensureAcademicConclusion(array $sections, array $briefing): array
+    {
+        return $this->upsertAcademicSection($sections, ['conclusao'], 'Conclusão', function (string $content) use ($briefing): string {
+            $wordCount = count(array_filter(preg_split('/\s+/u', trim($content)) ?: [], static fn (string $w): bool => $w !== ''));
+            $hasObjectiveReturn = $this->hasAnyNeedle($content, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo geral', 'objetivo geral']);
+            $hasSynthesis = $this->hasAnyNeedle($content, ['síntese', 'sintese', 'conclui-se', 'considerações finais']);
+            $isSufficient = $wordCount >= 120 && $hasObjectiveReturn && $hasSynthesis;
+            if ($isSufficient) {
+                return $content;
+            }
+            return trim($content . "\n\n" . $this->buildGenericConclusionReinforcement($briefing));
+        });
+    }
+
+    private function upsertAcademicSection(array $sections, array $keys, string $defaultTitle, callable $enhancer): array
+    {
+        foreach ($sections as $idx => $section) {
+            $key = $this->classifySectionKey($section);
+            if (!in_array($key, $keys, true)) {
+                continue;
+            }
+            $current = trim((string) ($section['content'] ?? ''));
+            $sections[$idx]['content'] = $enhancer($current);
+            return $sections;
+        }
+
+        $sections[] = [
+            'code' => mb_strtolower($defaultTitle),
+            'title' => $defaultTitle,
+            'content' => $enhancer(''),
+        ];
+
+        return $sections;
+    }
+
+    private function hasAnyNeedle(string $content, array $needles): bool
+    {
+        $normalized = mb_strtolower(trim($content));
+        foreach ($needles as $needle) {
+            $n = mb_strtolower(trim((string) $needle));
+            if ($n !== '' && str_contains($normalized, $n)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function buildGenericAbstractReinforcement(array $briefing): string
+    {
+        $theme = trim((string) ($briefing['title'] ?? 'tema em estudo'));
+        $problem = trim((string) ($briefing['problem'] ?? 'o problema definido no briefing'));
+        $objective = trim((string) ($briefing['generalObjective'] ?? 'o objectivo geral indicado'));
+        $keywords = $this->normalizeKeywords($briefing['keywords'] ?? []);
+        return "Este estudo aborda o tema \"{$theme}\" e delimita como foco analítico {$problem}. O trabalho orienta-se por {$objective}, articulando enquadramento teórico e análise académica em linguagem formal. A síntese apresenta resultados em coerência com o problema e com os objectivos propostos.\n\nPalavras-chave: {$keywords}.";
+    }
+
+    private function buildGenericIntroductionReinforcement(array $briefing): string
+    {
+        $theme = trim((string) ($briefing['title'] ?? 'tema em estudo'));
+        $problem = trim((string) ($briefing['problem'] ?? 'o problema definido no briefing'));
+        $objective = trim((string) ($briefing['generalObjective'] ?? 'o objectivo geral indicado'));
+        return "O presente trabalho discute {$theme} a partir de uma perspectiva académica. A investigação é estruturada em torno de {$problem}, procurando justificar a relevância científica e social do tema. Em termos de finalidade, o estudo orienta-se por {$objective}, estabelecendo uma linha argumentativa coerente com a organização do documento.";
+    }
+
+    private function buildGenericMethodologyReinforcement(array $briefing): string
+    {
+        $problem = trim((string) ($briefing['problem'] ?? 'o problema definido no briefing'));
+        $objective = trim((string) ($briefing['generalObjective'] ?? 'o objectivo geral indicado'));
+        return "A metodologia adopta abordagem qualitativa de natureza descritivo-analítica, adequada à compreensão de {$problem}. Foram definidos procedimentos de levantamento, organização e interpretação de fontes em alinhamento com {$objective}. As etapas incluem delimitação do corpus, análise crítica e sistematização dos achados, preservando rigor académico e consistência argumentativa.";
+    }
+
+    private function buildGenericConclusionReinforcement(array $briefing): string
+    {
+        $objective = trim((string) ($briefing['generalObjective'] ?? 'o objectivo geral indicado'));
+        $problem = trim((string) ($briefing['problem'] ?? 'o problema apresentado'));
+        return "Em síntese, a análise permitiu retomar {$problem} e discutir seus principais desdobramentos no âmbito académico. Conclui-se que o estudo manteve coerência com {$objective}, oferecendo fechamento argumentativo compatível com o desenvolvimento apresentado e apontando continuidade para investigações futuras.";
+    }
+
+    private function normalizeKeywords(mixed $keywords): string
+    {
+        if (!is_array($keywords)) {
+            return 'tema; problema; objectivo';
+        }
+        $clean = array_values(array_filter(array_map(static fn (mixed $k): string => trim((string) $k), $keywords), static fn (string $k): bool => $k !== ''));
+        if ($clean === []) {
+            return 'tema; problema; objectivo';
+        }
+        return implode('; ', array_slice($clean, 0, 5));
     }
 
     private function ensureSubstantiveDevelopmentGeneric(array $sections, array $briefing): array
