@@ -245,11 +245,7 @@ final class DocxAssemblyService
 
     private function shouldRenderTemplateNote(array $frontPage, array $templateMeta): bool
     {
-        if (($templateMeta['mode'] ?? '') === 'template_published_tracked') {
-            return true;
-        }
-
-        return $this->isFrontBlockEnabled($frontPage, 'template_note_enabled', true);
+        return $this->isFrontBlockEnabled($frontPage, 'template_note_enabled', false);
     }
 
     private function resolveAssemblyProfile(string $profile): string

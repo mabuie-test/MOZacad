@@ -41,7 +41,7 @@ use RuntimeException;
 
 final class GenerateOrderDocumentJob
 {
-    private const MIN_DEVELOPMENT_WORDS = 700;
+    private const MIN_DEVELOPMENT_WORDS = 550;
     private const MIN_THEMATIC_SUBSECTIONS = 6;
     private const MIN_DEVELOPMENT_CITATIONS = 6;
 
@@ -580,7 +580,7 @@ final class GenerateOrderDocumentJob
         $blocked = [
             '/\{\s*"[^"]+"\s*:/u',
             '/\bsection_title\b|\bsection_code\b|\btext\s*:/iu',
-            '/com base nas regras de refinamento|instru[cç][aã]o|pipeline|payload|debug|serializa[cç][aã]o/u',
+            '/instru[cç][aã]o(?:es)?\s+do\s+pipeline|com base nas regras de refinamento|serializa[cç][aã]o|\b(payload|debug|pipeline)\b/u',
             '/\b\-\-\-\b/u',
             '/\[\[todo|placeholder|indice placeholder|lorem ipsum/u',
         ];
@@ -618,6 +618,10 @@ final class GenerateOrderDocumentJob
             && (!$isMozHistoricalEducation || count($missingThemes) === 0);
         if ($isSufficient) {
             return $sections;
+        }
+
+        if (!$isMozHistoricalEducation) {
+            throw new RuntimeException('Falha de qualidade pré-DOCX: desenvolvimento insuficiente para tema não reconhecido com fallback temático seguro.');
         }
 
         $refs = $this->buildDefaultAcademicReferences($briefing, $referenceStyle);
@@ -674,8 +678,12 @@ final class GenerateOrderDocumentJob
 
     private function isMozambiqueColonialEducationTheme(array $briefing): bool
     {
-        $theme = mb_strtolower(trim((string) ($briefing['title'] ?? '')));
-        return str_contains($theme, 'moçambique') || str_contains($theme, 'mozambique') || str_contains($theme, 'colonial') || str_contains($theme, 'educa');
+        $scope = mb_strtolower(trim((string) ($briefing['title'] ?? '') . ' ' . (string) ($briefing['problem'] ?? '')));
+        $hasMoz = str_contains($scope, 'moçambique') || str_contains($scope, 'mozambique');
+        $hasColonial = str_contains($scope, 'colonial') || str_contains($scope, 'colonia');
+        $hasEducation = str_contains($scope, 'educa') || str_contains($scope, 'ensino') || str_contains($scope, 'escolar');
+
+        return $hasMoz && $hasColonial && $hasEducation;
     }
 
     private function requiredMozambiqueHistoricalThemes(): array
@@ -809,7 +817,7 @@ final class GenerateOrderDocumentJob
 
     private function enforceLogicalSectionOrder(array $sections): array
     {
-        $rank = ['capa' => 10, 'folha de rosto' => 20, 'indice' => 30, 'introducao' => 40, 'objectivos' => 50, 'metodologia' => 60, 'desenvolvimento' => 70, 'analise' => 70, 'resultados' => 70, 'conclusao' => 80, 'referencias' => 90];
+        $rank = ['capa' => 10, 'folha de rosto' => 20, 'resumo' => 30, 'indice' => 40, 'introducao' => 50, 'objectivos' => 60, 'metodologia' => 70, 'desenvolvimento' => 80, 'analise' => 80, 'resultados' => 80, 'conclusao' => 90, 'referencias' => 100];
         usort($sections, function (array $a, array $b) use ($rank): int {
             $ka = $this->classifySectionKey($a);
             $kb = $this->classifySectionKey($b);
@@ -907,7 +915,7 @@ final class GenerateOrderDocumentJob
         $patterns = [
             '/aqui est[aá] a sec[cç][aã]o/u',
             '/\brefinada\b/u',
-            '/com base nas regras de refinamento|instru[cç][aã]o|pipeline|payload|debug/u',
+            '/instru[cç][aã]o(?:es)?\s+do\s+pipeline|com base nas regras de refinamento|\b(payload|debug|pipeline)\b/u',
             '/\b\-\-\-\b/u',
             '/coment[aá]rio de edi[cç][aã]o|meta-editorial/u',
         ];
@@ -968,6 +976,7 @@ final class GenerateOrderDocumentJob
         $s = mb_strtolower((string) ($section['code'] ?? '') . ' ' . (string) ($section['title'] ?? ''));
         if (str_contains($s, 'capa')) return 'capa';
         if (str_contains($s, 'rosto')) return 'folha de rosto';
+        if (str_contains($s, 'resumo') || str_contains($s, 'abstract')) return 'resumo';
         if (str_contains($s, 'indice') || str_contains($s, 'índice')) return 'indice';
         if (str_contains($s, 'introdu')) return 'introducao';
         if (str_contains($s, 'objet') || str_contains($s, 'objec')) return 'objectivos';

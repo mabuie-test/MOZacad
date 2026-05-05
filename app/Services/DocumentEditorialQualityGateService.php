@@ -6,7 +6,7 @@ namespace App\Services;
 
 final class DocumentEditorialQualityGateService
 {
-    private const MIN_DEVELOPMENT_WORDS = 700;
+    private const MIN_DEVELOPMENT_WORDS = 550;
     private const MIN_ANALYTIC_SUBSECTIONS = 6;
     private const MIN_INLINE_CITATIONS = 6;
 
@@ -18,7 +18,7 @@ final class DocumentEditorialQualityGateService
         $blockedPatterns = [
             '/\{\s*"[^"]+"\s*:/u' => 'json_marker_detected',
             '/\bsection_title\b|\bsection_code\b|\btext\s*:/u' => 'serialized_fields_detected',
-            '/com base nas regras de refinamento|instru[cç][aã]o|pipeline|payload|debug|nota[s]? de pipeline|marcadores operacionais/u' => 'meta_operational_text_detected',
+            '/instru[cç][aã]o(?:es)?\s+do\s+pipeline|com base nas regras de refinamento|nota[s]? de pipeline|marcadores operacionais|\b(payload|debug|pipeline)\b/u' => 'meta_operational_text_detected',
             '/\b\-\-\-\b/u' => 'technical_separator_detected',
             '/\[\[todo|placeholder|indice placeholder|lorem ipsum/u' => 'placeholder_detected',
             '/aqui est[aá] a sec[cç][aã]o|refinada|coment[aá]rio de edi[cç][aã]o|linguagem meta-editorial/u' => 'forbidden_editorial_meta_text_detected',
