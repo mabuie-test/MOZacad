@@ -18,7 +18,7 @@ final class DocumentEditorialQualityGateService
         $blockedPatterns = [
             '/\{\s*"[^"]+"\s*:/u' => 'json_marker_detected',
             '/\bsection_title\b|\bsection_code\b|\btext\s*:/u' => 'serialized_fields_detected',
-            '/instru[cç][aã]o(?:es)?\s+do\s+pipeline|com base nas regras de refinamento|nota[s]? de pipeline|marcadores operacionais|\b(payload|debug|pipeline)\b/u' => 'meta_operational_text_detected',
+            '/(?:^|\b)instru[cç][aã]o(?:es)?\s+do\s+pipeline(?:\b|$)|(?:^|\b)nota[s]?\s+de\s+pipeline(?:\b|$)|com base nas regras de refinamento|marcadores operacionais|(?:^|\s)(?:payload|debug)\s*:/u' => 'meta_operational_text_detected',
             '/\b\-\-\-\b/u' => 'technical_separator_detected',
             '/\[\[todo|placeholder|indice placeholder|lorem ipsum/u' => 'placeholder_detected',
             '/aqui est[aá] a sec[cç][aã]o|refinada|coment[aá]rio de edi[cç][aã]o|linguagem meta-editorial/u' => 'forbidden_editorial_meta_text_detected',
