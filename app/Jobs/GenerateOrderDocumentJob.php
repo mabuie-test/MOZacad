@@ -577,13 +577,7 @@ final class GenerateOrderDocumentJob
             'linguagem meta-editorial',
             'índice automático (actualizável no editor de texto).',
         ];
-        $blocked = [
-            '/\{\s*"[^"]+"\s*:/u',
-            '/\bsection_title\b|\bsection_code\b|\btext\s*:/iu',
-            '/instru[cç][aã]o(?:es)?\s+do\s+pipeline|com base nas regras de refinamento|serializa[cç][aã]o|\b(payload|debug|pipeline)\b/u',
-            '/\b\-\-\-\b/u',
-            '/\[\[todo|placeholder|indice placeholder|lorem ipsum/u',
-        ];
+        $blocked = $this->operationalMetaPatterns();
 
         foreach ($sections as &$section) {
             $title = trim((string) ($section['title'] ?? ''));
@@ -915,8 +909,7 @@ final class GenerateOrderDocumentJob
         $patterns = [
             '/aqui est[aá] a sec[cç][aã]o/u',
             '/\brefinada\b/u',
-            '/instru[cç][aã]o(?:es)?\s+do\s+pipeline|com base nas regras de refinamento|\b(payload|debug|pipeline)\b/u',
-            '/\b\-\-\-\b/u',
+            ...$this->operationalMetaPatterns(),
             '/coment[aá]rio de edi[cç][aã]o|meta-editorial/u',
         ];
         foreach ($patterns as $pattern) {
@@ -924,6 +917,19 @@ final class GenerateOrderDocumentJob
                 throw new RuntimeException('Falha de qualidade pré-DOCX: metatexto operacional detectado após sanitização final.');
             }
         }
+    }
+
+
+    private function operationalMetaPatterns(): array
+    {
+        return [
+            '/\{\s*"[^\"]+"\s*:/u',
+            '/\bsection_title\b|\bsection_code\b|\btext\s*:/iu',
+            '/(?:^|\b)instru[cç][aã]o(?:es)?\s+do\s+pipeline(?:\b|$)|(?:^|\b)nota[s]?\s+de\s+pipeline(?:\b|$)|com base nas regras de refinamento/u',
+            '/(?:^|\s)(?:payload|debug)\s*:/iu',
+            '/\b\-\-\-\b/u',
+            '/\[\[todo|placeholder|indice placeholder|lorem ipsum/u',
+        ];
     }
 
     private function countDevelopmentSubSections(string $developmentText): int
