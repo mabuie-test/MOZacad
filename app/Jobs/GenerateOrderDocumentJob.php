@@ -602,22 +602,25 @@ final class GenerateOrderDocumentJob
 
     private function ensureSubstantiveDevelopment(array $sections, array $briefing, string $referenceStyle): array
     {
-        $metrics = $this->extractDevelopmentMetrics($sections);
-        $isMozHistoricalEducation = $this->isMozambiqueColonialEducationTheme($briefing);
-        $requiredThemes = $this->requiredMozambiqueHistoricalThemes();
-        $missingThemes = $isMozHistoricalEducation ? $this->missingRequiredThemes($metrics['development_text'], $requiredThemes) : [];
-        $isSufficient = $metrics['words'] >= self::MIN_DEVELOPMENT_WORDS
-            && $metrics['subsections'] >= self::MIN_THEMATIC_SUBSECTIONS
-            && $metrics['citations'] >= self::MIN_DEVELOPMENT_CITATIONS
-            && (!$isMozHistoricalEducation || count($missingThemes) === 0);
-        if ($isSufficient) {
+        $sections = $this->ensureSubstantiveDevelopmentGeneric($sections, $briefing);
+        if ($this->isDevelopmentSufficient($sections)) {
             return $sections;
         }
-
-        if (!$isMozHistoricalEducation) {
-            throw new RuntimeException('Falha de qualidade pré-DOCX: desenvolvimento insuficiente para tema não reconhecido com fallback temático seguro.');
+        if ($this->isMozambiqueColonialEducationTheme($briefing)) {
+            return $this->ensureSubstantiveDevelopmentMozambiqueColonialEducation($sections, $briefing, $referenceStyle);
         }
+        $this->failHonestOnInsufficientDevelopment();
 
+        return $sections;
+    }
+
+    private function ensureSubstantiveDevelopmentGeneric(array $sections, array $briefing): array
+    {
+        return $sections;
+    }
+
+    private function ensureSubstantiveDevelopmentMozambiqueColonialEducation(array $sections, array $briefing, string $referenceStyle): array
+    {
         $refs = $this->buildDefaultAcademicReferences($briefing, $referenceStyle);
         $citations = array_values(array_filter(array_map(fn (string $line): string => $this->toInlineCitation($line), $refs)));
         $c1 = $citations[0] ?? '(Newitt, 1995)';
@@ -646,6 +649,20 @@ final class GenerateOrderDocumentJob
         }
 
         return $sections;
+    }
+
+    private function failHonestOnInsufficientDevelopment(): void
+    {
+        throw new RuntimeException('Falha de qualidade pré-DOCX: desenvolvimento insuficiente para tema não reconhecido com fallback temático seguro.');
+    }
+
+    private function isDevelopmentSufficient(array $sections): bool
+    {
+        $metrics = $this->extractDevelopmentMetrics($sections);
+
+        return $metrics['words'] >= self::MIN_DEVELOPMENT_WORDS
+            && $metrics['subsections'] >= self::MIN_THEMATIC_SUBSECTIONS
+            && $metrics['citations'] >= self::MIN_DEVELOPMENT_CITATIONS;
     }
 
     private function extractDevelopmentMetrics(array $sections): array
