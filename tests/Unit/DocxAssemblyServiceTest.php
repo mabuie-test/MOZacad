@@ -41,4 +41,31 @@ assertTrue(
     'Conteúdo analítico deve permanecer após limpeza editorial estrita.'
 );
 
+
+$normalizeOrderedSections = new ReflectionMethod(DocxAssemblyService::class, 'normalizeOrderedSections');
+$normalizeOrderedSections->setAccessible(true);
+
+$orderedSections = $normalizeOrderedSections->invoke($service, [
+    ['code' => 'introducao', 'title' => 'Introdução'],
+    ['code' => 'metodologia', 'title' => 'Metodologia'],
+    ['code' => 'other', 'title' => 'Secção livre'],
+    ['code' => 'desenvolvimento', 'title' => 'Desenvolvimento'],
+    ['code' => 'referencias', 'title' => 'Referências'],
+]);
+
+$orderedCodes = array_map(static fn (array $section): string => (string) ($section['code'] ?? ''), $orderedSections);
+$metodologiaIndex = array_search('metodologia', $orderedCodes, true);
+$desenvolvimentoIndex = array_search('desenvolvimento', $orderedCodes, true);
+$otherIndex = array_search('other', $orderedCodes, true);
+
+assertTrue($metodologiaIndex !== false && $desenvolvimentoIndex !== false && $otherIndex !== false, 'Códigos esperados devem existir após ordenação.');
+assertTrue(
+    $otherIndex > $desenvolvimentoIndex,
+    'Secção classificada como other deve ficar após desenvolvimento e fora do miolo analítico.'
+);
+assertTrue(
+    $otherIndex > $metodologiaIndex,
+    'Secção classificada como other não pode ficar entre metodologia e desenvolvimento.'
+);
+
 echo "DocxAssemblyService tests passed.\n";

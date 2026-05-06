@@ -77,7 +77,7 @@ final class DocxAssemblyService
 
     private function normalizeOrderedSections(array $sections): array
     {
-        $rank = [
+        $canonicalOrder = [
             'folha_de_rosto' => 10,
             'resumo' => 20,
             'indice' => 30,
@@ -88,14 +88,31 @@ final class DocxAssemblyService
             'conclusao' => 80,
             'referencias' => 90,
             'annex' => 100,
-            'other' => 65,
+            'other' => 110,
         ];
 
-        usort($sections, function (array $a, array $b) use ($rank): int {
-            return ($rank[$this->classifySectionKey($a)] ?? 65) <=> ($rank[$this->classifySectionKey($b)] ?? 65);
+        $indexedSections = array_map(
+            static fn (array $section, int $index): array => [
+                'section' => $section,
+                'index' => $index,
+            ],
+            $sections,
+            array_keys($sections)
+        );
+
+        usort($indexedSections, function (array $a, array $b) use ($canonicalOrder): int {
+            $aClass = $this->classifySectionKey($a['section']);
+            $bClass = $this->classifySectionKey($b['section']);
+            $classOrder = ($canonicalOrder[$aClass] ?? 110) <=> ($canonicalOrder[$bClass] ?? 110);
+
+            if ($classOrder !== 0) {
+                return $classOrder;
+            }
+
+            return $a['index'] <=> $b['index'];
         });
 
-        return array_values($sections);
+        return array_values(array_map(static fn (array $item): array => $item['section'], $indexedSections));
     }
 
     private function classifySectionKey(array $section): string
