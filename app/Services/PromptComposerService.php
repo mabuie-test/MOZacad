@@ -42,6 +42,7 @@ final class PromptComposerService
                 . "Evita repetir frases de abertura já usadas noutras secções; inicia esta secção com formulação própria e foco substantivo distinto.\n"
                 . "Cada parágrafo deve introduzir informação nova, verificável e específica do foco desta secção.\n"
                 . "Valida internamente fidelidade aos objectivos específicos relevantes da secção sem replicar blocos textuais longos dos objectivos.\n"
+                . "Verificação interna obrigatória para secção de resumo: rejeita qualquer formulação genérica e confirma conteúdo observável para os seis elementos (tema, problema, objectivo geral, metodologia, síntese de achados e palavras-chave) antes de finalizar.\n"
                 . "Instrução anti-fórmulas: não usar padrões semânticos genéricos/placeholder como '{$genericTemplates}'. Reformulação obrigatória: sempre que surgir formulação vaga, substitui imediatamente por redação específica com conceitos, relações causais, recorte temporal/espacial e evidência concreta.\n"
                 . "Termos obrigatórios contextuais desta secção: {$terms}.\n"
                 . "Proibido usar Markdown, referências inventadas ou texto meta-editorial.";
@@ -60,6 +61,10 @@ final class PromptComposerService
 
         if (str_contains($t, 'metodolog')) {
             return 'explicitar desenho metodológico, procedimentos de recolha/tratamento de dados, critérios de validade e limitações. Exemplo aceitável: "Adoptou-se estudo qualitativo documental com análise temática de relatórios coloniais (1945-1973) e triangulação com legislação educativa." Exemplo a evitar: "A metodologia foi adequada e permitiu analisar os dados."';
+        }
+
+        if (str_contains($t, 'resumo')) {
+            return 'apresentar explicitamente seis elementos: tema, problema, objectivo geral, metodologia, síntese de achados e palavras-chave; cada elemento deve trazer conteúdo concreto e observável, sem frases genéricas. Exemplo aceitável: "O resumo explicita o tema da educação colonial em Nampula (1930-1974), delimita o problema de desigualdade de acesso, enuncia o objectivo geral, descreve análise documental com triangulação legal, sintetiza o principal achado sobre segmentação curricular e lista palavras-chave alinhadas ao estudo." Exemplo a evitar: "O resumo apresenta, de forma geral, os pontos principais do trabalho."';
         }
 
         if (str_contains($t, 'conclus')) {
