@@ -618,60 +618,81 @@ final class GenerateOrderDocumentJob
     private function ensureAcademicAbstract(array $sections, array $briefing): array
     {
         return $this->upsertAcademicSection($sections, ['resumo', 'abstract'], 'Resumo', function (string $content) use ($briefing): string {
-            $wordCount = count(array_filter(preg_split('/\s+/u', trim($content)) ?: [], static fn (string $w): bool => $w !== ''));
-            $hasProblem = $this->hasAnyNeedle($content, [(string) ($briefing['problem'] ?? ''), 'problema', 'questão']);
-            $hasObjective = $this->hasAnyNeedle($content, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo', 'objetivo']);
-            $hasKeywords = $this->hasAnyNeedle($content, ['palavras-chave', 'palavras chave', 'keywords']);
-            $isSufficient = $wordCount >= 90 && $hasProblem && $hasObjective && $hasKeywords;
-            if ($isSufficient) {
-                return $content;
-            }
-            return trim($content . "\n\n" . $this->buildGenericAbstractReinforcement($briefing));
+            return $this->replaceWithAcademicSectionIfWeak(
+                $content,
+                function (string $sectionContent) use ($briefing): bool {
+                    $wordCount = count(array_filter(preg_split('/\s+/u', trim($sectionContent)) ?: [], static fn (string $w): bool => $w !== ''));
+                    $hasProblem = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['problem'] ?? ''), 'problema', 'questão']);
+                    $hasObjective = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo', 'objetivo']);
+                    $hasKeywords = $this->hasAnyNeedle($sectionContent, ['palavras-chave', 'palavras chave', 'keywords']);
+
+                    return $wordCount < 90 || !$hasProblem || !$hasObjective || !$hasKeywords;
+                },
+                fn (): string => $this->buildGenericAbstractReinforcement($briefing)
+            );
         });
     }
 
     private function ensureAcademicIntroduction(array $sections, array $briefing): array
     {
         return $this->upsertAcademicSection($sections, ['introducao'], 'Introdução', function (string $content) use ($briefing): string {
-            $wordCount = count(array_filter(preg_split('/\s+/u', trim($content)) ?: [], static fn (string $w): bool => $w !== ''));
-            $hasTheme = $this->hasAnyNeedle($content, [(string) ($briefing['title'] ?? ''), 'tema']);
-            $hasProblem = $this->hasAnyNeedle($content, [(string) ($briefing['problem'] ?? ''), 'problema']);
-            $hasObjective = $this->hasAnyNeedle($content, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo', 'objetivo']);
-            $isSufficient = $wordCount >= 140 && $hasTheme && $hasProblem && $hasObjective;
-            if ($isSufficient) {
-                return $content;
-            }
-            return trim($content . "\n\n" . $this->buildGenericIntroductionReinforcement($briefing));
+            return $this->replaceWithAcademicSectionIfWeak(
+                $content,
+                function (string $sectionContent) use ($briefing): bool {
+                    $wordCount = count(array_filter(preg_split('/\s+/u', trim($sectionContent)) ?: [], static fn (string $w): bool => $w !== ''));
+                    $hasTheme = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['title'] ?? ''), 'tema']);
+                    $hasProblem = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['problem'] ?? ''), 'problema']);
+                    $hasObjective = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo', 'objetivo']);
+
+                    return $wordCount < 140 || !$hasTheme || !$hasProblem || !$hasObjective;
+                },
+                fn (): string => $this->buildGenericIntroductionReinforcement($briefing)
+            );
         });
     }
 
     private function ensureSubstantiveMethodology(array $sections, array $briefing): array
     {
         return $this->upsertAcademicSection($sections, ['metodologia'], 'Metodologia', function (string $content) use ($briefing): string {
-            $wordCount = count(array_filter(preg_split('/\s+/u', trim($content)) ?: [], static fn (string $w): bool => $w !== ''));
-            $hasApproach = $this->hasAnyNeedle($content, ['abordagem', 'método', 'metodo']);
-            $hasProcedures = $this->hasAnyNeedle($content, ['procedimentos', 'técnica', 'tecnica', 'etapas']);
-            $hasBriefingAnchor = $this->hasAnyNeedle($content, [(string) ($briefing['problem'] ?? ''), (string) ($briefing['generalObjective'] ?? '')]);
-            $isSufficient = $wordCount >= 130 && $hasApproach && $hasProcedures && $hasBriefingAnchor;
-            if ($isSufficient) {
-                return $content;
-            }
-            return trim($content . "\n\n" . $this->buildGenericMethodologyReinforcement($briefing));
+            return $this->replaceWithAcademicSectionIfWeak(
+                $content,
+                function (string $sectionContent) use ($briefing): bool {
+                    $wordCount = count(array_filter(preg_split('/\s+/u', trim($sectionContent)) ?: [], static fn (string $w): bool => $w !== ''));
+                    $hasApproach = $this->hasAnyNeedle($sectionContent, ['abordagem', 'método', 'metodo']);
+                    $hasProcedures = $this->hasAnyNeedle($sectionContent, ['procedimentos', 'técnica', 'tecnica', 'etapas']);
+                    $hasBriefingAnchor = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['problem'] ?? ''), (string) ($briefing['generalObjective'] ?? '')]);
+
+                    return $wordCount < 130 || !$hasApproach || !$hasProcedures || !$hasBriefingAnchor;
+                },
+                fn (): string => $this->buildGenericMethodologyReinforcement($briefing)
+            );
         });
     }
 
     private function ensureAcademicConclusion(array $sections, array $briefing): array
     {
         return $this->upsertAcademicSection($sections, ['conclusao'], 'Conclusão', function (string $content) use ($briefing): string {
-            $wordCount = count(array_filter(preg_split('/\s+/u', trim($content)) ?: [], static fn (string $w): bool => $w !== ''));
-            $hasObjectiveReturn = $this->hasAnyNeedle($content, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo geral', 'objetivo geral']);
-            $hasSynthesis = $this->hasAnyNeedle($content, ['síntese', 'sintese', 'conclui-se', 'considerações finais']);
-            $isSufficient = $wordCount >= 120 && $hasObjectiveReturn && $hasSynthesis;
-            if ($isSufficient) {
-                return $content;
-            }
-            return trim($content . "\n\n" . $this->buildGenericConclusionReinforcement($briefing));
+            return $this->replaceWithAcademicSectionIfWeak(
+                $content,
+                function (string $sectionContent) use ($briefing): bool {
+                    $wordCount = count(array_filter(preg_split('/\s+/u', trim($sectionContent)) ?: [], static fn (string $w): bool => $w !== ''));
+                    $hasObjectiveReturn = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo geral', 'objetivo geral']);
+                    $hasSynthesis = $this->hasAnyNeedle($sectionContent, ['síntese', 'sintese', 'conclui-se', 'considerações finais']);
+
+                    return $wordCount < 120 || !$hasObjectiveReturn || !$hasSynthesis;
+                },
+                fn (): string => $this->buildGenericConclusionReinforcement($briefing)
+            );
         });
+    }
+
+    private function replaceWithAcademicSectionIfWeak(string $content, callable $isWeak, callable $builder): string
+    {
+        if (!$isWeak($content)) {
+            return trim($content);
+        }
+
+        return trim((string) $builder());
     }
 
     private function upsertAcademicSection(array $sections, array $keys, string $defaultTitle, callable $enhancer): array
