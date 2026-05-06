@@ -110,8 +110,17 @@ final class DocumentEditorialQualityGateService
         $issues = [];
         $order = ['introducao' => 1, 'objectivos' => 2, 'metodologia' => 3, 'desenvolvimento' => 4, 'resultados' => 4, 'conclusao' => 5, 'referencias' => 6];
         $last = 0;
-        foreach ($sections as $section) {
+        $firstDevelopmentIndex = null;
+        $firstConclusionIndex = null;
+
+        foreach ($sections as $index => $section) {
             $k = $this->classifySectionKey($section);
+            if (in_array($k, ['desenvolvimento', 'resultados'], true) && $firstDevelopmentIndex === null) {
+                $firstDevelopmentIndex = $index;
+            }
+            if ($k === 'conclusao' && $firstConclusionIndex === null) {
+                $firstConclusionIndex = $index;
+            }
             if (!isset($order[$k])) {
                 continue;
             }
@@ -121,6 +130,11 @@ final class DocumentEditorialQualityGateService
             }
             $last = $order[$k];
         }
+
+        if ($firstConclusionIndex !== null && $firstDevelopmentIndex !== null && $firstConclusionIndex < $firstDevelopmentIndex) {
+            $issues[] = ['severity' => 'critical', 'rule' => 'conclusion_before_development', 'message' => 'Conclusão detectada antes da secção de desenvolvimento no array final pós-processado.'];
+        }
+
         return $issues;
     }
 

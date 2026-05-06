@@ -965,12 +965,26 @@ final class GenerateOrderDocumentJob
 
     private function enforceLogicalSectionOrder(array $sections): array
     {
-        $rank = ['capa' => 10, 'folha de rosto' => 20, 'resumo' => 30, 'indice' => 40, 'introducao' => 50, 'objectivos' => 60, 'metodologia' => 70, 'desenvolvimento' => 80, 'analise' => 80, 'resultados' => 80, 'conclusao' => 90, 'referencias' => 100];
-        usort($sections, function (array $a, array $b) use ($rank): int {
+        $canonicalOrder = [
+            'folha de rosto' => 10,
+            'resumo' => 20,
+            'indice' => 30,
+            'introducao' => 40,
+            'objectivos' => 50,
+            'metodologia' => 60,
+            'desenvolvimento' => 70,
+            'resultados' => 70,
+            'conclusao' => 80,
+            'referencias' => 90,
+        ];
+
+        usort($sections, function (array $a, array $b) use ($canonicalOrder): int {
             $ka = $this->classifySectionKey($a);
             $kb = $this->classifySectionKey($b);
-            return ($rank[$ka] ?? 75) <=> ($rank[$kb] ?? 75);
+
+            return ($canonicalOrder[$ka] ?? 65) <=> ($canonicalOrder[$kb] ?? 65);
         });
+
         return array_values($sections);
     }
 
