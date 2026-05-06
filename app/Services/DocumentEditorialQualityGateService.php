@@ -9,6 +9,13 @@ use App\Domain\Academic\QualityThresholds;
 
 final class DocumentEditorialQualityGateService
 {
+    /**
+     * Matriz única de severidade (missing vs too_short):
+     * - Secção obrigatória ausente/vazia (missing|empty): critical
+     * - Secção de metodologia curta (too_short):
+     *   - <90 palavras: critical (reforço automático insuficiente)
+     *   - 90-119 palavras: major (aceita com auto-reforço e validação final)
+     */
     public function validate(array $sections): array
     {
         $issues = [];
@@ -27,7 +34,7 @@ final class DocumentEditorialQualityGateService
         foreach ($required as $req) {
             $section = $this->findSection($sections, $req);
             if ($section === null || trim((string) ($section['content'] ?? '')) === '') {
-                $issues[] = ['severity' => 'critical', 'rule' => 'required_section_empty', 'message' => 'Secção obrigatória ausente/vazia: ' . $req];
+                $issues[] = ['severity' => 'critical', 'rule' => 'required_section_missing_or_empty', 'message' => 'Secção obrigatória ausente/vazia: ' . $req];
             }
         }
         $issues = array_merge($issues, $this->validateLogicalOrder($sections));

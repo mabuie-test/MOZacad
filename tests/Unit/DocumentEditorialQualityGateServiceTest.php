@@ -44,6 +44,13 @@ $withPipelineInstruction[0]['content'] .= ' Estas são instruções do pipeline 
 $pipelineInstructionResult = $service->validate($withPipelineInstruction);
 assertTrue($pipelineInstructionResult['ok'] === false, 'Expressão "instruções do pipeline" deve reprovar no quality gate.');
 
+
+$missingMethodology = array_values(array_filter($sections, static fn(array $section): bool => ($section['code'] ?? '') !== 'metodologia'));
+$missingMethodologyResult = $service->validate($missingMethodology);
+$missingIssues = array_values(array_filter($missingMethodologyResult['issues'], static fn(array $issue): bool => ($issue['rule'] ?? '') === 'required_section_missing_or_empty' && str_contains((string) ($issue['message'] ?? ''), 'metodologia')));
+assertTrue($missingIssues !== [], 'Ausência de metodologia deve gerar rule required_section_missing_or_empty.');
+assertTrue(($missingIssues[0]['severity'] ?? '') === 'critical', 'Ausência de metodologia deve ser critical.');
+
 $withPayload = $sections;
 $withPayload[1]['content'] .= '
 payload: {"step":"draft"}';
