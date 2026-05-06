@@ -18,6 +18,7 @@ use App\Repositories\OrderRepository;
 use App\Repositories\OrderRequirementRepository;
 use App\Repositories\WorkTypeRepository;
 use App\Services\AIOrchestrationService;
+use App\Services\AcademicSectionClassifierService;
 use App\Services\AcademicRefinementService;
 use App\Services\AcademicFallbackPolicyService;
 use App\Services\ApplicationLoggerService;
@@ -1100,14 +1101,15 @@ final class GenerateOrderDocumentJob
 
     private function classifySectionKey(array $section): string
     {
-        $s = mb_strtolower((string) ($section['code'] ?? '') . ' ' . (string) ($section['title'] ?? ''));
+        $classifier = new AcademicSectionClassifierService();
+        $s = $classifier->normalize((string) ($section['code'] ?? '') . ' ' . (string) ($section['title'] ?? ''));
         if (str_contains($s, 'capa')) return 'capa';
         if (str_contains($s, 'rosto')) return 'folha de rosto';
         if (str_contains($s, 'resumo') || str_contains($s, 'abstract')) return 'resumo';
         if (str_contains($s, 'indice') || str_contains($s, 'índice')) return 'indice';
         if (str_contains($s, 'introdu')) return 'introducao';
         if (str_contains($s, 'objet') || str_contains($s, 'objec')) return 'objectivos';
-        if (str_contains($s, 'metod')) return 'metodologia';
+        if ($classifier->areEquivalent('metodologia', $s)) return 'metodologia';
         if (str_contains($s, 'result') || str_contains($s, 'discuss')) return 'resultados';
         if (str_contains($s, 'conclus')) return 'conclusao';
         if (str_contains($s, 'refer') || str_contains($s, 'bibliograf')) return 'referencias';
