@@ -6,6 +6,13 @@ namespace App\Services;
 
 final class DocumentComplianceValidationService
 {
+    /**
+     * Matriz única de severidade (missing vs too_short):
+     * - missing/empty em secção obrigatória => critical (bloqueia fluxo)
+     * - too_short em metodologia => major (permite fluxo com reforço automático)
+     */
+    private const REQUIRED_SECTION_MISSING_SEVERITY = 'critical';
+
     public function validate(array $sections, array $blueprint, array $rules): array
     {
         $non = [];
@@ -17,8 +24,7 @@ final class DocumentComplianceValidationService
 
         foreach ($required as $req) {
             if (!$this->hasEquivalent($req, $normalizedTitles)) {
-                $sev = $req === 'metodologia' ? 'major' : 'critical';
-                $non[] = ['severity'=>$sev,'rule'=>'required_section_missing','message'=>'Secção obrigatória ausente: '.$req,'target'=>$req];
+                $non[] = ['severity'=>self::REQUIRED_SECTION_MISSING_SEVERITY,'rule'=>'required_section_missing','message'=>'Secção obrigatória ausente: '.$req,'target'=>$req];
             }
         }
 
