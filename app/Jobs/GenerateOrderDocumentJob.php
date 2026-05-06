@@ -624,9 +624,11 @@ final class GenerateOrderDocumentJob
                     $wordCount = count(array_filter(preg_split('/\s+/u', trim($sectionContent)) ?: [], static fn (string $w): bool => $w !== ''));
                     $hasProblem = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['problem'] ?? ''), 'problema', 'questão']);
                     $hasObjective = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo', 'objetivo']);
+                    $hasMethodology = $this->hasAnyNeedle($sectionContent, ['metodologia', 'abordagem', 'técnica', 'tecnica', 'documental', 'analítico-interpretativa', 'analitico-interpretativa']);
+                    $hasFindings = $this->hasAnyNeedle($sectionContent, ['achados', 'resultados', 'evidenciou', 'constatou', 'síntese dos principais achados', 'sintese dos principais achados']);
                     $hasKeywords = $this->hasAnyNeedle($sectionContent, ['palavras-chave', 'palavras chave', 'keywords']);
 
-                    return $wordCount < 90 || !$hasProblem || !$hasObjective || !$hasKeywords;
+                    return $wordCount < 90 || !$hasProblem || !$hasObjective || !$hasMethodology || !$hasFindings || !$hasKeywords;
                 },
                 fn (): string => $this->buildGenericAbstractReinforcement($briefing)
             );
@@ -735,7 +737,9 @@ final class GenerateOrderDocumentJob
         $problem = trim((string) ($briefing['problem'] ?? 'o problema definido no briefing'));
         $objective = trim((string) ($briefing['generalObjective'] ?? 'o objectivo geral indicado'));
         $keywords = $this->normalizeKeywords($briefing['keywords'] ?? []);
-        return "Este estudo aborda o tema \"{$theme}\" e delimita como foco analítico {$problem}. O trabalho orienta-se por {$objective}, articulando enquadramento teórico e análise académica em linguagem formal. A síntese apresenta resultados em coerência com o problema e com os objectivos propostos.\n\nPalavras-chave: {$keywords}.";
+        $methodology = 'abordagem qualitativa documental e analítico-interpretativa';
+
+        return "Tema: {$theme}. Problema: {$problem}. Objectivo geral: {$objective}. Metodologia: o estudo adopta desenho descritivo-analítico com técnica de {$methodology}. Síntese dos principais achados: a análise evidenciou padrões centrais do fenómeno, sustentando o problema investigado e respondendo ao objectivo geral com coerência argumentativa. Palavras-chave: {$keywords}.";
     }
 
     private function buildGenericIntroductionReinforcement(array $briefing): string
