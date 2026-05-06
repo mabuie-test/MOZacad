@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+require __DIR__ . '/../../app/Domain/Academic/OperationalMetaPatterns.php';
 require __DIR__ . '/../../app/Domain/Academic/QualityThresholds.php';
 require __DIR__ . '/../../app/Services/DocumentEditorialQualityGateService.php';
 
@@ -32,5 +33,27 @@ $sections = [
 
 $result = $service->validate($sections);
 assertTrue($result['ok'] === true, 'Documento com desenvolvimento temático denso e citações distribuídas deve passar no quality gate.');
+
+$withInstructionOnly = $sections;
+$withInstructionOnly[0]['content'] .= ' Esta instrução metodológica clarifica o recorte teórico.';
+$instructionOnlyResult = $service->validate($withInstructionOnly);
+assertTrue($instructionOnlyResult['ok'] === true, 'Uso isolado de "instrução" não deve ser bloqueado.');
+
+$withPipelineInstruction = $sections;
+$withPipelineInstruction[0]['content'] .= ' Estas são instruções do pipeline para ajuste interno.';
+$pipelineInstructionResult = $service->validate($withPipelineInstruction);
+assertTrue($pipelineInstructionResult['ok'] === false, 'Expressão "instruções do pipeline" deve reprovar no quality gate.');
+
+$withPayload = $sections;
+$withPayload[1]['content'] .= '
+payload: {"step":"draft"}';
+$payloadResult = $service->validate($withPayload);
+assertTrue($payloadResult['ok'] === false, 'Marcador "payload:" deve reprovar no quality gate.');
+
+$withDebug = $sections;
+$withDebug[2]['content'] .= '
+debug: tracing';
+$debugResult = $service->validate($withDebug);
+assertTrue($debugResult['ok'] === false, 'Marcador "debug:" deve reprovar no quality gate.');
 
 echo "DocumentEditorialQualityGateService tests passed.\n";
