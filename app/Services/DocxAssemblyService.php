@@ -43,6 +43,7 @@ final class DocxAssemblyService
 
         $frontPage = is_array($rules['front_page'] ?? null) ? $rules['front_page'] : [];
         $sections = is_array($formatted['sections'] ?? null) ? $formatted['sections'] : [];
+        $orderedSections = $this->normalizeOrderedSections($sections);
         $profile = $this->resolveAssemblyProfile((string) ($rules['assembly_profile'] ?? 'strict_academic'));
         $this->editorialCleanupMode = $this->resolveEditorialCleanupMode((string) ($rules['editorial_cleanup_mode'] ?? 'default'));
 
@@ -56,14 +57,14 @@ final class DocxAssemblyService
             $this->addTitlePage($section, $title, $frontPage, $profile);
         }
 
-        $this->addPreTextSections($section, $sections, ['resumo', 'abstract'], $frontPage);
+        $this->addPreTextSections($section, $orderedSections, ['resumo', 'abstract'], $frontPage);
 
         if ($this->isFrontBlockEnabled($frontPage, 'table_of_contents_enabled', true)) {
             $this->addTableOfContentsPlaceholder($section, $profile);
         }
-        $this->addMainChapters($section, $sections);
-        $this->addReferences($section, $sections);
-        $this->addAnnexesAndAppendices($section, $sections);
+        $this->addMainChapters($section, $orderedSections);
+        $this->addReferences($section, $orderedSections);
+        $this->addAnnexesAndAppendices($section, $orderedSections);
 
         return $phpWord;
     }
@@ -71,6 +72,46 @@ final class DocxAssemblyService
     public function buildTemplateApplicationRecord(array $templateResolution): array
     {
         return $this->normalizeTemplateMeta($templateResolution);
+    }
+
+
+    private function normalizeOrderedSections(array $sections): array
+    {
+        $rank = [
+            'folha_de_rosto' => 10,
+            'resumo' => 20,
+            'indice' => 30,
+            'introducao' => 40,
+            'objectivos' => 50,
+            'metodologia' => 60,
+            'desenvolvimento' => 70,
+            'conclusao' => 80,
+            'referencias' => 90,
+            'annex' => 100,
+            'other' => 65,
+        ];
+
+        usort($sections, function (array $a, array $b) use ($rank): int {
+            return ($rank[$this->classifySectionKey($a)] ?? 65) <=> ($rank[$this->classifySectionKey($b)] ?? 65);
+        });
+
+        return array_values($sections);
+    }
+
+    private function classifySectionKey(array $section): string
+    {
+        $raw = mb_strtolower((string) ($section['code'] ?? '') . ' ' . (string) ($section['title'] ?? ''));
+        if (str_contains($raw, 'rosto')) return 'folha_de_rosto';
+        if (str_contains($raw, 'resumo') || str_contains($raw, 'abstract')) return 'resumo';
+        if (str_contains($raw, 'indice') || str_contains($raw, 'índice')) return 'indice';
+        if (str_contains($raw, 'introdu')) return 'introducao';
+        if (str_contains($raw, 'objet') || str_contains($raw, 'objec')) return 'objectivos';
+        if (str_contains($raw, 'metod')) return 'metodologia';
+        if (str_contains($raw, 'analis') || str_contains($raw, 'desenvol') || str_contains($raw, 'result') || str_contains($raw, 'discuss')) return 'desenvolvimento';
+        if (str_contains($raw, 'conclus')) return 'conclusao';
+        if (str_contains($raw, 'refer') || str_contains($raw, 'bibliograf')) return 'referencias';
+        if (str_starts_with(trim((string) ($section['code'] ?? '')), 'anexo') || str_starts_with(trim((string) ($section['code'] ?? '')), 'apendice')) return 'annex';
+        return 'other';
     }
 
     private function addHeaderFooter(Section $section, array $frontPage): void
