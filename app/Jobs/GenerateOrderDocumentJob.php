@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Domain\Academic\OperationalMetaPatterns;
 use App\Domain\Academic\QualityThresholds;
 use App\Helpers\Database;
 use App\Repositories\AcademicLevelRepository;
@@ -570,15 +571,8 @@ final class GenerateOrderDocumentJob
 
     private function sanitizeOperationalMetaText(array $sections): array
     {
-        $forbiddenSnippets = [
-            'aqui está a secção',
-            'refinada',
-            'comentário de edição',
-            'instruções do pipeline',
-            'linguagem meta-editorial',
-            'índice automático (actualizável no editor de texto).',
-        ];
-        $blocked = $this->operationalMetaPatterns();
+        $forbiddenSnippets = OperationalMetaPatterns::forbiddenSnippets();
+        $blocked = OperationalMetaPatterns::blockedRegexPatterns();
 
         foreach ($sections as &$section) {
             $title = trim((string) ($section['title'] ?? ''));
@@ -1099,12 +1093,7 @@ final class GenerateOrderDocumentJob
     private function assertNoOperationalMetaText(array $sections): void
     {
         $text = mb_strtolower(implode("\n", array_map(static fn (array $s): string => ((string) ($s['title'] ?? '')) . "\n" . ((string) ($s['content'] ?? '')), $sections)));
-        $patterns = [
-            '/aqui est[aá] a sec[cç][aã]o/u',
-            '/\brefinada\b/u',
-            ...$this->operationalMetaPatterns(),
-            '/coment[aá]rio de edi[cç][aã]o|meta-editorial/u',
-        ];
+        $patterns = OperationalMetaPatterns::blockedRegexPatterns();
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $text) === 1) {
                 throw new RuntimeException('Falha de qualidade pré-DOCX: metatexto operacional detectado após sanitização final.');
@@ -1112,18 +1101,6 @@ final class GenerateOrderDocumentJob
         }
     }
 
-
-    private function operationalMetaPatterns(): array
-    {
-        return [
-            '/\{\s*"[^\"]+"\s*:/u',
-            '/\bsection_title\b|\bsection_code\b|\btext\s*:/iu',
-            '/(?:^|\b)instru[cç][aã]o(?:es)?\s+do\s+pipeline(?:\b|$)|(?:^|\b)nota[s]?\s+de\s+pipeline(?:\b|$)|com base nas regras de refinamento/u',
-            '/(?:^|\s)(?:payload|debug)\s*:/iu',
-            '/\b\-\-\-\b/u',
-            '/\[\[todo|placeholder|indice placeholder|lorem ipsum/u',
-        ];
-    }
 
     private function countDevelopmentSubSections(string $developmentText): int
     {

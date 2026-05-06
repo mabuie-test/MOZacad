@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domain\Academic\OperationalMetaPatterns;
 use App\Domain\Academic\QualityThresholds;
 
 final class DocumentEditorialQualityGateService
@@ -13,17 +14,10 @@ final class DocumentEditorialQualityGateService
         $issues = [];
         $fullText = mb_strtolower($this->collectText($sections));
 
-        $blockedPatterns = [
-            '/\{\s*"[^"]+"\s*:/u' => 'json_marker_detected',
-            '/\bsection_title\b|\bsection_code\b|\btext\s*:/u' => 'serialized_fields_detected',
-            '/(?:^|\b)instru[cç][aã]o(?:es)?\s+do\s+pipeline(?:\b|$)|(?:^|\b)nota[s]?\s+de\s+pipeline(?:\b|$)|com base nas regras de refinamento|marcadores operacionais|(?:^|\s)(?:payload|debug)\s*:/u' => 'meta_operational_text_detected',
-            '/\b\-\-\-\b/u' => 'technical_separator_detected',
-            '/\[\[todo|placeholder|indice placeholder|lorem ipsum/u' => 'placeholder_detected',
-            '/aqui est[aá] a sec[cç][aã]o|refinada|coment[aá]rio de edi[cç][aã]o|linguagem meta-editorial/u' => 'forbidden_editorial_meta_text_detected',
-            '/[íi]ndice autom[aá]tico \(actualiz[aá]vel no editor de texto\)/u' => 'toc_placeholder_detected',
-        ];
+        $blockedPatterns = OperationalMetaPatterns::blockedRegexPatterns();
 
-        foreach ($blockedPatterns as $pattern => $rule) {
+        foreach ($blockedPatterns as $pattern) {
+            $rule = $this->ruleForPattern($pattern);
             if (preg_match($pattern, $fullText) === 1) {
                 $issues[] = ['severity' => 'critical', 'rule' => $rule, 'message' => 'Conteúdo técnico/meta detectado no corpo final.'];
             }
@@ -57,8 +51,26 @@ final class DocumentEditorialQualityGateService
         return [
             'ok' => count($issues) === 0,
             'issues' => $issues,
-            'blocked_patterns' => array_keys($blockedPatterns),
+            'blocked_patterns' => $blockedPatterns,
         ];
+    }
+
+
+    private function ruleForPattern(string $pattern): string
+    {
+        return match ($pattern) {
+            '/\{\s*"[^\"]+"\s*:/u' => 'json_marker_detected',
+            '/\bsection_title\b|\bsection_code\b|\btext\s*:/iu' => 'serialized_fields_detected',
+            '/instru[cç](?:[aã]o|[õo]es)\s+do\s+pipeline|nota[s]?\s+de\s+pipeline|com base nas regras de refinamento|marcadores operacionais/u' => 'meta_operational_text_detected',
+            '/(?:^|\s)(?:payload|debug)\s*:/iu' => 'meta_operational_text_detected',
+            '/\b\-\-\-\b/u' => 'technical_separator_detected',
+            '/\[\[todo|placeholder|indice placeholder|lorem ipsum/u' => 'placeholder_detected',
+            '/aqui est[aá] a sec[cç][aã]o/u' => 'forbidden_editorial_meta_text_detected',
+            '/\brefinada\b/u' => 'forbidden_editorial_meta_text_detected',
+            '/coment[aá]rio de edi[cç][aã]o|meta-editorial|linguagem meta-editorial/u' => 'forbidden_editorial_meta_text_detected',
+            '/[íi]ndice autom[aá]tico \(actualiz[aá]vel no editor de texto\)/u' => 'toc_placeholder_detected',
+            default => 'meta_operational_text_detected',
+        };
     }
 
     private function collectText(array $sections): string
