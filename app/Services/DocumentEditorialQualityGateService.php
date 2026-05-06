@@ -9,6 +9,8 @@ use App\Domain\Academic\QualityThresholds;
 
 final class DocumentEditorialQualityGateService
 {
+    private AcademicSectionClassifierService $sectionClassifier;
+
     /**
      * Matriz única de severidade (missing vs too_short):
      * - Secção obrigatória ausente/vazia (missing|empty): critical
@@ -16,6 +18,11 @@ final class DocumentEditorialQualityGateService
      *   - <90 palavras: critical (reforço automático insuficiente)
      *   - 90-119 palavras: major (aceita com auto-reforço e validação final)
      */
+    public function __construct(?AcademicSectionClassifierService $sectionClassifier = null)
+    {
+        $this->sectionClassifier = $sectionClassifier ?? new AcademicSectionClassifierService();
+    }
+
     public function validate(array $sections): array
     {
         $issues = [];
@@ -102,8 +109,7 @@ final class DocumentEditorialQualityGateService
     private function findSection(array $sections, string $needle): ?array
     {
         foreach ($sections as $section) {
-            $key = $this->norm((string) ($section['code'] ?? $section['title'] ?? ''));
-            if (in_array($needle, $this->equivalents($key), true) || in_array($key, $this->equivalents($needle), true)) {
+            if ($this->classifySectionKey($section) === $needle) {
                 return $section;
             }
         }
@@ -111,26 +117,6 @@ final class DocumentEditorialQualityGateService
         return null;
     }
 
-    private function equivalents(string $key): array
-    {
-        return match ($key) {
-            'introducao' => ['introducao'],
-            'objectivos', 'objetivos' => ['objectivos', 'objetivos'],
-            'metodologia' => ['metodologia'],
-            'conclusao' => ['conclusao'],
-            'referencias', 'references', 'bibliografia' => ['referencias', 'references', 'bibliografia'],
-            default => [$key],
-        };
-    }
-
-    private function norm(string $value): string
-    {
-        $value = mb_strtolower(trim($value));
-        $value = strtr($value, ['á'=>'a','à'=>'a','ã'=>'a','â'=>'a','é'=>'e','ê'=>'e','í'=>'i','ó'=>'o','ô'=>'o','õ'=>'o','ú'=>'u','ç'=>'c']);
-        $value = preg_replace('/[^a-z0-9\s]/u', ' ', $value) ?? $value;
-
-        return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
-    }
 
     private function validateLogicalOrder(array $sections): array
     {
@@ -258,15 +244,7 @@ final class DocumentEditorialQualityGateService
 
     private function classifySectionKey(array $section): string
     {
-        $s = $this->norm((string) ($section['code'] ?? '') . ' ' . (string) ($section['title'] ?? ''));
-        if (str_contains($s, 'introdu')) return 'introducao';
-        if (str_contains($s, 'objet') || str_contains($s, 'objec')) return 'objectivos';
-        if (str_contains($s, 'metod')) return 'metodologia';
-        if (str_contains($s, 'result') || str_contains($s, 'discuss')) return 'resultados';
-        if (str_contains($s, 'analis') || str_contains($s, 'desenvol')) return 'desenvolvimento';
-        if (str_contains($s, 'conclus')) return 'conclusao';
-        if (str_contains($s, 'refer') || str_contains($s, 'bibliograf')) return 'referencias';
-        return 'other';
+        return $this->sectionClassifier->classify($section);
     }
 
     private function countDevelopmentSubSections(string $developmentText): int

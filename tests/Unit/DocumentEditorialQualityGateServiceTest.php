@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../app/Domain/Academic/OperationalMetaPatterns.php';
 require __DIR__ . '/../../app/Domain/Academic/QualityThresholds.php';
+require __DIR__ . '/../../app/Services/AcademicSectionClassifierService.php';
 require __DIR__ . '/../../app/Services/DocumentEditorialQualityGateService.php';
 
 use App\Services\DocumentEditorialQualityGateService;
@@ -50,6 +51,14 @@ $missingMethodologyResult = $service->validate($missingMethodology);
 $missingIssues = array_values(array_filter($missingMethodologyResult['issues'], static fn(array $issue): bool => ($issue['rule'] ?? '') === 'required_section_missing_or_empty' && str_contains((string) ($issue['message'] ?? ''), 'metodologia')));
 assertTrue($missingIssues !== [], 'Ausência de metodologia deve gerar rule required_section_missing_or_empty.');
 assertTrue(($missingIssues[0]['severity'] ?? '') === 'critical', 'Ausência de metodologia deve ser critical.');
+
+
+$variantSections = $sections;
+$variantSections[2]['code'] = 'secao_metodo';
+$variantSections[2]['title'] = '3.1 Nota metodológica — desenho e técnicas';
+$variantSections[2]['content'] = str_repeat('Procedimentos metodológicos com triangulação de fontes e validação teórica. ', 16);
+$variantResult = $service->validate($variantSections);
+assertTrue($variantResult['ok'] === true, 'Variantes metodológicas com ruído textual devem classificar como metodologia estável.');
 
 $withPayload = $sections;
 $withPayload[1]['content'] .= '
