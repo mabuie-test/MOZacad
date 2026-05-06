@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Domain\Academic\QualityThresholds;
 use App\Helpers\Database;
 use App\Repositories\AcademicLevelRepository;
 use App\Services\DocumentComplianceValidationService;
@@ -41,10 +42,6 @@ use RuntimeException;
 
 final class GenerateOrderDocumentJob
 {
-    private const MIN_DEVELOPMENT_WORDS = 550;
-    private const MIN_THEMATIC_SUBSECTIONS = 6;
-    private const MIN_DEVELOPMENT_CITATIONS = 6;
-
     public function handle(int $orderId): array
     {
         $logger = new ApplicationLoggerService();
@@ -800,9 +797,9 @@ final class GenerateOrderDocumentJob
     {
         $metrics = $this->extractDevelopmentMetrics($sections);
 
-        return $metrics['words'] >= self::MIN_DEVELOPMENT_WORDS
-            && $metrics['subsections'] >= self::MIN_THEMATIC_SUBSECTIONS
-            && $metrics['citations'] >= self::MIN_DEVELOPMENT_CITATIONS;
+        return $metrics['words'] >= QualityThresholds::MIN_DEVELOPMENT_WORDS
+            && $metrics['subsections'] >= QualityThresholds::MIN_ANALYTIC_SUBSECTIONS
+            && $metrics['citations'] >= QualityThresholds::MIN_INLINE_CITATIONS;
     }
 
     private function extractDevelopmentMetrics(array $sections): array
@@ -1029,9 +1026,9 @@ final class GenerateOrderDocumentJob
 
     private function enforceDevelopmentThresholdAndConclusionGuard(array $sections): array
     {
-        $minDevelopmentWords = self::MIN_DEVELOPMENT_WORDS;
-        $minThematicSections = self::MIN_THEMATIC_SUBSECTIONS;
-        $minCitations = self::MIN_DEVELOPMENT_CITATIONS;
+        $minDevelopmentWords = QualityThresholds::MIN_DEVELOPMENT_WORDS;
+        $minThematicSections = QualityThresholds::MIN_ANALYTIC_SUBSECTIONS;
+        $minCitations = QualityThresholds::MIN_INLINE_CITATIONS;
         $developmentWords = 0;
         $developmentText = '';
         $hasConclusion = false;

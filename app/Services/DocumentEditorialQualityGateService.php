@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Domain\Academic\QualityThresholds;
+
 final class DocumentEditorialQualityGateService
 {
-    private const MIN_DEVELOPMENT_WORDS = 550;
-    private const MIN_ANALYTIC_SUBSECTIONS = 6;
-    private const MIN_INLINE_CITATIONS = 6;
-
     public function validate(array $sections): array
     {
         $issues = [];
@@ -134,10 +132,10 @@ final class DocumentEditorialQualityGateService
             $content = trim((string) ($section['content'] ?? ''));
             $words = preg_split('/\s+/u', $content) ?: [];
             $count = count(array_filter($words, static fn (string $w): bool => trim($w) !== ''));
-            if ($k === 'metodologia' && $count < 120) {
+            if ($k === 'metodologia' && $count < QualityThresholds::MIN_METHODOLOGY_WORDS) {
                 $issues[] = ['severity' => 'critical', 'rule' => 'methodology_too_short', 'message' => 'Metodologia demasiado curta para padrão académico.'];
             }
-            if (in_array($k, ['desenvolvimento', 'resultados'], true) && $count < self::MIN_DEVELOPMENT_WORDS) {
+            if (in_array($k, ['desenvolvimento', 'resultados'], true) && $count < QualityThresholds::MIN_DEVELOPMENT_WORDS) {
                 $issues[] = ['severity' => 'critical', 'rule' => 'analysis_too_short', 'message' => 'Desenvolvimento/Análise com densidade insuficiente.'];
             }
         }
@@ -163,19 +161,19 @@ final class DocumentEditorialQualityGateService
             }
         }
 
-        if ($developmentWords < self::MIN_DEVELOPMENT_WORDS) {
+        if ($developmentWords < QualityThresholds::MIN_DEVELOPMENT_WORDS) {
             $issues[] = ['severity' => 'critical', 'rule' => 'development_missing_or_short', 'message' => 'Documento sem desenvolvimento temático substantivo antes da conclusão.'];
         }
-        if ($hasConclusion && $developmentWords < self::MIN_DEVELOPMENT_WORDS) {
+        if ($hasConclusion && $developmentWords < QualityThresholds::MIN_DEVELOPMENT_WORDS) {
             $issues[] = ['severity' => 'critical', 'rule' => 'conclusion_without_analysis', 'message' => 'Conclusão detectada sem corpo analítico suficiente.'];
         }
         $analyticSectionsCount = $this->countDevelopmentSubSections($developmentText);
-        if ($analyticSectionsCount < self::MIN_ANALYTIC_SUBSECTIONS) {
-            $issues[] = ['severity' => 'critical', 'rule' => 'development_subsections_insufficient', 'message' => 'Desenvolvimento sem número mínimo de secções analíticas (mínimo 6).'];
+        if ($analyticSectionsCount < QualityThresholds::MIN_ANALYTIC_SUBSECTIONS) {
+            $issues[] = ['severity' => 'critical', 'rule' => 'development_subsections_insufficient', 'message' => 'Desenvolvimento sem número mínimo de secções analíticas (mínimo ' . QualityThresholds::MIN_ANALYTIC_SUBSECTIONS . ').'];
         }
 
         $citationMatches = preg_match_all('/\([^)]+,\s*(19|20)\d{2}[a-z]?\)/u', $developmentText, $matches);
-        if (($citationMatches ?: 0) < self::MIN_INLINE_CITATIONS) {
+        if (($citationMatches ?: 0) < QualityThresholds::MIN_INLINE_CITATIONS) {
             $issues[] = ['severity' => 'critical', 'rule' => 'development_without_citations', 'message' => 'Desenvolvimento sem citações académicas mínimas no corpo do texto.'];
         }
 
