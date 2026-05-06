@@ -658,7 +658,8 @@ final class GenerateOrderDocumentJob
                     $hasProcedures = $this->hasAnyNeedle($sectionContent, ['procedimentos', 'técnica', 'tecnica', 'etapas']);
                     $hasBriefingAnchor = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['problem'] ?? ''), (string) ($briefing['generalObjective'] ?? '')]);
 
-                    return $wordCount < 130 || !$hasApproach || !$hasProcedures || !$hasBriefingAnchor;
+                    // Mantemos o mesmo limiar da gate editorial para evitar divergência entre reforço e validação final.
+                    return $wordCount < QualityThresholds::MIN_METHODOLOGY_WORDS || !$hasApproach || !$hasProcedures || !$hasBriefingAnchor;
                 },
                 fn (): string => $this->buildGenericMethodologyReinforcement($briefing)
             );
