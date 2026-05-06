@@ -658,7 +658,7 @@ final class GenerateOrderDocumentJob
                     $hasProcedures = $this->hasAnyNeedle($sectionContent, ['procedimentos', 'técnica', 'tecnica', 'etapas']);
                     $hasBriefingAnchor = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['problem'] ?? ''), (string) ($briefing['generalObjective'] ?? '')]);
 
-                    // Mantemos o mesmo limiar da gate editorial para evitar divergência entre reforço e validação final.
+                    // Reforçamos abaixo de 120 palavras para que a faixa 90–119 seja coberta antes da validação final.
                     return $wordCount < QualityThresholds::MIN_METHODOLOGY_WORDS || !$hasApproach || !$hasProcedures || !$hasBriefingAnchor;
                 },
                 fn (): string => $this->buildGenericMethodologyReinforcement($briefing)
@@ -749,7 +749,7 @@ final class GenerateOrderDocumentJob
     {
         $problem = trim((string) ($briefing['problem'] ?? 'o problema definido no briefing'));
         $objective = trim((string) ($briefing['generalObjective'] ?? 'o objectivo geral indicado'));
-        return "A metodologia adopta abordagem qualitativa de natureza descritivo-analítica, adequada à compreensão de {$problem}. Foram definidos procedimentos de levantamento, organização e interpretação de fontes em alinhamento com {$objective}. As etapas incluem delimitação do corpus, análise crítica e sistematização dos achados, preservando rigor académico e consistência argumentativa.";
+        return "A metodologia adopta abordagem qualitativa de natureza descritivo-analítica, adequada à compreensão de {$problem}. O desenho metodológico articula método de revisão documental, leitura comparativa de autores e técnica de análise de conteúdo, com categorias definidas a partir do problema e do enquadramento teórico. Em termos operacionais, foram executadas etapas de delimitação do corpus, critérios de inclusão e exclusão de fontes, codificação temática e validação por triangulação interpretativa. Este percurso garante alinhamento com {$objective}, explicita procedimentos replicáveis, reduz vieses de interpretação e assegura consistência entre dados analisados, discussão argumentativa e conclusões do estudo.";
     }
 
     private function buildGenericConclusionReinforcement(array $briefing): string

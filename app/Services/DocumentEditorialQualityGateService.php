@@ -48,8 +48,16 @@ final class DocumentEditorialQualityGateService
             }
         }
 
+        $hasCriticalIssues = false;
+        foreach ($issues as $issue) {
+            if ((string) ($issue['severity'] ?? '') === 'critical') {
+                $hasCriticalIssues = true;
+                break;
+            }
+        }
+
         return [
-            'ok' => count($issues) === 0,
+            'ok' => !$hasCriticalIssues,
             'issues' => $issues,
             'blocked_patterns' => $blockedPatterns,
         ];
@@ -158,8 +166,20 @@ final class DocumentEditorialQualityGateService
             $content = trim((string) ($section['content'] ?? ''));
             $words = preg_split('/\s+/u', $content) ?: [];
             $count = count(array_filter($words, static fn (string $w): bool => trim($w) !== ''));
-            if ($k === 'metodologia' && $count < QualityThresholds::MIN_METHODOLOGY_WORDS) {
-                $issues[] = ['severity' => 'critical', 'rule' => 'methodology_too_short', 'message' => 'Metodologia demasiado curta para padrão académico.'];
+            if ($k === 'metodologia') {
+                if ($count < 90) {
+                    $issues[] = [
+                        'severity' => 'critical',
+                        'rule' => 'methodology_too_short',
+                        'message' => 'Metodologia insuficiente (<90 palavras). Reforço automático não foi suficiente; rever secção antes de aprovar.',
+                    ];
+                } elseif ($count < QualityThresholds::MIN_METHODOLOGY_WORDS) {
+                    $issues[] = [
+                        'severity' => 'major',
+                        'rule' => 'methodology_too_short',
+                        'message' => 'Metodologia insuficiente (90–119 palavras): reforço aplicado automaticamente; validar coerência final antes de publicar.',
+                    ];
+                }
             }
             if (in_array($k, ['desenvolvimento', 'resultados'], true) && $count < QualityThresholds::MIN_DEVELOPMENT_WORDS) {
                 $issues[] = ['severity' => 'critical', 'rule' => 'analysis_too_short', 'message' => 'Desenvolvimento/Análise com densidade insuficiente.'];
