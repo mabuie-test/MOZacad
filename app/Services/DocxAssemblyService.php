@@ -63,7 +63,7 @@ final class DocxAssemblyService
         $this->addPreTextSections($section, $orderedSections, ['resumo', 'abstract'], $frontPage);
 
         if ($this->isFrontBlockEnabled($frontPage, 'table_of_contents_enabled', true)) {
-            $this->addTableOfContentsPlaceholder($section, $profile);
+            $this->addTableOfContentsPlaceholder($section, $profile, $rules);
         }
         $this->addMainChapters($section, $orderedSections);
         $this->addReferences($section, $orderedSections);
@@ -231,12 +231,16 @@ final class DocxAssemblyService
         }
     }
 
-    private function addTableOfContentsPlaceholder(Section $section, string $profile): void
+    private function addTableOfContentsPlaceholder(Section $section, string $profile, array $rules): void
     {
+        $leftMargin = $this->cmToTwip($rules['margins']['left'] ?? 3.0);
+        $rightMargin = $this->cmToTwip($rules['margins']['right'] ?? 3.0);
+        $usableWidth = max(5000, 11906 - $leftMargin - $rightMargin);
+
         $section->addTitle('Índice', 1);
         $section->addTOC(
             ['size' => 11, 'bold' => false],
-            ['tabLeader' => 'dot', 'tabPos' => 9000],
+            ['tabLeader' => 'dot', 'tabPos' => $usableWidth],
             1,
             2
         );
