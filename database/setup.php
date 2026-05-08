@@ -49,6 +49,15 @@ $ensureMigrationsTable = static function () use ($db): void {
 if ($mode === 'fresh') {
     $runSqlFile(__DIR__ . '/schema/base_schema.sql');
     $ensureMigrationsTable();
+    $migrationFiles = glob(__DIR__ . '/migrations/*.sql') ?: [];
+    sort($migrationFiles, SORT_STRING);
+    if ($migrationFiles !== []) {
+        $stmt = $db->prepare('INSERT IGNORE INTO schema_migrations (migration_name, applied_at) VALUES (:name, NOW())');
+        foreach ($migrationFiles as $file) {
+            $stmt->execute(['name' => basename($file)]);
+        }
+        echo "Baseline de migrations marcado para instalação fresh.\n";
+    }
 } else {
     $ensureMigrationsTable();
 

@@ -193,7 +193,10 @@ CREATE TABLE templates (
   file_path VARCHAR(255) NOT NULL,
   is_active TINYINT(1) DEFAULT 1,
   created_at TIMESTAMP NULL,
-  updated_at TIMESTAMP NULL
+  updated_at TIMESTAMP NULL,
+  INDEX idx_templates_institution_work_type (institution_id, work_type_id),
+  CONSTRAINT fk_templates_institution FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_templates_work_type FOREIGN KEY (work_type_id) REFERENCES work_types(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE orders (
@@ -216,10 +219,18 @@ CREATE TABLE orders (
   deadline_date DATETIME NOT NULL,
   notes TEXT NULL,
   status VARCHAR(40) NOT NULL DEFAULT 'draft',
+  admin_priority VARCHAR(20) NOT NULL DEFAULT 'normal',
+  admin_sla_due_at DATETIME NULL,
+  briefing_autocompleted TINYINT(1) NOT NULL DEFAULT 0,
+  briefing_autocompleted_at DATETIME NULL,
+  briefing_autocomplete_provider VARCHAR(40) NULL,
+  briefing_autocomplete_confidence VARCHAR(20) NULL,
+  briefing_original_json JSON NULL,
   final_price DECIMAL(12,2) NULL,
   created_at TIMESTAMP NULL,
   updated_at TIMESTAMP NULL,
-  INDEX idx_orders_user_id (user_id)
+  INDEX idx_orders_user_id (user_id),
+  INDEX idx_orders_admin_priority_sla (admin_priority, admin_sla_due_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE order_requirements (
@@ -234,7 +245,8 @@ CREATE TABLE order_requirements (
   needs_defense_summary TINYINT(1) DEFAULT 0,
   notes TEXT NULL,
   created_at TIMESTAMP NULL,
-  updated_at TIMESTAMP NULL
+  updated_at TIMESTAMP NULL,
+  CONSTRAINT fk_order_requirements_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE order_attachments (
@@ -244,7 +256,8 @@ CREATE TABLE order_attachments (
   file_name VARCHAR(190) NOT NULL,
   file_path VARCHAR(255) NOT NULL,
   mime_type VARCHAR(100) NULL,
-  created_at TIMESTAMP NULL
+  created_at TIMESTAMP NULL,
+  CONSTRAINT fk_order_attachments_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE invoices (
@@ -300,7 +313,11 @@ CREATE TABLE debito_transactions (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   payment_id BIGINT UNSIGNED NULL,
   wallet_id VARCHAR(40) NOT NULL,
+  api_version VARCHAR(10) NULL,
+  wallet_code VARCHAR(20) NULL,
   debito_reference VARCHAR(100) NULL,
+  provider_payment_id VARCHAR(100) NULL,
+  provider_reference VARCHAR(100) NULL,
   request_payload_json JSON NOT NULL,
   response_payload_json JSON NOT NULL,
   last_status_payload_json JSON NULL,
@@ -311,7 +328,10 @@ CREATE TABLE debito_transactions (
   created_at TIMESTAMP NULL,
   updated_at TIMESTAMP NULL,
   UNIQUE KEY uq_debito_transactions_payment (payment_id),
-  UNIQUE KEY uq_debito_transactions_reference (debito_reference)
+  UNIQUE KEY uq_debito_transactions_reference (debito_reference),
+  INDEX idx_debito_transactions_provider_payment_id (provider_payment_id),
+  INDEX idx_debito_transactions_wallet_code (wallet_code),
+  CONSTRAINT fk_debito_transactions_payment FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE payment_status_logs (
@@ -416,6 +436,7 @@ CREATE TABLE generated_documents (
   order_id BIGINT UNSIGNED NOT NULL,
   file_path VARCHAR(255) NOT NULL,
   version INT DEFAULT 1,
+  template_application_json JSON NULL,
   status VARCHAR(40) NOT NULL,
   created_at TIMESTAMP NULL,
   UNIQUE KEY uq_generated_documents_order_version (order_id, version),
@@ -449,8 +470,13 @@ CREATE TABLE human_review_queue (
   generated_document_id BIGINT UNSIGNED NULL,
   generated_document_version INT NULL,
   reviewer_id BIGINT UNSIGNED NULL,
+  created_by BIGINT UNSIGNED NULL,
+  assigned_by BIGINT UNSIGNED NULL,
+  last_decided_by BIGINT UNSIGNED NULL,
   status VARCHAR(30) NOT NULL,
   decision VARCHAR(30) NULL,
+  approval_count INT UNSIGNED NOT NULL DEFAULT 0,
+  required_approvals INT UNSIGNED NOT NULL DEFAULT 1,
   comments TEXT NULL,
   created_at TIMESTAMP NULL,
   updated_at TIMESTAMP NULL,
@@ -458,6 +484,8 @@ CREATE TABLE human_review_queue (
   INDEX idx_hrq_order_status (order_id, status),
   INDEX idx_hrq_order_status_updated (order_id, status, updated_at),
   INDEX idx_hrq_order_document (order_id, generated_document_id),
+  INDEX idx_hrq_reviewer_status (reviewer_id, status),
+  INDEX idx_hrq_stage_counts (status, approval_count, required_approvals),
   CONSTRAINT fk_hrq_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
   CONSTRAINT fk_hrq_generated_document FOREIGN KEY (generated_document_id) REFERENCES generated_documents(id) ON DELETE CASCADE,
   CONSTRAINT fk_hrq_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
@@ -480,8 +508,14 @@ CREATE TABLE audit_logs (
   subject_id BIGINT UNSIGNED NULL,
   payload_json JSON NULL,
   permission_code VARCHAR(120) NULL,
+  previous_hash CHAR(64) NULL,
+  event_hash CHAR(64) NULL,
   created_at TIMESTAMP NULL,
-  INDEX idx_audit_logs_permission_code (permission_code)
+  INDEX idx_audit_logs_permission_code (permission_code),
+  INDEX idx_audit_logs_actor_created_at (actor_id, created_at),
+  INDEX idx_audit_logs_action_created_at (action, created_at),
+  INDEX idx_audit_logs_subject (subject_type, subject_id),
+  UNIQUE KEY uq_audit_logs_event_hash (event_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE webhook_replay_events (
@@ -538,6 +572,127 @@ CREATE TABLE ai_jobs (
   INDEX idx_ai_jobs_reservation_token (reservation_token),
   INDEX idx_ai_jobs_processing_started (processing_started_at),
   CONSTRAINT fk_ai_jobs_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE template_artifacts (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  institution_id BIGINT UNSIGNED NOT NULL,
+  work_type_id BIGINT UNSIGNED NULL,
+  artifact_type VARCHAR(40) NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  mime_type VARCHAR(120) NOT NULL,
+  file_size INT UNSIGNED NOT NULL,
+  checksum_sha256 CHAR(64) NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  published_by_user_id BIGINT UNSIGNED NULL,
+  created_at TIMESTAMP NULL,
+  INDEX idx_template_artifacts_lookup (institution_id, work_type_id, artifact_type, is_active),
+  INDEX idx_template_artifacts_actor (published_by_user_id),
+  CONSTRAINT fk_template_artifacts_institution FOREIGN KEY (institution_id) REFERENCES institutions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_template_artifacts_work_type FOREIGN KEY (work_type_id) REFERENCES work_types(id) ON DELETE CASCADE,
+  CONSTRAINT fk_template_artifacts_actor FOREIGN KEY (published_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE human_review_decisions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  human_review_queue_id BIGINT UNSIGNED NOT NULL,
+  actor_id BIGINT UNSIGNED NOT NULL,
+  stage VARCHAR(40) NOT NULL,
+  decision VARCHAR(20) NOT NULL,
+  justification TEXT NULL,
+  decided_at DATETIME NOT NULL,
+  created_at TIMESTAMP NULL,
+  INDEX idx_hrd_queue_stage (human_review_queue_id, stage, decided_at),
+  INDEX idx_hrd_actor_decided (actor_id, decided_at),
+  CONSTRAINT fk_hrd_queue FOREIGN KEY (human_review_queue_id) REFERENCES human_review_queue(id) ON DELETE CASCADE,
+  CONSTRAINT fk_hrd_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE audit_log_archives (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  archived_until DATETIME NOT NULL,
+  storage_uri VARCHAR(255) NOT NULL,
+  checksum_sha256 CHAR(64) NOT NULL,
+  created_at TIMESTAMP NULL,
+  INDEX idx_audit_log_archives_archived_until (archived_until)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE delivery_readiness_checklists (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  generated_document_id BIGINT UNSIGNED NOT NULL,
+  generated_document_version INT UNSIGNED NOT NULL,
+  checklist_item VARCHAR(40) NOT NULL,
+  is_checked TINYINT(1) NOT NULL DEFAULT 0,
+  checked_by BIGINT UNSIGNED NULL,
+  checked_at DATETIME NULL,
+  reviewer_signed_by BIGINT UNSIGNED NULL,
+  reviewer_signed_at DATETIME NULL,
+  approver_signed_by BIGINT UNSIGNED NULL,
+  approver_signed_at DATETIME NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  notes TEXT NULL,
+  created_at TIMESTAMP NULL,
+  updated_at TIMESTAMP NULL,
+  UNIQUE KEY uq_delivery_checklist_item (generated_document_id, generated_document_version, checklist_item),
+  KEY idx_delivery_checklist_status (status, is_checked),
+  KEY idx_delivery_checklist_doc (generated_document_id, generated_document_version),
+  CONSTRAINT fk_delivery_checklist_doc FOREIGN KEY (generated_document_id) REFERENCES generated_documents(id) ON DELETE CASCADE,
+  CONSTRAINT fk_delivery_checklist_checked_by FOREIGN KEY (checked_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_delivery_checklist_reviewer_sign FOREIGN KEY (reviewer_signed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_delivery_checklist_approver_sign FOREIGN KEY (approver_signed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE post_payment_exceptions (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  payment_id BIGINT UNSIGNED NULL,
+  review_queue_id BIGINT UNSIGNED NULL,
+  category VARCHAR(40) NOT NULL,
+  state VARCHAR(40) NOT NULL DEFAULT 'open',
+  owner_user_id BIGINT UNSIGNED NULL,
+  sla_due_at DATETIME NULL,
+  escalation_level TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  blocked_delivery TINYINT(1) NOT NULL DEFAULT 0,
+  resolution_code VARCHAR(60) NULL,
+  resolution_notes TEXT NULL,
+  auto_reconciled TINYINT(1) NOT NULL DEFAULT 0,
+  resolved_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_ppe_state_sla (state, sla_due_at),
+  INDEX idx_ppe_owner_state (owner_user_id, state),
+  INDEX idx_ppe_order_payment (order_id, payment_id),
+  CONSTRAINT fk_ppe_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ppe_payment FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ppe_queue FOREIGN KEY (review_queue_id) REFERENCES human_review_queue(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ppe_owner FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE post_payment_exception_events (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  exception_id BIGINT UNSIGNED NOT NULL,
+  actor_id BIGINT UNSIGNED NULL,
+  event_type VARCHAR(50) NOT NULL,
+  payload_json JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ppee_exception_created (exception_id, created_at),
+  CONSTRAINT fk_ppee_exception FOREIGN KEY (exception_id) REFERENCES post_payment_exceptions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ppee_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE document_compliance_validations (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  generated_document_id BIGINT UNSIGNED NOT NULL,
+  generated_document_version INT UNSIGNED NOT NULL,
+  is_compliant TINYINT(1) NOT NULL DEFAULT 0,
+  critical_count INT UNSIGNED NOT NULL DEFAULT 0,
+  major_count INT UNSIGNED NOT NULL DEFAULT 0,
+  minor_count INT UNSIGNED NOT NULL DEFAULT 0,
+  non_conformities_json JSON NOT NULL,
+  created_at TIMESTAMP NULL,
+  KEY idx_doc_compliance_document (generated_document_id, generated_document_version),
+  KEY idx_doc_compliance_severity (is_compliant, critical_count),
+  CONSTRAINT fk_doc_compliance_document FOREIGN KEY (generated_document_id) REFERENCES generated_documents(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS=1;
