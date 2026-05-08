@@ -2,17 +2,17 @@
 
 Plataforma MVC em PHP 8.2+ para pedidos académicos, pagamento DebitoPay Payments API v2 (M-Pesa), geração DOCX, revisão humana e entrega segura, com autorização centralizada e observabilidade operacional.
 
-## Setup rápido (instalação nova)
+## Instalação limpa (Termux/dev)
 1. `composer install`
 2. `cp .env.example .env`
-3. Criar base `moz_acad`
-4. Aplicar schema canónico actual (sem cadeia histórica de migrations):
-   - `php database/setup.php --fresh`
-   - ou `composer db:schema`
-5. (Opcional) carregar dados base:
-   - `php database/setup.php --fresh --seed`
-   - ou `composer db:setup`
-6. Servir `public/` como document root (`public_html` compatível).
+3. Configurar `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
+4. Recriar a base local manualmente:
+   - `DROP DATABASE IF EXISTS moz_acad;`
+   - `CREATE DATABASE moz_acad CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+5. `composer db:setup` (equivalente a `php database/setup.php --fresh --seed`)
+6. `composer ops:validate`
+7. `php -S 0.0.0.0:8080 -t public`
+8. Em terminal separado: `composer workers:run`
 
 ## Upgrade de instalações antigas
 Para ambientes já existentes, manter caminho incremental:
@@ -26,8 +26,10 @@ Para ambientes já existentes, manter caminho incremental:
 
 ## Filosofia de persistência
 - **Instalação nova:** usa `database/schema/base_schema.sql` como fonte canónica do estado actual.
+- **Instalação nova não depende de migrações históricas:** `--fresh` aplica apenas o schema canónico; as migrations são marcadas como baseline em `schema_migrations` para evitar reaplicação futura.
 - **Upgrade:** usa `database/migrations/*.sql` para evolução incremental de bases já em produção.
-- **Sem dupla verdade:** schema base e runtime são mantidos alinhados; migrations passam a servir upgrade/evolução.
+- **Seed previsível:** `--fresh --seed` aplica seeders SQL em ordem alfabética.
+- **Sem dupla verdade:** schema base e runtime são mantidos alinhados; migrations servem upgrade/evolução de ambientes existentes.
 
 ## Fluxo real ponta-a-ponta
 1. Utilizador cria pedido (`orders`).
