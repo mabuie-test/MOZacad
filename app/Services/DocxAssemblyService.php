@@ -34,8 +34,8 @@ final class DocxAssemblyService
         $phpWord->addParagraphStyle('references_item', ['alignment' => Jc::LEFT, 'spaceAfter' => 100, 'lineHeight' => 1.0, 'indentation' => ['hanging' => 360]]);
 
         $headingSize = $this->safeInt($rules['heading_font_size'] ?? 14, 14);
-        $phpWord->addTitleStyle(1, ['bold' => true, 'size' => $headingSize], ['alignment' => Jc::CENTER, 'spaceBefore' => 220, 'spaceAfter' => 220, 'keepNext' => true]);
-        $phpWord->addTitleStyle(2, ['bold' => true, 'size' => max(12, $headingSize - 1)], ['alignment' => Jc::LEFT, 'spaceBefore' => 260, 'spaceAfter' => 220, 'keepNext' => true]);
+        $phpWord->addTitleStyle(1, ['bold' => true, 'size' => $headingSize], ['alignment' => Jc::LEFT, 'spaceBefore' => 220, 'spaceAfter' => 220, 'keepNext' => true]);
+        $phpWord->addTitleStyle(2, ['bold' => true, 'size' => max(12, $headingSize - 1)], ['alignment' => Jc::LEFT, 'spaceBefore' => 320, 'spaceAfter' => 240, 'keepNext' => true]);
 
         $section = $phpWord->addSection([
             'marginTop' => $this->cmToTwip($rules['margins']['top'] ?? 2.5),
@@ -235,8 +235,8 @@ final class DocxAssemblyService
     {
         $section->addTitle('Índice', 1);
         $section->addTOC(
-            ['size' => 11],
-            ['tabLeader' => 'dot', 'pageNumbering' => true],
+            ['size' => 11, 'bold' => false],
+            ['tabLeader' => 'dot', 'tabPos' => 9000],
             1,
             2
         );
@@ -347,10 +347,11 @@ final class DocxAssemblyService
             }
 
             if ($isDevelopment && preg_match('/^(\d+(?:\.\d+)*)(?:\.)?\s+(.+)/u', $clean, $m) === 1) {
-                if (substr_count($m[1], '.') === 0) {
+                $level = substr_count($m[1], '.') === 0 ? 1 : 2;
+                if ($level === 1) {
                     $section->addPageBreak();
                 }
-                $section->addTitle(trim($m[1] . '. ' . $m[2]), 2);
+                $section->addTitle(trim($m[1] . '. ' . $m[2]), $level);
                 continue;
             }
 
