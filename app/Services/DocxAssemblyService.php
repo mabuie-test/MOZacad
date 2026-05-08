@@ -35,7 +35,7 @@ final class DocxAssemblyService
 
         $headingSize = $this->safeInt($rules['heading_font_size'] ?? 14, 14);
         $phpWord->addTitleStyle(1, ['bold' => true, 'size' => $headingSize], ['alignment' => Jc::CENTER, 'spaceBefore' => 220, 'spaceAfter' => 220, 'keepNext' => true]);
-        $phpWord->addTitleStyle(2, ['bold' => true, 'size' => max(12, $headingSize - 1)], ['alignment' => Jc::LEFT, 'spaceBefore' => 180, 'spaceAfter' => 160, 'keepNext' => true]);
+        $phpWord->addTitleStyle(2, ['bold' => true, 'size' => max(12, $headingSize - 1)], ['alignment' => Jc::LEFT, 'spaceBefore' => 260, 'spaceAfter' => 220, 'keepNext' => true]);
 
         $section = $phpWord->addSection([
             'marginTop' => $this->cmToTwip($rules['margins']['top'] ?? 2.5),
@@ -141,23 +141,23 @@ final class DocxAssemblyService
 
     private function addCoverPage(Section $section, string $title, array $frontPage, array $templateMeta): void
     {
-        $section->addText($this->cleanText((string) ($frontPage['institution_name'] ?? 'Instituição Académica')), ['bold' => true, 'size' => 14], ['alignment' => Jc::CENTER]);
+        $section->addText($this->cleanText((string) ($frontPage['institution_name'] ?? 'Instituição Académica')), ['bold' => true, 'size' => 14], ['alignment' => Jc::CENTER, 'spaceAfter' => 120]);
 
         if (!empty($frontPage['faculty'])) {
-            $section->addText($this->cleanText((string) $frontPage['faculty']), ['size' => 12], ['alignment' => Jc::CENTER]);
+            $section->addText($this->cleanText((string) $frontPage['faculty']), ['size' => 12], ['alignment' => Jc::CENTER, 'spaceAfter' => 100]);
         }
         if (!empty($frontPage['department'])) {
-            $section->addText($this->cleanText((string) $frontPage['department']), ['size' => 12], ['alignment' => Jc::CENTER]);
+            $section->addText($this->cleanText((string) $frontPage['department']), ['size' => 12], ['alignment' => Jc::CENTER, 'spaceAfter' => 100]);
         }
 
         $section->addTextBreak(4);
-        $section->addText($this->cleanText($title), ['bold' => true, 'size' => 16], ['alignment' => Jc::CENTER]);
+        $section->addText($this->cleanText($title), ['bold' => true, 'size' => 16], ['alignment' => Jc::CENTER, 'spaceAfter' => 180]);
 
         if (!empty($frontPage['student_name'])) {
-            $section->addText('Discente: ' . $this->cleanText((string) $frontPage['student_name']), ['size' => 12], ['alignment' => Jc::CENTER]);
+            $section->addText('Discente: ' . $this->cleanText((string) $frontPage['student_name']), ['size' => 12], ['alignment' => Jc::CENTER, 'spaceAfter' => 80]);
         }
         if (!empty($frontPage['supervisor_name'])) {
-            $section->addText('Orientador(a): ' . $this->cleanText((string) $frontPage['supervisor_name']), ['size' => 12], ['alignment' => Jc::CENTER]);
+            $section->addText('Orientador(a): ' . $this->cleanText((string) $frontPage['supervisor_name']), ['size' => 12], ['alignment' => Jc::CENTER, 'spaceAfter' => 80]);
         }
 
         $section->addTextBreak(6);
@@ -201,9 +201,9 @@ final class DocxAssemblyService
 
         $note = $this->cleanText((string) ($frontPage['submission_note'] ?? ''));
         if ($note !== '') {
-            $section->addText($note, [], 'body_text');
+            $section->addText($note, ['italic' => true], ['alignment' => Jc::BOTH, 'spaceAfter' => 180, 'lineHeight' => 1.3, 'indentation' => ['left' => 480]]);
         } elseif ($profile === 'strict_academic') {
-            $section->addText('Documento académico.', [], 'body_text');
+            $section->addText('Trabalho apresentado para fins de avaliação académica.', ['italic' => true], ['alignment' => Jc::BOTH, 'spaceAfter' => 180, 'lineHeight' => 1.3, 'indentation' => ['left' => 480]]);
         }
         $section->addPageBreak();
     }
@@ -234,7 +234,12 @@ final class DocxAssemblyService
     private function addTableOfContentsPlaceholder(Section $section, string $profile): void
     {
         $section->addTitle('Índice', 1);
-        $section->addTOC(['size' => 11], ['minDepth' => 1, 'maxDepth' => 2, 'tabLeader' => 'dot']);
+        $section->addTOC(
+            ['size' => 11],
+            ['tabLeader' => 'dot', 'pageNumbering' => true],
+            1,
+            2
+        );
         $section->addPageBreak();
     }
 
@@ -342,6 +347,9 @@ final class DocxAssemblyService
             }
 
             if ($isDevelopment && preg_match('/^(\d+(?:\.\d+)*)(?:\.)?\s+(.+)/u', $clean, $m) === 1) {
+                if (substr_count($m[1], '.') === 0) {
+                    $section->addPageBreak();
+                }
                 $section->addTitle(trim($m[1] . '. ' . $m[2]), 2);
                 continue;
             }
