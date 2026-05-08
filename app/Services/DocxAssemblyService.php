@@ -16,7 +16,9 @@ final class DocxAssemblyService
     public function assemble(array $formatted, string $title, array $templateResolution = []): PhpWord
     {
         Settings::setOutputEscapingEnabled(true);
-        Settings::setUpdateFields(true);
+        if (method_exists(Settings::class, 'setUpdateFields')) {
+            Settings::setUpdateFields(true);
+        }
 
         $phpWord = new PhpWord();
         $rules = is_array($formatted['rules'] ?? null) ? $formatted['rules'] : [];
