@@ -234,7 +234,7 @@ final class DocxAssemblyService
     private function addTableOfContentsPlaceholder(Section $section, string $profile): void
     {
         $section->addTitle('Índice', 1);
-        $section->addTOC(['size' => 11], ['minDepth' => 1, 'maxDepth' => 2, 'tabLeader' => \PhpOffice\PhpWord\Style\TOC::TABLEADER_DOT]);
+        $section->addTOC(['size' => 11], ['minDepth' => 1, 'maxDepth' => 2, 'tabLeader' => 'dot']);
         $section->addPageBreak();
     }
 
