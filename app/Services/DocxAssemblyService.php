@@ -16,6 +16,7 @@ final class DocxAssemblyService
     public function assemble(array $formatted, string $title, array $templateResolution = []): PhpWord
     {
         Settings::setOutputEscapingEnabled(true);
+        Settings::setUpdateFields(true);
 
         $phpWord = new PhpWord();
         $rules = is_array($formatted['rules'] ?? null) ? $formatted['rules'] : [];
@@ -234,7 +235,7 @@ final class DocxAssemblyService
     {
         $section->addTitle('Índice', 1);
         $section->addText('Sumário', ['bold' => true], 'plain_text');
-        $section->addTOC(['size' => 11]);
+        $section->addTOC(['size' => 11], ['minDepth' => 1, 'maxDepth' => 2]);
         $section->addPageBreak();
     }
 
@@ -248,8 +249,13 @@ final class DocxAssemblyService
 
             $title = $this->cleanText((string) ($item['title'] ?? 'Capítulo'));
             $safeTitle = $title !== '' ? $title : 'Capítulo';
-            $section->addTitle($safeTitle, 1);
-            $this->appendParagraphs($section, (string) ($item['content'] ?? ''), $safeTitle);
+            $isDevelopment = $this->classifySectionKey($item) === 'desenvolvimento';
+
+            if (!$isDevelopment) {
+                $section->addTitle($safeTitle, 1);
+            }
+
+            $this->appendParagraphs($section, (string) ($item['content'] ?? ''), $safeTitle, $isDevelopment);
         }
     }
 
@@ -313,9 +319,10 @@ final class DocxAssemblyService
         return in_array($profile, $allowed, true) ? $profile : 'strict_academic';
     }
 
-    private function appendParagraphs(Section $section, string $content, ?string $sectionTitle = null): void
+    private function appendParagraphs(Section $section, string $content, ?string $sectionTitle = null, bool $isDevelopment = false): void
     {
         $normalizedTitle = $sectionTitle !== null ? mb_strtolower(trim($this->cleanText($sectionTitle), " \t\n\r\0\x0B.:;")) : '';
+        $developmentHeadingCount = 0;
 
         foreach (preg_split('/\n+/', $content) ?: [] as $paragraph) {
             $clean = $this->cleanText($paragraph);
@@ -328,6 +335,15 @@ final class DocxAssemblyService
                 if ($normalizedParagraph === $normalizedTitle) {
                     continue;
                 }
+            }
+
+            if ($isDevelopment && preg_match('/^\d+\.\s+(.+)/u', $clean, $m) === 1) {
+                if ($developmentHeadingCount > 0) {
+                    $section->addPageBreak();
+                }
+                $section->addTitle(trim($m[1]), 2);
+                $developmentHeadingCount++;
+                continue;
             }
 
             $isLongCitation = str_starts_with($clean, '"') && mb_strlen($clean) > 280;

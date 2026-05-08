@@ -677,7 +677,7 @@ final class GenerateOrderDocumentJob
                     $hasObjectiveReturn = $this->hasAnyNeedle($sectionContent, [(string) ($briefing['generalObjective'] ?? ''), 'objectivo geral', 'objetivo geral']);
                     $hasSynthesis = $this->hasAnyNeedle($sectionContent, ['síntese', 'sintese', 'conclui-se', 'considerações finais']);
 
-                    return $wordCount < 120 || !$hasObjectiveReturn || !$hasSynthesis;
+                    return $wordCount < 180 || !$hasObjectiveReturn || !$hasSynthesis;
                 },
                 fn (): string => $this->buildGenericConclusionReinforcement($briefing)
             );
@@ -743,7 +743,7 @@ final class GenerateOrderDocumentJob
         $theme = trim((string) ($briefing['title'] ?? 'tema em estudo'));
         $problem = trim((string) ($briefing['problem'] ?? 'o problema definido no briefing'));
         $objective = trim((string) ($briefing['generalObjective'] ?? 'o objectivo geral indicado'));
-        return "O presente trabalho discute {$theme} a partir de uma perspectiva académica. A investigação é estruturada em torno de {$problem}, procurando justificar a relevância científica e social do tema. Em termos de finalidade, o estudo orienta-se por {$objective}, estabelecendo uma linha argumentativa coerente com a organização do documento.";
+        return "O presente trabalho examina {$theme} como problema histórico e político-educacional, recusando leituras meramente descritivas. A investigação toma como eixo {$problem}, delimitando actores, temporalidades e mecanismos institucionais que produziram continuidades e rupturas no fenómeno estudado. A relevância científica reside em articular debate teórico, evidência documental e implicações para a compreensão crítica do campo. Assim, {$objective} opera como critério de selecção analítica e de organização argumentativa, garantindo que cada secção contribua para uma interpretação fundamentada e não apenas narrativa do objecto.";
     }
 
     private function buildGenericMethodologyReinforcement(array $briefing): string
@@ -757,7 +757,7 @@ final class GenerateOrderDocumentJob
     {
         $objective = trim((string) ($briefing['generalObjective'] ?? 'o objectivo geral indicado'));
         $problem = trim((string) ($briefing['problem'] ?? 'o problema apresentado'));
-        return "Em síntese, a análise permitiu retomar {$problem} e discutir seus principais desdobramentos no âmbito académico. Conclui-se que o estudo manteve coerência com {$objective}, oferecendo fechamento argumentativo compatível com o desenvolvimento apresentado e apontando continuidade para investigações futuras.";
+        return "Em síntese, a análise demonstrou que {$problem} não decorre de factores isolados, mas de arranjos institucionais e escolhas políticas que se reforçam historicamente. À luz de {$objective}, os resultados sustentam que os padrões identificados no desenvolvimento têm implicações teóricas (releitura crítica das categorias analíticas mobilizadas) e práticas (priorização de políticas de equidade, governação e acompanhamento). O estudo também reconhece limites: dependência do corpus disponível, variações contextuais e necessidade de validação comparativa em outros recortes. Ainda assim, a consistência entre problema, método e evidências permite concluir com robustez argumentativa e indicar agenda futura centrada em avaliação de impacto, aprofundamento empírico e refinamento conceptual.";
     }
 
     private function normalizeKeywords(mixed $keywords): string
