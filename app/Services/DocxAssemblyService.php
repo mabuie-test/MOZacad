@@ -32,8 +32,8 @@ final class DocxAssemblyService
         $phpWord->addParagraphStyle('references_item', ['alignment' => Jc::LEFT, 'spaceAfter' => 100, 'lineHeight' => 1.0, 'indentation' => ['hanging' => 360]]);
 
         $headingSize = $this->safeInt($rules['heading_font_size'] ?? 14, 14);
-        $phpWord->addTitleStyle(1, ['bold' => true, 'size' => $headingSize], ['alignment' => Jc::CENTER, 'spaceAfter' => 200]);
-        $phpWord->addTitleStyle(2, ['bold' => true, 'size' => max(12, $headingSize - 1)], ['alignment' => Jc::LEFT, 'spaceAfter' => 180]);
+        $phpWord->addTitleStyle(1, ['bold' => true, 'size' => $headingSize], ['alignment' => Jc::CENTER, 'spaceBefore' => 220, 'spaceAfter' => 220, 'keepNext' => true]);
+        $phpWord->addTitleStyle(2, ['bold' => true, 'size' => max(12, $headingSize - 1)], ['alignment' => Jc::LEFT, 'spaceBefore' => 180, 'spaceAfter' => 160, 'keepNext' => true]);
 
         $section = $phpWord->addSection([
             'marginTop' => $this->cmToTwip($rules['margins']['top'] ?? 2.5),
@@ -238,6 +238,8 @@ final class DocxAssemblyService
 
     private function addMainChapters(Section $section, array $sections): void
     {
+        $renderedMainChapter = false;
+
         foreach ($sections as $item) {
             $code = mb_strtolower((string) ($item['code'] ?? ''));
             if (in_array($code, ['resumo', 'abstract', 'references', 'referencias'], true) || str_starts_with($code, 'anexo') || str_starts_with($code, 'apendice')) {
@@ -248,11 +250,16 @@ final class DocxAssemblyService
             $safeTitle = $title !== '' ? $title : 'Capítulo';
             $isDevelopment = $this->classifySectionKey($item) === 'desenvolvimento';
 
+            if ($renderedMainChapter) {
+                $section->addPageBreak();
+            }
+
             if (!$isDevelopment) {
                 $section->addTitle($safeTitle, 1);
             }
 
             $this->appendParagraphs($section, (string) ($item['content'] ?? ''), $safeTitle, $isDevelopment);
+            $renderedMainChapter = true;
         }
     }
 
@@ -319,8 +326,6 @@ final class DocxAssemblyService
     private function appendParagraphs(Section $section, string $content, ?string $sectionTitle = null, bool $isDevelopment = false): void
     {
         $normalizedTitle = $sectionTitle !== null ? mb_strtolower(trim($this->cleanText($sectionTitle), " \t\n\r\0\x0B.:;")) : '';
-        $developmentHeadingCount = 0;
-
         foreach (preg_split('/\n+/', $content) ?: [] as $paragraph) {
             $clean = $this->cleanText($paragraph);
             if ($clean === '') {
@@ -334,12 +339,8 @@ final class DocxAssemblyService
                 }
             }
 
-            if ($isDevelopment && preg_match('/^(\d+(?:\.\d+)*)\.\s+(.+)/u', $clean, $m) === 1) {
-                if ($developmentHeadingCount > 0) {
-                    $section->addPageBreak();
-                }
+            if ($isDevelopment && preg_match('/^(\d+(?:\.\d+)*)(?:\.)?\s+(.+)/u', $clean, $m) === 1) {
                 $section->addTitle(trim($m[1] . '. ' . $m[2]), 2);
-                $developmentHeadingCount++;
                 continue;
             }
 
