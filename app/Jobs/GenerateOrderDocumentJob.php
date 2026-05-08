@@ -734,9 +734,9 @@ final class GenerateOrderDocumentJob
         $problem = trim((string) ($briefing['problem'] ?? 'o problema definido no briefing'));
         $objective = trim((string) ($briefing['generalObjective'] ?? 'o objectivo geral indicado'));
         $keywords = $this->normalizeKeywords($briefing['keywords'] ?? []);
-        $methodology = 'abordagem qualitativa documental e analítico-interpretativa';
+        $methodology = 'abordagem qualitativa, revisão documental e análise crítico-interpretativa';
 
-        return "Tema: {$theme}. Problema: {$problem}. Objectivo geral: {$objective}. Metodologia: o estudo adopta desenho descritivo-analítico com técnica de {$methodology}. Síntese dos principais achados: a análise evidenciou padrões centrais do fenómeno, sustentando o problema investigado e respondendo ao objectivo geral com coerência argumentativa. Palavras-chave: {$keywords}.";
+        return "Este estudo analisa {$theme} a partir do problema {$problem}, procurando compreender os nexos entre contexto histórico, escolhas institucionais e efeitos sociais observáveis no objecto. O objectivo geral consiste em {$objective}, orientando uma leitura que articula enquadramento teórico e evidências de fontes académicas. Metodologicamente, adopta-se {$methodology}, com ênfase na comparação de argumentos, identificação de continuidades e exame de tensões explicativas. Os achados indicam que o fenómeno investigado combina factores estruturais e dinâmicas contextuais, exigindo interpretações que superem explicações lineares. Conclui-se que a consistência entre problema, método e discussão fortalece a validade do percurso analítico e sustenta recomendações académicas pertinentes. Palavras-chave: {$keywords}.";
     }
 
     private function buildGenericIntroductionReinforcement(array $briefing): string
