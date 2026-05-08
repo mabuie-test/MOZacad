@@ -134,9 +134,7 @@ final class DocxAssemblyService
 
     private function addHeaderFooter(Section $section, array $frontPage): void
     {
-        $headerText = $this->cleanText((string) ($frontPage['institution_name'] ?? 'MOZacad'));
-        $section->addHeader()->addText($headerText !== '' ? $headerText : 'MOZacad', ['size' => 10], ['alignment' => Jc::CENTER]);
-        $section->addFooter()->addPreserveText('Página {PAGE}', ['size' => 10], ['alignment' => Jc::RIGHT]);
+        $section->addFooter()->addPreserveText('{PAGE}', ['size' => 10], ['alignment' => Jc::RIGHT]);
     }
 
     private function addCoverPage(Section $section, string $title, array $frontPage, array $templateMeta): void
@@ -234,8 +232,7 @@ final class DocxAssemblyService
     private function addTableOfContentsPlaceholder(Section $section, string $profile): void
     {
         $section->addTitle('Índice', 1);
-        $section->addText('Sumário', ['bold' => true], 'plain_text');
-        $section->addTOC(['size' => 11], ['minDepth' => 1, 'maxDepth' => 2]);
+        $section->addTOC(['size' => 11], ['minDepth' => 1, 'maxDepth' => 2, 'tabLeader' => \PhpOffice\PhpWord\Style\TOC::TABLEADER_DOT]);
         $section->addPageBreak();
     }
 
@@ -337,11 +334,11 @@ final class DocxAssemblyService
                 }
             }
 
-            if ($isDevelopment && preg_match('/^\d+\.\s+(.+)/u', $clean, $m) === 1) {
+            if ($isDevelopment && preg_match('/^(\d+(?:\.\d+)*)\.\s+(.+)/u', $clean, $m) === 1) {
                 if ($developmentHeadingCount > 0) {
                     $section->addPageBreak();
                 }
-                $section->addTitle(trim($m[1]), 2);
+                $section->addTitle(trim($m[1] . '. ' . $m[2]), 2);
                 $developmentHeadingCount++;
                 continue;
             }

@@ -174,6 +174,7 @@ final class GenerateOrderDocumentJob
         $cited = $this->ensureReferencesSection($cited, $briefing, $referenceStyle);
         $cited = $this->injectAuthorDateCitationsIntoDevelopment($cited);
         $cited = $this->enforceDevelopmentThresholdAndConclusionGuard($cited);
+        $cited = $this->deduplicateAcademicSections($cited);
         $cited = $this->enforceLogicalSectionOrder($cited);
         $this->assertNoOperationalMetaText($cited);
 
@@ -957,6 +958,38 @@ final class GenerateOrderDocumentJob
         });
 
         return array_values($sections);
+    }
+
+    private function deduplicateAcademicSections(array $sections): array
+    {
+        $deduplicated = [];
+        $seenByKey = [];
+
+        foreach ($sections as $section) {
+            $key = $this->classifySectionKey($section);
+            $content = trim((string) ($section['content'] ?? ''));
+
+            if (!isset($seenByKey[$key])) {
+                $seenByKey[$key] = count($deduplicated);
+                $deduplicated[] = $section;
+                continue;
+            }
+
+            $existingIndex = $seenByKey[$key];
+            $existingContent = trim((string) ($deduplicated[$existingIndex]['content'] ?? ''));
+            if ($content === '' || $content === $existingContent) {
+                continue;
+            }
+
+            if (mb_strlen($content) > mb_strlen($existingContent)) {
+                $deduplicated[$existingIndex]['content'] = $content;
+                if (trim((string) ($deduplicated[$existingIndex]['title'] ?? '')) === '') {
+                    $deduplicated[$existingIndex]['title'] = (string) ($section['title'] ?? '');
+                }
+            }
+        }
+
+        return array_values($deduplicated);
     }
 
     private function injectAuthorDateCitationsIntoDevelopment(array $sections): array
