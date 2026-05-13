@@ -1,0 +1,2 @@
+MOZacad branding placeholder (text-only for PR compatibility).
+Replace with logo.png in target repository.

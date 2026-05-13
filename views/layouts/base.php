@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="/assets/branding/icon.txt">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
@@ -30,17 +32,20 @@ $pathLabel = match ($currentPath ?? '/') {
 ?>
 <nav class="navbar navbar-expand-lg app-navbar sticky-top">
   <div class="container-fluid container-xl">
-    <a class="navbar-brand fw-bold" href="/">MOZacad</a>
+    <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
+      <img src="/assets/branding/icon.txt" alt="MOZacad" class="brand-mark">
+      <img src="/assets/branding/logo.txt" alt="MOZacad" class="brand-wordmark">
+    </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="mainNav">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <?php if (!($isAuthenticated ?? false)): ?>
           <?php foreach ([['/how-it-works', 'Como funciona'], ['/pricing', 'Preços'], ['/institutions', 'Instituições'], ['/faq', 'FAQ'], ['/contact', 'Contacto']] as [$href, $label]): ?>
-            <li class="nav-item"><a class="nav-link <?= (($currentPath ?? '') === $href) ? 'active' : '' ?>" href="<?= $href ?>"><?= $label ?></a></li>
+            <li class="nav-item"><a class="nav-link <?= (($currentPath ?? '') === $href) ? 'active' : '' ?>" href="<?= $href ?>"><i class="fa-solid fa-angle-right me-1 small opacity-75"></i><?= $label ?></a></li>
           <?php endforeach; ?>
         <?php else: ?>
           <?php foreach ([['/dashboard', 'Dashboard'], ['/orders', 'Pedidos'], ['/invoices', 'Facturas'], ['/downloads', 'Downloads']] as [$href, $label]): ?>
-            <li class="nav-item"><a class="nav-link <?= str_starts_with((string) ($currentPath ?? ''), $href) ? 'active' : '' ?>" href="<?= $href ?>"><?= $label ?></a></li>
+            <li class="nav-item"><a class="nav-link <?= str_starts_with((string) ($currentPath ?? ''), $href) ? 'active' : '' ?>" href="<?= $href ?>"><i class="fa-solid fa-angle-right me-1 small opacity-75"></i><?= $label ?></a></li>
           <?php endforeach; ?>
           <?php if ($isAdmin ?? false): ?><li class="nav-item"><a class="nav-link <?= $isAdminArea ? 'active' : '' ?>" href="/admin">Admin</a></li><?php endif; ?>
         <?php endif; ?>
@@ -62,8 +67,8 @@ $pathLabel = match ($currentPath ?? '/') {
 
 <div class="border-bottom bg-white py-2">
   <div class="container-xl small text-secondary d-flex justify-content-between">
-    <span><?= htmlspecialchars($pathLabel) ?></span>
-    <span>Suporte premium • Segunda a Sábado • 08:00–19:00</span>
+    <span><i class="fa-solid fa-location-dot me-1"></i><?= htmlspecialchars($pathLabel) ?></span>
+    <span><i class="fa-regular fa-clock me-1"></i>Suporte premium • Segunda a Sábado • 08:00–19:00</span>
   </div>
 </div>
 
