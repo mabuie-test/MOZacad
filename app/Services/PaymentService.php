@@ -42,7 +42,7 @@ final class PaymentService
             }
 
             $existingOpen = $this->payments->findOpenByOrderId((int) $context['order_id']);
-            if ($existingOpen !== null) {
+            if ($existingOpen !== null && $this->shouldReuseOpenPayment($existingOpen)) {
                 $existingOpen = $this->refreshReusedPaymentStatus($existingOpen, 'initiate_reuse_existing');
                 $db->commit();
                 return [
@@ -235,5 +235,21 @@ final class PaymentService
         }
 
         return $this->payments->findById($paymentId) ?? $payment;
+    }
+
+    private function shouldReuseOpenPayment(array $payment): bool
+    {
+        $status = (string) ($payment['status'] ?? 'pending');
+        if ($status === 'processing' || $status === 'pending_confirmation') {
+            return true;
+        }
+
+        $createdAt = strtotime((string) ($payment['created_at'] ?? ''));
+        if ($createdAt === false) {
+            return false;
+        }
+
+        $maxAgeSeconds = max(30, (int) Env::get('PAYMENT_REUSE_PENDING_WINDOW_SECONDS', 90));
+        return (time() - $createdAt) <= $maxAgeSeconds;
     }
 }

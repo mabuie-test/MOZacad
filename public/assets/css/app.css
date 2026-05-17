@@ -55,6 +55,11 @@ small, .caption { font-size: var(--font-size-caption); }
 .app-navbar .navbar-brand, .app-navbar .nav-link { color: #e2e8f0; }
 .app-navbar .nav-link.active, .app-navbar .nav-link:hover { color: #ffffff; }
 .app-navbar .btn-outline-light { border-color: #64748b; color: #e2e8f0; }
+.app-navbar .navbar-toggler { border-color: rgba(255, 255, 255, .35); }
+.app-navbar .navbar-toggler:focus { box-shadow: 0 0 0 .2rem rgba(255, 255, 255, .25); }
+.app-navbar .navbar-toggler-icon {
+  filter: brightness(0) invert(1);
+}
 
 .card, .panel {
   background: var(--color-surface);
