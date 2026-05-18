@@ -16,6 +16,7 @@ use App\Controllers\AdminPermissionController;
 use App\Controllers\AdminPricingController;
 use App\Controllers\AdminOrderActionController;
 use App\Controllers\AdminAiPreflightController;
+use App\Controllers\AdminUserController;
 use App\Controllers\AuthController;
 use App\Controllers\BillingController;
 use App\Controllers\DashboardController;
@@ -122,6 +123,10 @@ return static function (Router $router): void {
         $router->post('/orders/{id}/payment-cancel', [AdminOrderActionController::class, 'paymentCancel'], [$csrf]);
         $router->post('/pricing/rules', [AdminPricingController::class, 'upsertPricingRule'], [$csrf]);
         $router->post('/pricing/extras', [AdminPricingController::class, 'upsertPricingExtra'], [$csrf]);
+        $router->post('/users', [AdminUserController::class, 'create'], [$csrf]);
+        $router->post('/users/{id}/roles', [AdminUserController::class, 'updateRoles'], [$csrf]);
+        $router->post('/users/{id}/status', [AdminUserController::class, 'setStatus'], [$csrf]);
+        $router->post('/users/{id}/delete', [AdminUserController::class, 'delete'], [$csrf]);
         $router->post('/permissions/matrix', [AdminPermissionController::class, 'updateMatrix'], [$csrf]);
     });
 };

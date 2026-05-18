@@ -13,6 +13,7 @@ use App\Repositories\AuditLogRepository;
 use App\Repositories\DeliveryChecklistRepository;
 use App\Repositories\PostPaymentExceptionRepository;
 use App\Repositories\DocumentComplianceValidationRepository;
+use App\Repositories\RoleRepository;
 
 final class AdminOperationsReadService
 {
@@ -118,6 +119,7 @@ final class AdminOperationsReadService
             'reviewStatuses' => StatusCatalog::humanReviewQueueStatuses(),
             'documentStatuses' => StatusCatalog::documentStatuses(),
             'users' => in_array($section, ['overview', 'users', 'discounts'], true) ? (new UserRepository())->all(300) : [],
+            'roles' => in_array($section, ['overview', 'users', 'permissions'], true) ? (new RoleRepository())->all() : [],
             'orders' => $orders,
             'selectedOrderId' => $selectedOrderId,
             'orderAuditTrail' => $selectedOrderId > 0 ? (new AuditLogRepository())->listBySubject('order', $selectedOrderId, 80) : [],
