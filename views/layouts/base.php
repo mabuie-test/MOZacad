@@ -8,7 +8,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" href="/assets/branding/icon.txt">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="/assets/css/app.css">
@@ -30,11 +29,19 @@ $pathLabel = match ($currentPath ?? '/') {
     default => 'MOZacad',
 };
 ?>
+<?php
+$brandingIconPngPath = __DIR__ . '/../../public/assets/branding/icon.png';
+$brandingLogoPngPath = __DIR__ . '/../../public/assets/branding/logo.png';
+$brandingIconHref = is_file($brandingIconPngPath) ? '/assets/branding/icon.png' : '/assets/branding/icon.svg';
+$brandingLogoHref = is_file($brandingLogoPngPath) ? '/assets/branding/logo.png' : '/assets/branding/logo.svg';
+$brandingIconMime = str_ends_with($brandingIconHref, '.png') ? 'image/png' : 'image/svg+xml';
+?>
+<link rel="icon" type="<?= $brandingIconMime ?>" href="<?= $brandingIconHref ?>">
 <nav class="navbar navbar-expand-lg app-navbar sticky-top">
   <div class="container-fluid container-xl">
     <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
-      <img src="/assets/branding/icon.txt" alt="MOZacad" class="brand-mark">
-      <img src="/assets/branding/logo.txt" alt="MOZacad" class="brand-wordmark">
+      <img src="<?= $brandingIconHref ?>" alt="MOZacad" class="brand-mark">
+      <img src="<?= $brandingLogoHref ?>" alt="MOZacad" class="brand-wordmark">
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="mainNav">

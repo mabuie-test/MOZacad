@@ -1,6 +1,13 @@
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS=0;
 
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  migration_name VARCHAR(255) NOT NULL UNIQUE,
+  applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
 CREATE TABLE roles (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(50) UNIQUE NOT NULL,
@@ -693,6 +700,29 @@ CREATE TABLE document_compliance_validations (
   KEY idx_doc_compliance_document (generated_document_id, generated_document_version),
   KEY idx_doc_compliance_severity (is_compliant, critical_count),
   CONSTRAINT fk_doc_compliance_document FOREIGN KEY (generated_document_id) REFERENCES generated_documents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE ai_preflight_checks (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  status VARCHAR(20) NOT NULL,
+  summary VARCHAR(255) NULL,
+  providers_json JSON NOT NULL,
+  models_json JSON NOT NULL,
+  checked_at DATETIME NOT NULL,
+  created_at TIMESTAMP NULL,
+  INDEX idx_ai_preflight_checks_checked_at (checked_at),
+  INDEX idx_ai_preflight_checks_status (status, checked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE ai_preflight_failure_metrics (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  provider VARCHAR(40) NOT NULL,
+  failure_type VARCHAR(40) NOT NULL,
+  occurred_at DATETIME NOT NULL,
+  created_at TIMESTAMP NULL,
+  INDEX idx_ai_preflight_failure_provider_type (provider, failure_type, occurred_at),
+  INDEX idx_ai_preflight_failure_occurred (occurred_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS=1;
