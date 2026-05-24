@@ -7,7 +7,7 @@
   <?php else: ?>
     <div class="table-responsive">
       <table class="table align-middle mb-0">
-        <thead><tr><th>ID</th><th>Número</th><th>Valor</th><th>Status</th><th>Emitida em</th></tr></thead>
+        <thead><tr><th>ID</th><th>Número</th><th>Valor</th><th>Status</th><th>Emitida em</th><th>Ações</th></tr></thead>
         <tbody>
           <?php foreach (($invoices ?? []) as $inv): ?>
             <tr>
@@ -16,6 +16,10 @@
               <td><?= $formatMoney($inv['amount'] ?? 0) ?></td>
               <td><?= $badge((string) $inv['status']) ?></td>
               <td><?= htmlspecialchars((string) ($inv['issued_at'] ?? $inv['created_at'] ?? '-')) ?></td>
+              <td>
+                <a class="btn btn-sm btn-outline-primary" href="/invoices/<?= (int) $inv['id'] ?>">Ver factura</a>
+                <a class="btn btn-sm btn-primary" href="/invoices/<?= (int) $inv['id'] ?>/pdf">Baixar PDF</a>
+              </td>
             </tr>
           <?php endforeach; ?>
         </tbody>

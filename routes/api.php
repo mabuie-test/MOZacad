@@ -49,6 +49,7 @@ return static function (Router $router): void {
         $router->post('/coupons/{id}/toggle', [AdminCommercialController::class, 'toggleCoupon']);
         $router->post('/human-review/{queueId}/assign', [AdminHumanReviewController::class, 'assignHumanReview']);
         $router->post('/human-review/{queueId}/decision', [AdminHumanReviewController::class, 'decideHumanReview']);
+        $router->post('/human-review/{queueId}/upload-document', [AdminHumanReviewController::class, 'uploadManualDocument']);
         $router->post('/payments/{id}/confirm-manual', [AdminPaymentController::class, 'confirmManual']);
         $router->post('/operations/process-ai-queue', [AdminPaymentController::class, 'processAiQueueNow']);
         $router->post('/orders/{id}/pause', [AdminOrderActionController::class, 'pause']);

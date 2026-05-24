@@ -14,6 +14,7 @@ use App\Repositories\DeliveryChecklistRepository;
 use App\Repositories\PostPaymentExceptionRepository;
 use App\Repositories\DocumentComplianceValidationRepository;
 use App\Repositories\RoleRepository;
+use App\Repositories\InvoiceRepository;
 
 final class AdminOperationsReadService
 {
@@ -87,6 +88,10 @@ final class AdminOperationsReadService
         foreach ($orders as &$orderRow) {
             $orderRow['latest_compliance_validation'] = (new DocumentComplianceValidationRepository())->findLatestByOrderId((int) ($orderRow['id'] ?? 0));
             $orderRow['latest_template_application'] = json_decode((string) ($orderRow['latest_template_application_json'] ?? 'null'), true);
+            $orderId = (int) ($orderRow['id'] ?? 0);
+            $orderPayments = array_values(array_filter($payments, static fn (array $payment): bool => (int) ($payment['order_id'] ?? 0) === $orderId));
+            $orderRow['latest_payment'] = $orderPayments[0] ?? null;
+            $orderRow['latest_invoice'] = (new InvoiceRepository())->findLatestByOrderId($orderId);
         }
         unset($orderRow);
 

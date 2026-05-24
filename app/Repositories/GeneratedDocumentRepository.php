@@ -106,4 +106,16 @@ final class GeneratedDocumentRepository extends BaseRepository
 
         return is_array($row) && (int) ($row['id'] ?? 0) === $documentId;
     }
+
+    public function updateFilePathAndStatus(int $documentId, string $filePath, ?string $status = null): void
+    {
+        if ($status === null) {
+            $stmt = $this->db->prepare('UPDATE generated_documents SET file_path = :file_path WHERE id = :id');
+            $stmt->execute(['id' => $documentId, 'file_path' => $filePath]);
+            return;
+        }
+
+        $stmt = $this->db->prepare('UPDATE generated_documents SET file_path = :file_path, status = :status WHERE id = :id');
+        $stmt->execute(['id' => $documentId, 'file_path' => $filePath, 'status' => $status]);
+    }
 }

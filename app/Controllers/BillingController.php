@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Repositories\GeneratedDocumentRepository;
 use App\Repositories\InvoiceRepository;
 use App\Services\DocumentDownloadService;
+use App\Services\InvoicePdfService;
 use RuntimeException;
 
 final class BillingController extends BaseController
@@ -85,5 +86,76 @@ final class BillingController extends BaseController
         } catch (RuntimeException $e) {
             $this->errorResponse($e->getMessage(), 403, '/downloads');
         }
+    }
+
+    public function showInvoice(int $invoiceId): void
+    {
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) return;
+
+        $invoice = (new InvoiceRepository())->findDetailedById($invoiceId);
+        if (!is_array($invoice) || (int) ($invoice['user_id'] ?? 0) !== $userId) {
+            $this->errorResponse('Factura não encontrada.', 404, '/invoices');
+            return;
+        }
+
+        if ($this->isHtmlRequest()) {
+            $this->view('billing/invoice_show', ['invoice' => $invoice]);
+            return;
+        }
+        $this->json(['invoice' => $invoice]);
+    }
+
+    public function downloadInvoicePdf(int $invoiceId): void
+    {
+        $userId = $this->requireAuthUserId();
+        if ($userId <= 0) return;
+
+        $invoice = (new InvoiceRepository())->findDetailedById($invoiceId);
+        if (!is_array($invoice) || (int) ($invoice['user_id'] ?? 0) !== $userId) {
+            $this->errorResponse('Factura não encontrada.', 404, '/invoices');
+            return;
+        }
+
+        $pdf = (new InvoicePdfService())->render(
+            $invoice,
+            ['id' => (int) ($invoice['order_id'] ?? 0), 'title_or_theme' => (string) ($invoice['title_or_theme'] ?? '-'), 'work_type_name' => (string) ($invoice['work_type_name'] ?? '-')],
+            ['status' => (string) ($invoice['payment_status'] ?? '-'), 'method' => (string) ($invoice['payment_method'] ?? '-'), 'internal_reference' => (string) ($invoice['internal_reference'] ?? '-')]
+        );
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="factura-' . (int) $invoiceId . '.pdf"');
+        echo $pdf;
+        exit;
+    }
+
+    public function adminShowInvoice(int $invoiceId): void
+    {
+        if (!$this->requireAdminPermission('admin.payments.view', '/admin/payments')) return;
+        $invoice = (new InvoiceRepository())->findDetailedById($invoiceId);
+        if (!is_array($invoice)) {
+            $this->adminError('Factura não encontrada.', 404, '/admin/payments');
+            return;
+        }
+        $this->view('billing/invoice_show', ['invoice' => $invoice, 'isAdminInvoiceView' => true]);
+    }
+
+    public function adminDownloadInvoicePdf(int $invoiceId): void
+    {
+        if (!$this->requireAdminPermission('admin.payments.view', '/admin/payments')) return;
+        $invoice = (new InvoiceRepository())->findDetailedById($invoiceId);
+        if (!is_array($invoice)) {
+            $this->adminError('Factura não encontrada.', 404, '/admin/payments');
+            return;
+        }
+
+        $pdf = (new InvoicePdfService())->render(
+            $invoice,
+            ['id' => (int) ($invoice['order_id'] ?? 0), 'title_or_theme' => (string) ($invoice['title_or_theme'] ?? '-'), 'work_type_name' => (string) ($invoice['work_type_name'] ?? '-')],
+            ['status' => (string) ($invoice['payment_status'] ?? '-'), 'method' => (string) ($invoice['payment_method'] ?? '-'), 'internal_reference' => (string) ($invoice['internal_reference'] ?? '-')]
+        );
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="factura-' . (int) $invoiceId . '.pdf"');
+        echo $pdf;
+        exit;
     }
 }

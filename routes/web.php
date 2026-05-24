@@ -62,6 +62,8 @@ return static function (Router $router): void {
         $router->post('/payments/mpesa/initiate', [PaymentController::class, 'initiateMpesa'], [$csrf]);
         $router->get('/payments/{id}/status', [PaymentController::class, 'status']);
         $router->get('/invoices', [BillingController::class, 'invoices']);
+        $router->get('/invoices/{invoiceId}', [BillingController::class, 'showInvoice']);
+        $router->get('/invoices/{invoiceId}/pdf', [BillingController::class, 'downloadInvoicePdf']);
         $router->get('/downloads', [BillingController::class, 'downloads']);
         $router->get('/downloads/{documentId}', [BillingController::class, 'downloadDocument']);
     });
@@ -86,6 +88,8 @@ return static function (Router $router): void {
         $router->get('/human-review', [AdminReviewPageController::class, 'humanReviewQueue']);
         $router->get('/permissions', [AdminController::class, 'permissions']);
         $router->get('/exceptions', [AdminController::class, 'exceptions']);
+        $router->get('/invoices/{invoiceId}', [BillingController::class, 'adminShowInvoice']);
+        $router->get('/invoices/{invoiceId}/pdf', [BillingController::class, 'adminDownloadInvoicePdf']);
 
         $router->post('/institutions', [AdminCatalogController::class, 'createInstitution'], [$csrf]);
         $router->post('/institutions/{id}', [AdminCatalogController::class, 'updateInstitution'], [$csrf]);
@@ -107,6 +111,7 @@ return static function (Router $router): void {
         $router->post('/coupons/{id}/toggle', [AdminCommercialController::class, 'toggleCoupon'], [$csrf]);
         $router->post('/human-review/{queueId}/assign', [AdminHumanReviewController::class, 'assignHumanReview'], [$csrf]);
         $router->post('/human-review/{queueId}/decision', [AdminHumanReviewController::class, 'decideHumanReview'], [$csrf]);
+        $router->post('/human-review/{queueId}/upload-document', [AdminHumanReviewController::class, 'uploadManualDocument'], [$csrf]);
         $router->post('/delivery-checklists/{documentId}/{version}/items', [AdminDeliveryChecklistController::class, 'updateItem'], [$csrf]);
         $router->post('/delivery-checklists/{documentId}/{version}/sign-reviewer', [AdminDeliveryChecklistController::class, 'signAsReviewer'], [$csrf]);
         $router->post('/delivery-checklists/{documentId}/{version}/sign-approver', [AdminDeliveryChecklistController::class, 'signAsApprover'], [$csrf]);

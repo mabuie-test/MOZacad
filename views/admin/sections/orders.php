@@ -27,6 +27,19 @@ use App\Domain\StatusCatalog;
 <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrfToken ?? '')) ?>"><input type="hidden" name="confirm" value="1"><input type="text" name="reason" required placeholder="Motivo reembolso" class="form-control form-control-sm d-inline" style="width:130px"><button class="btn btn-sm btn-outline-info">Reembolso</button></form>
 <form method="post" action="/admin/orders/<?= (int)$o['id'] ?>/payment-cancel" class="d-inline">
 <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrfToken ?? '')) ?>"><input type="hidden" name="confirm" value="1"><input type="text" name="reason" required placeholder="Motivo cancel." class="form-control form-control-sm d-inline" style="width:120px"><button class="btn btn-sm btn-outline-dark">Cancelar pós-pag.</button></form>
+<?php $latestPayment = $o['latest_payment'] ?? null; ?>
+<?php if (is_array($latestPayment) && in_array((string) ($latestPayment['status'] ?? ''), ['pending','processing','pending_confirmation'], true)): ?>
+<form method="post" action="/admin/payments/<?= (int) ($latestPayment['id'] ?? 0) ?>/confirm-manual" class="d-inline">
+<input type="hidden" name="_csrf" value="<?= htmlspecialchars((string)($csrfToken ?? '')) ?>">
+<input type="hidden" name="provider_status" value="SUCCESSFUL">
+<input type="text" name="note" placeholder="Nota confirmação" class="form-control form-control-sm d-inline" style="width:130px">
+<button class="btn btn-sm btn-success">Confirmar pagamento manual</button></form>
+<?php endif; ?>
+<?php $latestInvoice = $o['latest_invoice'] ?? null; ?>
+<?php if (is_array($latestInvoice)): ?>
+<a class="btn btn-sm btn-outline-primary" href="/admin/invoices/<?= (int) ($latestInvoice['id'] ?? 0) ?>">Ver factura</a>
+<a class="btn btn-sm btn-primary" href="/admin/invoices/<?= (int) ($latestInvoice['id'] ?? 0) ?>/pdf">Baixar factura PDF</a>
+<?php endif; ?>
 </td></tr><?php endforeach; ?></tbody></table></div></div>
 
 <div class="card p-3">
