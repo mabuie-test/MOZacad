@@ -23,7 +23,14 @@ use App\Domain\StatusCatalog;
             <div class="muted-meta"><?= htmlspecialchars((string) ($row['title_or_theme'] ?? '-')) ?></div>
             <div class="muted-meta">Utilizador: <?= htmlspecialchars((string) ($row['user_email'] ?? '-')) ?></div>
           </td>
-          <td>Doc #<?= (int) ($row['generated_document_id'] ?? 0) ?> · v<?= (int) ($row['generated_document_version'] ?? 0) ?></td>
+          <td>
+            Doc #<?= (int) ($row['generated_document_id'] ?? 0) ?> · v<?= (int) ($row['generated_document_version'] ?? 0) ?>
+            <?php if (!empty($row['document_file_path'])): ?>
+              <div class="mt-1">
+                <a class="btn btn-sm btn-outline-secondary" href="/documents/<?= (int) ($row['generated_document_id'] ?? 0) ?>/download" target="_blank" rel="noopener">Ver documento</a>
+              </div>
+            <?php endif; ?>
+          </td>
           <td><?= $badge((string) ($row['status'] ?? 'pending')) ?><div class="muted-meta">Order: <?= htmlspecialchars((string) ($row['order_status'] ?? '-')) ?></div></td>
           <td>
             <?php $checked = (int) ($row['checklist_checked_items'] ?? 0); $total = (int) ($row['checklist_total_items'] ?? 0); $blocking = (int) ($row['checklist_blocking_items'] ?? 0); ?>
@@ -92,6 +99,11 @@ use App\Domain\StatusCatalog;
               <select name="decision" class="form-select form-select-sm"><option value="approve">Aprovar</option><option value="reject">Rejeitar</option></select>
               <input class="form-control form-control-sm" name="notes" placeholder="Notas da decisão">
               <button class="btn btn-sm btn-primary">Guardar</button>
+            </form>
+            <form method="post" action="/admin/human-review/<?= (int) $row['id'] ?>/upload-document" class="mt-1" enctype="multipart/form-data">
+              <input type="hidden" name="_csrf" value="<?= htmlspecialchars((string) ($csrfToken ?? '')) ?>">
+              <input class="form-control form-control-sm mb-1" type="file" name="corrected_document" accept=".docx,.pdf" required>
+              <button class="btn btn-sm btn-outline-dark w-100">Upload retificado (manual)</button>
             </form>
           </td>
         </tr>

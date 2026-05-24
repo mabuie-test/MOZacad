@@ -64,4 +64,20 @@ final class InvoiceRepository extends BaseRepository
         $stmt->execute();
         return $stmt->fetchAll();
     }
+
+    public function findDetailedById(int $invoiceId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT i.*, o.title_or_theme, o.work_type_id, o.status AS order_status, wt.name AS work_type_name,
+                p.status AS payment_status, p.method AS payment_method, p.internal_reference, p.provider
+            FROM invoices i
+            INNER JOIN orders o ON o.id = i.order_id
+            LEFT JOIN work_types wt ON wt.id = o.work_type_id
+            LEFT JOIN payments p ON p.invoice_id = i.id
+            WHERE i.id = :id
+            ORDER BY p.id DESC
+            LIMIT 1');
+        $stmt->execute(['id' => $invoiceId]);
+
+        return $stmt->fetch() ?: null;
+    }
 }
