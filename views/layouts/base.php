@@ -37,11 +37,13 @@ $brandingLogoHref = is_file($brandingLogoPngPath) ? '/assets/branding/logo.png' 
 $brandingIconMime = str_ends_with($brandingIconHref, '.png') ? 'image/png' : 'image/svg+xml';
 ?>
 <link rel="icon" type="<?= $brandingIconMime ?>" href="<?= $brandingIconHref ?>">
+<link rel="apple-touch-icon" href="<?= $brandingIconHref ?>">
+<meta property="og:image" content="<?= $brandingIconHref ?>">
+<meta name="twitter:image" content="<?= $brandingIconHref ?>">
 <nav class="navbar navbar-expand-lg app-navbar sticky-top">
   <div class="container-fluid container-xl">
     <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
-      <img src="<?= $brandingIconHref ?>" alt="MOZacad" class="brand-mark">
-      <img src="<?= $brandingLogoHref ?>" alt="MOZacad" class="brand-wordmark">
+      <img src="<?= $brandingLogoHref ?>" alt="MOZacad" class="brand-logo">
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="mainNav">
