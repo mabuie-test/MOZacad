@@ -42,7 +42,7 @@ final class AdminUserController extends BaseController
         $this->adminSuccess('Utilizador criado com sucesso.', '/admin/users');
     }
 
-    public function updateRoles(string $id): void
+    public function updateRoles(int|string $id): void
     {
         $permission = 'admin.users.manage';
         if (!$this->guardAdminPermissionPost($permission, '/admin/users')) return;
@@ -53,7 +53,7 @@ final class AdminUserController extends BaseController
         $this->adminSuccess('Papéis atualizados.', '/admin/users');
     }
 
-    public function setStatus(string $id): void
+    public function setStatus(int|string $id): void
     {
         $permission = 'admin.users.manage';
         if (!$this->guardAdminPermissionPost($permission, '/admin/users')) return;
@@ -67,7 +67,7 @@ final class AdminUserController extends BaseController
         $this->adminSuccess($isActive ? 'Utilizador ativado.' : 'Utilizador desativado (suspenso/bloqueado).', '/admin/users');
     }
 
-    public function delete(string $id): void
+    public function delete(int|string $id): void
     {
         $permission = 'admin.users.manage';
         if (!$this->guardAdminPermissionPost($permission, '/admin/users')) return;
