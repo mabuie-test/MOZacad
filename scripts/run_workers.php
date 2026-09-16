@@ -3,14 +3,12 @@
 declare(strict_types=1);
 
 use App\Services\ApplicationLoggerService;
-use App\Services\AIConfigBootstrapValidator;
 use App\Services\WorkerOrchestrationService;
 use App\Services\WorkerHealthService;
 
 require_once __DIR__ . '/../bootstrap/app.php';
 
 try {
-    AIConfigBootstrapValidator::validate();
 } catch (\Throwable $exception) {
     $message = 'Falha crítica de configuração de IA ao iniciar worker. Corrija AI_PROVIDER, AI_PROVIDER_MODE e chaves OPENAI_API_KEY/GEMINI_API_KEY no .env antes de reexecutar.';
     error_log($message . ' Detalhe: ' . $exception->getMessage());

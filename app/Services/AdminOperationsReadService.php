@@ -95,9 +95,6 @@ final class AdminOperationsReadService
         }
         unset($orderRow);
 
-        $workerHealth = in_array($section, ['overview'], true) ? (new WorkerHealthService())->snapshot() : [];
-        $aiProviderFallbackRates = in_array($section, ['overview'], true) ? (new AIProviderAdminMetricsService())->fallbackRateByProvider() : [];
-        $aiPreflight = in_array($section, ['overview'], true) ? (new AIProviderPreflightService())->currentStatus(false) : [];
 
         return [
             'overview' => [
@@ -111,9 +108,6 @@ final class AdminOperationsReadService
                 'exceptions_escalated' => (int) ($exceptionSummary['escalated_total'] ?? 0),
                 'exceptions_auto_reconciled' => (int) ($exceptionSummary['auto_reconciled_total'] ?? 0),
                 'references_incomplete_rate_per_order' => $referenceRateRows,
-                'worker_health' => $workerHealth,
-                'ai_provider_fallback_rates' => $aiProviderFallbackRates,
-                'ai_preflight' => $aiPreflight,
             ],
             'orderStatusFilter' => $orderStatusFilter,
             'paymentStatusFilter' => $paymentStatusFilter,

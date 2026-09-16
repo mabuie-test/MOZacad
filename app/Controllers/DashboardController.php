@@ -27,7 +27,7 @@ final class DashboardController extends BaseController
 
         $summary = [
             'orders_total' => count($orders),
-            'orders_paid_or_queued' => count(array_filter($orders, static fn (array $o): bool => in_array($o['status'], ['queued', 'in_progress', 'under_human_review', 'ready'], true))),
+            'orders_paid_or_queued' => count(array_filter($orders, static fn (array $o): bool => in_array($o['status'], ['awaiting_manual_upload', 'in_progress', 'under_human_review', 'ready'], true))),
             'pending_payments' => count(array_filter($payments, static fn (array $p): bool => in_array($p['status'], ['pending', 'processing', 'pending_confirmation'], true))),
             'revision_requests' => count(array_filter($orders, static fn (array $o): bool => in_array($o['status'], ['revision_requested', 'returned_for_revision'], true))),
             'ready_to_download' => count($documents),

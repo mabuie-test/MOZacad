@@ -9,7 +9,7 @@ final class StatusCatalog
     public const ORDER = [
         'draft',
         'pending_payment',
-        'queued',
+        'awaiting_manual_upload',
         'paused_admin',
         'under_human_review',
         'delivery_blocked',

@@ -22,14 +22,6 @@ final class SchemaConvergenceService
             "ALTER TABLE payments ADD UNIQUE KEY IF NOT EXISTS uq_payments_provider_external_reference (provider, external_reference)",
             "ALTER TABLE payments ADD INDEX IF NOT EXISTS idx_payments_order_status_updated (order_id, status, updated_at)",
             "ALTER TABLE invoices ADD INDEX IF NOT EXISTS idx_invoices_order_status (order_id, status)",
-            "ALTER TABLE ai_jobs ADD COLUMN IF NOT EXISTS reservation_token VARCHAR(64) NULL AFTER error_text",
-            "ALTER TABLE ai_jobs ADD COLUMN IF NOT EXISTS reserved_at DATETIME NULL AFTER reservation_token",
-            "ALTER TABLE ai_jobs ADD COLUMN IF NOT EXISTS processing_started_at DATETIME NULL AFTER reserved_at",
-            "ALTER TABLE ai_jobs ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0 AFTER processing_started_at",
-            "ALTER TABLE ai_jobs ADD COLUMN IF NOT EXISTS next_retry_at DATETIME NULL AFTER attempts",
-            "ALTER TABLE ai_jobs ADD INDEX IF NOT EXISTS idx_ai_jobs_status_created (status, next_retry_at, created_at)",
-            "ALTER TABLE ai_jobs ADD INDEX IF NOT EXISTS idx_ai_jobs_reservation_token (reservation_token)",
-            "ALTER TABLE ai_jobs ADD INDEX IF NOT EXISTS idx_ai_jobs_processing_started (processing_started_at)",
             "ALTER TABLE debito_transactions MODIFY COLUMN payment_id BIGINT UNSIGNED NULL",
             "ALTER TABLE generated_documents ADD UNIQUE KEY IF NOT EXISTS uq_generated_documents_order_version (order_id, version)",
             "ALTER TABLE generated_documents ADD INDEX IF NOT EXISTS idx_generated_documents_order_status_version (order_id, status, version)",
@@ -144,26 +136,6 @@ final class SchemaConvergenceService
             "ALTER TABLE webhook_replay_events MODIFY COLUMN last_seen_at DATETIME NOT NULL",
             "ALTER TABLE webhook_replay_events ADD INDEX IF NOT EXISTS idx_webhook_replay_provider_last_seen (provider, last_seen_at)",
             "ALTER TABLE webhook_replay_events ADD INDEX IF NOT EXISTS idx_webhook_replay_provider_hits (provider, hit_count)",
-            "CREATE TABLE IF NOT EXISTS ai_preflight_checks (
-              id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-              status VARCHAR(20) NOT NULL,
-              summary VARCHAR(255) NULL,
-              providers_json JSON NOT NULL,
-              models_json JSON NOT NULL,
-              checked_at DATETIME NOT NULL,
-              created_at TIMESTAMP NULL,
-              INDEX idx_ai_preflight_checks_checked_at (checked_at),
-              INDEX idx_ai_preflight_checks_status (status, checked_at)
-            )",
-            "CREATE TABLE IF NOT EXISTS ai_preflight_failure_metrics (
-              id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-              provider VARCHAR(40) NOT NULL,
-              failure_type VARCHAR(40) NOT NULL,
-              occurred_at DATETIME NOT NULL,
-              created_at TIMESTAMP NULL,
-              INDEX idx_ai_preflight_failure_provider_type (provider, failure_type, occurred_at),
-              INDEX idx_ai_preflight_failure_occurred (occurred_at)
-            )",
         ];
 
         if ($applyRepairs) {
@@ -196,9 +168,6 @@ final class SchemaConvergenceService
             ['table' => 'payments', 'column' => 'provider_status'],
             ['table' => 'payments', 'column' => 'external_reference'],
             ['table' => 'payments', 'column' => 'paid_at'],
-            ['table' => 'ai_jobs', 'column' => 'reservation_token'],
-            ['table' => 'ai_jobs', 'column' => 'attempts'],
-            ['table' => 'ai_jobs', 'column' => 'next_retry_at'],
             ['table' => 'generated_documents', 'column' => 'file_path'],
             ['table' => 'generated_documents', 'column' => 'status'],
             ['table' => 'generated_documents', 'column' => 'version'],
@@ -222,10 +191,6 @@ final class SchemaConvergenceService
             ['table' => 'webhook_replay_events', 'column' => 'last_seen_at'],
             ['table' => 'webhook_replay_events', 'column' => 'hit_count'],
             ['table' => 'webhook_replay_events', 'column' => 'expires_at'],
-            ['table' => 'ai_preflight_checks', 'column' => 'status'],
-            ['table' => 'ai_preflight_checks', 'column' => 'checked_at'],
-            ['table' => 'ai_preflight_failure_metrics', 'column' => 'provider'],
-            ['table' => 'ai_preflight_failure_metrics', 'column' => 'failure_type'],
         ];
         foreach ($checks as $check) {
             if (!$this->columnExists($db, $check['table'], $check['column'])) {
@@ -240,7 +205,6 @@ final class SchemaConvergenceService
             ['table' => 'human_review_queue', 'index' => 'idx_hrq_stage_counts'],
             ['table' => 'human_review_decisions', 'index' => 'idx_hrd_queue_stage'],
             ['table' => 'generated_documents', 'index' => 'uq_generated_documents_order_version'],
-            ['table' => 'ai_jobs', 'index' => 'idx_ai_jobs_status_created'],
             ['table' => 'revisions', 'index' => 'idx_revisions_order_document'],
             ['table' => 'template_artifacts', 'index' => 'idx_template_artifacts_lookup'],
             ['table' => 'auth_login_attempts', 'index' => 'uq_auth_login_attempts_email_ip'],
@@ -248,8 +212,6 @@ final class SchemaConvergenceService
             ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_expires'],
             ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_provider_last_seen'],
             ['table' => 'webhook_replay_events', 'index' => 'idx_webhook_replay_provider_hits'],
-            ['table' => 'ai_preflight_checks', 'index' => 'idx_ai_preflight_checks_checked_at'],
-            ['table' => 'ai_preflight_failure_metrics', 'index' => 'idx_ai_preflight_failure_provider_type'],
         ];
         foreach ($indexChecks as $check) {
             if (!$this->indexExists($db, $check['table'], $check['index'])) {

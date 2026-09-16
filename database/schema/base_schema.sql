@@ -558,29 +558,6 @@ CREATE TABLE auth_login_attempts (
   INDEX idx_auth_login_attempts_locked_until (locked_until)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE ai_jobs (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  order_id BIGINT UNSIGNED NOT NULL,
-  stage VARCHAR(60) NOT NULL,
-  status VARCHAR(30) NOT NULL,
-  payload_json JSON NULL,
-  result_json JSON NULL,
-  error_text TEXT NULL,
-  reservation_token VARCHAR(64) NULL,
-  reserved_at DATETIME NULL,
-  processing_started_at DATETIME NULL,
-  attempts INT NOT NULL DEFAULT 0,
-  next_retry_at DATETIME NULL,
-  created_at TIMESTAMP NULL,
-  updated_at TIMESTAMP NULL,
-  INDEX idx_ai_jobs_order_id (order_id),
-  INDEX idx_ai_jobs_order_stage_status (order_id, stage, status),
-  INDEX idx_ai_jobs_status_created (status, next_retry_at, created_at),
-  INDEX idx_ai_jobs_reservation_token (reservation_token),
-  INDEX idx_ai_jobs_processing_started (processing_started_at),
-  CONSTRAINT fk_ai_jobs_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE template_artifacts (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   institution_id BIGINT UNSIGNED NOT NULL,
