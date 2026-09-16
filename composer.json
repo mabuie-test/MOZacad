@@ -43,9 +43,6 @@
     ],
     "workers:once": [
       "@php scripts/run_workers.php --once"
-    ],
-    "queue:status": [
-      "@php scripts/queue_status.php"
     ]
   }
 }

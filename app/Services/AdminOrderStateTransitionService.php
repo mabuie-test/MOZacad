@@ -12,7 +12,7 @@ final class AdminOrderStateTransitionService
 {
     private const ACTION_MAP = [
         'pause' => ['status' => 'paused_admin', 'critical' => false],
-        'resume' => ['status' => 'queued', 'critical' => false],
+        'resume' => ['status' => 'awaiting_manual_upload', 'critical' => false],
         'escalate' => ['status' => 'under_human_review', 'critical' => true],
         'block_delivery' => ['status' => 'delivery_blocked', 'critical' => true],
         'reopen_review' => ['status' => 'under_human_review', 'critical' => true],
@@ -80,7 +80,7 @@ final class AdminOrderStateTransitionService
         }
 
         if (in_array($action, ['payment_dispute', 'payment_refund', 'payment_cancel'], true)
-            && !in_array($currentStatus, ['queued', 'in_progress', 'under_human_review', 'ready', 'approved', 'delivery_blocked'], true)) {
+            && !in_array($currentStatus, ['awaiting_manual_upload', 'in_progress', 'under_human_review', 'ready', 'approved', 'delivery_blocked'], true)) {
             throw new \InvalidArgumentException('Fluxo pós-pagamento só pode ser iniciado após confirmação operacional.');
         }
     }
@@ -143,5 +143,4 @@ final class AdminOrderStateTransitionService
         ]);
     }
 }
-
 

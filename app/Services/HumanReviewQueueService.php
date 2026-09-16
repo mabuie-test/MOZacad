@@ -29,7 +29,10 @@ final class HumanReviewQueueService
     public function enqueue(int $orderId, int $documentId, int $documentVersion, ?int $reviewerId = null, ?int $createdBy = null): int
     {
         $db = Database::connect();
-        $db->beginTransaction();
+        $ownsTransaction = !$db->inTransaction();
+        if ($ownsTransaction) {
+            $db->beginTransaction();
+        }
         try {
             $order = $this->orders->lockByIdForUpdate($orderId);
             if (!is_array($order)) {
@@ -38,7 +41,9 @@ final class HumanReviewQueueService
 
             $existingOpen = $this->queue->findOpenByOrderIdForUpdate($orderId);
             if ($existingOpen !== null) {
-                $db->commit();
+                if ($ownsTransaction) {
+                    $db->commit();
+                }
                 return (int) $existingOpen['id'];
             }
 
@@ -46,10 +51,12 @@ final class HumanReviewQueueService
             $id = $this->queue->enqueue($orderId, $documentId, $documentVersion, $reviewerId, $createdBy);
             $this->queue->setRequiredApprovals($id, $requiredApprovals);
             $this->logger->info('human_review.queue.enqueued', ['order_id' => $orderId, 'queue_id' => $id, 'document_id' => $documentId, 'version' => $documentVersion, 'required_approvals' => $requiredApprovals]);
-            $db->commit();
+            if ($ownsTransaction) {
+                $db->commit();
+            }
             return $id;
         } catch (\Throwable $e) {
-            if ($db->inTransaction()) {
+            if ($ownsTransaction && $db->inTransaction()) {
                 $db->rollBack();
             }
             throw $e;

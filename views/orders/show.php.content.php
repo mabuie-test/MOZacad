@@ -17,7 +17,7 @@
       <div class="timeline mt-3">
         <?php foreach ([
           'pending_payment' => 'Pagamento pendente para iniciar execução.',
-          'queued' => 'Pedido em fila de produção técnica. A geração automática está aguardando processamento pelo worker.',
+          'awaiting_manual_upload' => 'Pagamento confirmado. A equipa está a preparar o documento para carregamento manual.',
           'under_human_review' => 'Documento em revisão humana especializada.',
           'ready' => 'Documento final disponível para download.',
           'revision_requested' => 'Revisão solicitada pelo utilizador.',
@@ -64,22 +64,10 @@
 
     <div class="card p-4">
       <h2 class="h5">Documentos e revisão</h2>
-      <?php
-        $jobStatus = (string) (($aiJob['status'] ?? ''));
-        $jobError = trim((string) ($aiJob['error_text'] ?? ''));
-        $jobMessage = match ($jobStatus) {
-          'queued' => 'Aguardando worker de geração documental.',
-          'reserved', 'processing' => 'Documento em geração.',
-          'retry_wait' => 'Tentativa de geração reagendada.',
-          'failed' => 'Falha na geração: ' . htmlspecialchars(mb_substr($jobError !== '' ? $jobError : 'Erro não detalhado.', 0, 160)),
-          'completed' => 'Geração concluída.',
-          default => 'Sem job técnico activo para este pedido.',
-        };
-      ?>
       <div class="status-card mb-3">
-        <small>Produção técnica (AI Job)</small>
-        <div><?= $badge($jobStatus !== '' ? $jobStatus : 'pending') ?></div>
-        <p class="small mb-0 mt-2"><?= $jobMessage ?></p>
+        <small>Produção manual</small>
+        <div><?= $badge((string) ($order['status'] ?? 'pending')) ?></div>
+        <p class="small mb-0 mt-2">Após a confirmação do pagamento, a equipa recebe o pedido e carrega o documento manualmente.</p>
       </div>
 
       <div class="row g-3">
@@ -111,6 +99,11 @@
           <?php endif; ?>
         </div>
       </div>
+      <div class="delivery-protocol mt-4" aria-label="Protocolo de entrega académica">
+        <div><span>Entrega manual</span><strong>Preparado pela equipa</strong></div>
+        <div><span>Controlo editorial</span><strong>Revisão humana independente</strong></div>
+        <div><span>Versão final</span><strong>Disponível após aprovação</strong></div>
+      </div>
     </div>
   </div>
 
@@ -123,9 +116,10 @@
       <?php elseif (($order['status'] ?? '') === 'ready'): ?>
         <p>Documento pronto. Faça download agora.</p>
         <a href="/downloads" class="btn btn-primary w-100">Abrir downloads</a>
-      <?php elseif (($order['status'] ?? '') === 'queued' && ($jobStatus ?? '') === 'completed' && !empty($documents)): ?>
-        <p>Documento concluído. Pode descarregar a versão mais recente.</p>
-        <a href="/downloads/<?= (int) ($documents[0]['id'] ?? 0) ?>" class="btn btn-primary w-100">Baixar documento</a>
+      <?php elseif (($order['status'] ?? '') === 'awaiting_manual_upload'): ?>
+        <p>O pagamento foi confirmado. A equipa está a preparar a versão académica para entrega e validação editorial.</p>
+        <p class="small text-secondary">A próxima actualização será a entrada do documento em revisão humana.</p>
+        <a href="/orders" class="btn btn-outline-primary w-100">Ver pedidos</a>
       <?php else: ?>
         <p>Continue a monitorar o estado e use revisão se necessário.</p>
         <a href="/orders" class="btn btn-outline-primary w-100">Ver pedidos</a>

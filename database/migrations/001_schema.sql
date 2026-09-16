@@ -351,15 +351,3 @@ CREATE TABLE audit_logs (
   payload_json JSON NULL,
   created_at TIMESTAMP NULL
 );
-CREATE TABLE ai_jobs (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  order_id BIGINT UNSIGNED NOT NULL,
-  stage VARCHAR(60) NOT NULL,
-  status VARCHAR(30) NOT NULL,
-  payload_json JSON NULL,
-  result_json JSON NULL,
-  error_text TEXT NULL,
-  next_retry_at DATETIME NULL,
-  created_at TIMESTAMP NULL,
-  updated_at TIMESTAMP NULL
-);

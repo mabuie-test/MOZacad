@@ -31,7 +31,7 @@ final class OrderPaymentFlowService
                 throw new RuntimeException('Pedido não encontrado.');
             }
 
-            if (in_array((string) ($order['status'] ?? ''), ['queued', 'under_human_review', 'ready'], true)) {
+            if (in_array((string) ($order['status'] ?? ''), ['awaiting_manual_upload', 'under_human_review', 'ready'], true)) {
                 throw new RuntimeException('Pedido já se encontra além da fase de pagamento.');
             }
 

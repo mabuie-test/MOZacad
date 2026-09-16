@@ -10,7 +10,6 @@ final class WorkerOrchestrationService
         private readonly ApplicationLoggerService $logger = new ApplicationLoggerService(),
         private readonly ReconcileSuccessfulPaymentsService $reconcile = new ReconcileSuccessfulPaymentsService(),
         private readonly PaymentStatusPollingService $polling = new PaymentStatusPollingService(),
-        private readonly AIJobProcessingService $aiJobs = new AIJobProcessingService(),
     ) {}
 
     /**
@@ -21,13 +20,11 @@ final class WorkerOrchestrationService
         $summary = [
             'reconcile' => null,
             'poll' => null,
-            'ai_jobs' => null,
             'errors' => [],
         ];
 
         $summary['reconcile'] = $this->runStep('reconcile_successful_payments', fn (): array => $this->reconcile->run(), $summary['errors']);
         $summary['poll'] = $this->runStep('poll_payments', fn (): array => $this->polling->run(), $summary['errors']);
-        $summary['ai_jobs'] = $this->runStep('process_ai_jobs', fn (): array => $this->aiJobs->runBatch(), $summary['errors']);
 
         return $summary;
     }

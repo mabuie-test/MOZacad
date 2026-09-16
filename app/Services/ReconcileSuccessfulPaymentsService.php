@@ -4,24 +4,21 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Repositories\AIJobRepository;
 use App\Repositories\PaymentRepository;
 
 final class ReconcileSuccessfulPaymentsService
 {
     /**
-     * @return array{checked:int,reconciled:int,jobs_created:int,skipped:int,errors:int}
+     * @return array{checked:int,reconciled:int,skipped:int,errors:int}
      */
     public function run(): array
     {
         $payments = new PaymentRepository();
         $transitions = new PaymentStateTransitionService();
-        $jobs = new AIJobRepository();
 
         $summary = [
             'checked' => 0,
             'reconciled' => 0,
-            'jobs_created' => 0,
             'skipped' => 0,
             'errors' => 0,
         ];
@@ -34,7 +31,6 @@ final class ReconcileSuccessfulPaymentsService
 
             $paymentId = (int) ($payment['id'] ?? 0);
             $orderId = (int) ($payment['order_id'] ?? 0);
-            $beforeOpenJob = $jobs->findOpenByOrderAndStage($orderId, 'document_generation');
 
             try {
                 $reference = trim((string) ($payment['external_reference'] ?? ''));
@@ -59,10 +55,6 @@ final class ReconcileSuccessfulPaymentsService
                 $after = $payments->findById($paymentId);
                 if ($updated && is_array($after) && (string) ($after['status'] ?? '') === 'paid') {
                     $summary['reconciled']++;
-                    $afterOpenJob = $jobs->findOpenByOrderAndStage($orderId, 'document_generation');
-                    if ($beforeOpenJob === null && $afterOpenJob !== null) {
-                        $summary['jobs_created']++;
-                    }
                     continue;
                 }
 
